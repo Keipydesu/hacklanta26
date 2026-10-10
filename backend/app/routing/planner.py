@@ -8,7 +8,7 @@ import math
 from shapely.affinity import scale
 from shapely.geometry import LineString, Point
 
-from .valhalla import NoPath, Unavailable
+from .valhalla import NoPath, Rejected, Unavailable
 
 EXCLUDE_SCORE = 0.4
 MAX_EXCLUSIONS = 20
@@ -31,10 +31,11 @@ def trip_bounds(points, margin=SEARCH_MARGIN_DEG):
 def covers(outer, inner):
     return outer[0] <= inner[0] and outer[1] <= inner[1] and outer[2] >= inner[2] and outer[3] >= inner[3]
 
-def select_exclusions(hazards, origin, destination):
-    """Rings of at most 20 eligible hazards nearest the trip, never ones that touch an endpoint."""
+def select_exclusions(hazards, origin, destination, baseline_coordinates=None):
+    """Rings of at most 20 eligible hazards nearest the baseline route (else the straight trip line),
+    never ones that touch an endpoint."""
     endpoints = [Point(origin.lon, origin.lat), Point(destination.lon, destination.lat)]
-    line = LineString([(origin.lon, origin.lat), (destination.lon, destination.lat)])
+    line = LineString(baseline_coordinates or [(origin.lon, origin.lat), (destination.lon, destination.lat)])
     cos = math.cos(math.radians((origin.lat + destination.lat) / 2))  # longitude degrees shrink with latitude
     def distance(hazard):
         return scale(hazard.polygon, xfact=cos, yfact=1, origin=(0, 0)).distance(scale(line, xfact=cos, yfact=1, origin=(0, 0)))
@@ -63,27 +64,42 @@ def union(a, b):
 async def plan(client, origin, destination, load_hazards):
     """load_hazards(bounds) -> list[Hazard]: active, unexpired hazards intersecting bounds.
 
-    Raises Unavailable when no honest answer is possible: a routing outage, or a detour that
-    still leaves the area we loaded hazards for after one widening (never score unseen area as 0).
+    Raises NoPath/Rejected when the baseline itself is unroutable (a rider-facing problem), and
+    Unavailable when no honest answer is possible: an engine outage, or a detour that still leaves
+    the area we loaded hazards for after one widening (never score unseen area as zero).
     """
     covered = trip_bounds([(origin.lon, origin.lat), (destination.lon, destination.lat)])
     hazards = {h.id: h for h in await load_hazards(covered)}
     baseline = await client.route(origin, destination)
-    for _ in range(2):
-        exclusions = select_exclusions(list(hazards.values()), origin, destination)
+    safest, safest_available = baseline, True
+    for attempt in range(2):
+        covered = await widen(covered, baseline.coordinates, hazards, load_hazards)
+        exclusions = select_exclusions(list(hazards.values()), origin, destination, baseline.coordinates)
         safest, safest_available = baseline, True
         if exclusions:
             try:
                 safest = await client.route(origin, destination, exclusions)
-            except NoPath:
+            except (NoPath, Rejected):  # the optional route failed: keep the baseline rather than lose the trip
                 safest, safest_available = baseline, False
-        needed = trip_bounds([p for c in (baseline, safest) for p in c.coordinates], margin=0)
+        needed = trip_bounds(safest.coordinates, margin=0)
         if covers(covered, needed):
             break
+        if attempt == 1:
+            raise Unavailable('route leaves the area covered by loaded hazards')
         covered = union(covered, trip_bounds([(needed[0], needed[1]), (needed[2], needed[3])]))
         hazards.update({h.id: h for h in await load_hazards(covered)})
-    else:
-        raise Unavailable('route leaves the area covered by loaded hazards')
     everything = list(hazards.values())
-    return {'routes': [route_json('shortest', baseline, everything), route_json('safest', safest, everything)],
-            'safest_available': safest_available}
+    shortest_json = route_json('shortest', baseline, everything)
+    safest_json = route_json('safest', safest, everything)
+    if safest_json['risk_score'] > shortest_json['risk_score']:  # a detour that is riskier is not "safest"
+        safest_json, safest_available = dict(shortest_json, kind='safest'), False
+    return {'routes': [shortest_json, safest_json], 'safest_available': safest_available}
+
+async def widen(covered, coordinates, hazards, load_hazards):
+    """Make sure the baseline route itself is inside the loaded area before choosing exclusions."""
+    needed = trip_bounds(coordinates, margin=0)
+    if covers(covered, needed):
+        return covered
+    covered = union(covered, trip_bounds([(needed[0], needed[1]), (needed[2], needed[3])]))
+    hazards.update({h.id: h for h in await load_hazards(covered)})
+    return covered

@@ -25,7 +25,7 @@ import yaml
 from .db.migrate import migrate
 from .db.store import Conflict, PostgresStore
 from .routing import planner
-from .routing.valhalla import Unavailable, ValhallaClient
+from .routing.valhalla import NoPath, Rejected, Unavailable, ValhallaClient
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
                       HazardCollection, RouteRequest, RouteResponse)
 
@@ -223,18 +223,16 @@ def create_app(database_url=None):
         now = datetime.now(timezone.utc)
         if store:
             return {'type':'FeatureCollection','features':await store.list_active(bounds, now)}
-        return {'type':'FeatureCollection','features':[h for h in hazards.values()
-                if h['properties']['status'] == 'active' and h['properties']['expires_at'] > now
-                and shape(h['geometry']).intersects(box(*bounds))]}
+        return {'type':'FeatureCollection','features':memory_active(bounds, now)}
+
+    def memory_active(bounds, now):
+        area = box(*bounds)
+        return [h for h in hazards.values() if h['properties']['status'] == 'active'
+                and h['properties']['expires_at'] > now and shape(h['geometry']).intersects(area)]
 
     async def load_hazards(bounds):
         now = datetime.now(timezone.utc)
-        if store:
-            features = await store.list_active(bounds, now)
-        else:
-            area = box(*bounds)
-            features = [h for h in hazards.values() if h['properties']['status'] == 'active'
-                        and h['properties']['expires_at'] > now and shape(h['geometry']).intersects(area)]
+        features = await store.list_active(bounds, now) if store else memory_active(bounds, now)
         return [planner.hazard_from_feature(f) for f in features]
 
     @app.post('/v1/route', response_model=RouteResponse)
@@ -245,6 +243,8 @@ def create_app(database_url=None):
         try:
             # Hazards are loaded (and the DB connection released) before/between Valhalla calls.
             return await planner.plan(valhalla, body.origin, body.destination, load_hazards)
+        except (NoPath, Rejected):
+            raise HTTPException(422, 'No walkable route between those points')
         except Unavailable:
             log.exception('routing unavailable')
             raise HTTPException(503, 'Routing is temporarily unavailable; reports and the map still work')

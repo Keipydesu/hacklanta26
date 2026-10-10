@@ -20,7 +20,10 @@ class NoPath(Exception):
     """Valhalla ran and found no route (HTTP 400, error_code 442)."""
 
 class Unavailable(Exception):
-    """Outage, timeout, malformed response or a rejected request (misconfiguration)."""
+    """Outage, timeout, malformed response: nothing the rider can fix."""
+
+class Rejected(Unavailable):
+    """Valhalla answered 400 for a reason other than no-path (bad/unroutable location, limits)."""
 
 @dataclass
 class Candidate:
@@ -91,7 +94,7 @@ class ValhallaClient:
                 code = None
             if code == NO_PATH_CODE:
                 raise NoPath()
-            raise Unavailable(f'Valhalla rejected the request: {response.text[:200]}')
+            raise Rejected(f'Valhalla rejected the request ({code}): {response.text[:200]}')
         if response.status_code != 200:
             raise Unavailable(f'Valhalla returned HTTP {response.status_code}')
         try:

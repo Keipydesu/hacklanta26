@@ -13,7 +13,7 @@ from app.routing import planner
 from app.routing.planner import Hazard
 from app.routing.valhalla import NoPath, Unavailable, ValhallaClient, decode_polyline6, parse_trip
 from app.schemas import Coordinate
-from test_boundary import AUTH, PUB, fixture, fresh, validate
+from test_boundary import fresh, validate
 
 FIX = Path(__file__).parent / 'fixtures'
 def load(name):
@@ -143,8 +143,7 @@ def candidate(points):
 def test_detour_outside_initial_bounds_loads_and_scores_those_hazards():
     straight = candidate([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
     detour = candidate([(ORIGIN.lon, ORIGIN.lat), (ORIGIN.lon - 0.01, ORIGIN.lat), (DEST.lon, DEST.lat)])
-    blocker = hazard('mid', 0.9, [[ORIGIN.lon - 0.0005, ORIGIN.lat - 0.0005], [ORIGIN.lon - 0.0004, ORIGIN.lat - 0.0005],
-                                  [ORIGIN.lon - 0.0004, DEST.lat + 0.0005], [ORIGIN.lon - 0.0005, DEST.lat + 0.0005], [ORIGIN.lon - 0.0005, ORIGIN.lat - 0.0005]])
+    blocker = hazard('mid', 0.9, square((ORIGIN.lon + DEST.lon) / 2, (ORIGIN.lat + DEST.lat) / 2))   # sits on the straight route
     detour_hazard = hazard('far', 0.5, [[ORIGIN.lon - 0.0101, ORIGIN.lat - 0.001], [ORIGIN.lon - 0.0099, ORIGIN.lat - 0.001],
                                         [ORIGIN.lon - 0.0099, ORIGIN.lat + 0.001], [ORIGIN.lon - 0.0101, ORIGIN.lat + 0.001], [ORIGIN.lon - 0.0101, ORIGIN.lat - 0.001]])
     calls = []
@@ -193,3 +192,53 @@ def test_api_route_uses_manual_and_automatic_hazards_and_survives_outage(monkeyp
         assert client.post('/v1/route', json=request).status_code == 503
         assert client.post('/v1/reports', json=dict(manual, id=str(__import__('uuid').uuid4()))).status_code == 201
         assert client.get('/v1/hazards?bbox=-84.40,33.74,-84.37,33.77').status_code == 200
+
+def square(lon, lat, d=3e-5):
+    return [[lon - d, lat - d], [lon + d, lat - d], [lon + d, lat + d], [lon - d, lat + d], [lon - d, lat - d]]
+
+def test_riskier_detour_is_not_called_safest():
+    from app.routing.valhalla import Candidate
+    mid = ((ORIGIN.lon + DEST.lon) / 2, (ORIGIN.lat + DEST.lat) / 2)
+    straight = Candidate([[ORIGIN.lon, ORIGIN.lat], [DEST.lon, DEST.lat]], 400, 90)
+    detour = Candidate([[ORIGIN.lon, ORIGIN.lat], [mid[0] + 0.0004, mid[1] - 0.0003], [DEST.lon, DEST.lat]], 600, 140)
+    bend = (mid[0] + 0.0004, mid[1] - 0.0003)
+    hazards = [hazard('on-baseline', 0.45, square(*mid)),
+               hazard('d1', 0.3, square(*bend)),
+               hazard('d2', 0.3, square((ORIGIN.lon + bend[0]) / 2, (ORIGIN.lat + bend[1]) / 2))]
+    async def loader(bounds):
+        return hazards
+    result = asyncio.run(planner.plan(Scripted(straight, detour), ORIGIN, DEST, loader))
+    shortest, safest = result['routes']
+    assert shortest['risk_score'] == pytest.approx(0.45)
+    assert safest['geometry'] == shortest['geometry'] and not result['safest_available']
+
+def test_exclusions_follow_the_baseline_route_not_the_straight_line():
+    winding = [(-84.3853, 33.7531), (-84.3853, 33.7600), (-84.3880, 33.7560)]
+    near_path = hazard('on-path', 0.9, square(-84.3853, 33.7580))                    # far from the straight origin-destination line
+    near_line = hazard('near-line', 0.9, square((ORIGIN.lon + DEST.lon) / 2 + 0.0004, (ORIGIN.lat + DEST.lat) / 2))
+    many = [hazard(f'n{i}', 0.9, square(-84.3860 + i * 1e-4, 33.7545, 1e-5)) for i in range(25)]
+    rings = planner.select_exclusions(many + [near_path, near_line], ORIGIN, DEST, winding)
+    assert square(-84.3853, 33.7580) in [[list(map(float, p)) for p in r] for r in rings] or len(rings) == 20
+    assert any(abs(r[0][0] - (-84.3853)) < 1e-3 and r[0][1] > 33.757 for r in rings)  # the on-path hazard made the cut
+
+def test_unroutable_baseline_is_422_and_rejected_exclusion_degrades(monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv('VALHALLA_URL', 'http://valhalla.test')
+    request = {'origin': {'lat': ORIGIN.lat, 'lon': ORIGIN.lon}, 'destination': {'lat': DEST.lat, 'lon': DEST.lon}}
+    app = create_app('')
+    with TestClient(app) as client:
+        app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(400, json=load('no-path.json')['body'])))
+        assert client.post('/v1/route', json=request).status_code == 422
+        app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(400, json=load('bad-request.json')['body'])))
+        assert client.post('/v1/route', json=request).status_code == 422
+        # baseline works but the exclusion request is rejected (e.g. limits): keep the shortest route, safest_available=false
+        def handler(r):
+            body = json.loads(r.content)
+            if 'exclude_polygons' in body:
+                return httpx.Response(400, json=load('bad-request.json')['body'])
+            return httpx.Response(200, json=load('baseline-a.json'))
+        app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        mid = [(RING[0][0] + RING[2][0]) / 2, (RING[0][1] + RING[2][1]) / 2]
+        client.post('/v1/reports', json=dict(fresh()[0], lat=mid[1], lon=mid[0]))
+        result = client.post('/v1/route', json=request)
+        assert result.status_code == 200 and result.json()['safest_available'] is False
