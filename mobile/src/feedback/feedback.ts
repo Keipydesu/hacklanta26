@@ -7,8 +7,9 @@ export type FeedbackResponse = 'still_there' | 'gone';
 export type FeedbackBody = { id: string; response: FeedbackResponse };
 export type FeedbackStatus = 'sending' | 'accepted' | 'failed';
 export type FeedbackState = { body: FeedbackBody; status: FeedbackStatus; error?: string; retryable: boolean };
+export type FeedbackReceipt = { feedback_id: string; hazard_id: string; duplicate: boolean };
 export type FeedbackDeps = {
-  send(hazardId: string, body: FeedbackBody): Promise<unknown>;
+  send(hazardId: string, body: FeedbackBody): Promise<FeedbackReceipt>;
   uuid(): string;
   onChange(states: Readonly<Record<string, FeedbackState>>): void;
   onAccepted?(hazardId: string): void;
@@ -18,6 +19,11 @@ const KIND_NAMES: Record<string, string> = { braking: 'hard-braking spot', surfa
 export const feedbackQuestion = (kind: string) => `Is this ${KIND_NAMES[kind] ?? kind} still there?`;
 
 const isPermanent = (error: unknown) => (error as { permanent?: boolean } | null)?.permanent === true;
+/** Only a receipt for exactly this answer and hazard counts as received. */
+export const confirms = (receipt: unknown, hazardId: string, body: FeedbackBody) => {
+  const r = receipt as Partial<FeedbackReceipt> | null;
+  return !!r && r.feedback_id === body.id && r.hazard_id === hazardId && typeof r.duplicate === 'boolean';
+};
 
 export function createFeedback(deps: FeedbackDeps) {
   let states: Record<string, FeedbackState> = {};
@@ -26,7 +32,8 @@ export function createFeedback(deps: FeedbackDeps) {
   async function send(hazardId: string, body: FeedbackBody) {
     set(hazardId, { body, status: 'sending', retryable: false });
     try {
-      await deps.send(hazardId, body);
+      const receipt = await deps.send(hazardId, body);
+      if (!confirms(receipt, hazardId, body)) throw new Error('The server did not confirm this answer');
       set(hazardId, { body, status: 'accepted', retryable: false });
       deps.onAccepted?.(hazardId);
     } catch (error) {
