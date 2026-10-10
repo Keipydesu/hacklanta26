@@ -11,18 +11,21 @@
   "include": [
     "src/api/hazardRefresh.ts",
     "src/api/live.ts",
-    "src/reports/queue.ts",
-    "src/reports/submit.ts",
-    "src/location/foreground.ts",
-    "src/location/foregroundWatch.ts",
-    "src/routes/model.ts",
-    "src/map/protocol.ts",
-    "src/map/overlay.ts",
-    "src/map/html.ts",
-    "src/trip/trip.ts",
-    "src/trip/placeSearch.ts",
     "src/feedback/feedback.ts",
     "src/feedback/nearby.ts",
-    "src/feedback/selection.ts"
+    "src/feedback/selection.ts",
+    "src/location/foreground.ts",
+    "src/location/foregroundWatch.ts",
+    "src/map/html.ts",
+    "src/map/overlay.ts",
+    "src/map/protocol.ts",
+    "src/reports/categories.ts",
+    "src/reports/location.ts",
+    "src/reports/queue.ts",
+    "src/reports/reportFlow.ts",
+    "src/reports/submit.ts",
+    "src/routes/model.ts",
+    "src/trip/placeSearch.ts",
+    "src/trip/trip.ts"
   ]
 }

@@ -23,7 +23,7 @@ sensor collector → detector → hazard worker ──┘
                          own observation storage
 ```
 
-- **Track 1 ships first:** choose a location, submit a hazard, see it on the map, compare routes. No sensor collection or ride tracking is required.
+- **Track 1 ships first:** obtain current device location, submit a hazard, see it on the map, compare routes. No sensor collection or ride tracking is required.
 - **Track 2 develops independently:** record or replay sensor data, detect events, cluster them into hazards, publish those hazards through the shared API.
 - **One display contract:** the app reads manual and automatic hazards from the same endpoint and labels their origin. It does not import detection code.
 - **One integration boundary:** automatic workers use HTTP to publish; they never write directly to the product database. A sample HTTP request must demonstrate this connection before real detection exists.
@@ -203,7 +203,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 
 ## 8. Privacy and source labeling
 
-- The manual app asks for foreground location only when needed; a user can instead place a pin. Submission sends that selected point and report, not a ride trace.
+- The manual app requires a one-shot foreground device location for each new report, requested automatically when the rider opens Report ([decision 023](docs/decisions/023-report-flow-defaults.md)). Denied or unavailable location blocks new reports with retry/settings guidance; there is no manual report-pin fallback. Submission sends that point and report, not a ride trace. Saved submissions retain their original coordinates on retry. Route endpoint pins remain available independently. See [decision 021](docs/decisions/021-required-report-location.md).
 - Trip planning takes one foreground fix for the Current location origin, asking permission only when a trip is opened (decision 020). Place searches go to the product API, which forwards the query and a ~100 m-rounded ranking point to Photon; no account or device ID is sent.
 - While the app is open with location permission, the app compares the rider's position with nearby hazards on the phone to ask "Is this hazard still there?" within 40 m. It fetches hazards for the ~500 m grid block around the rider, so the server sees only that coarse block, as with map browsing. Nothing runs in the background, precise positions are never recorded or uploaded, and feedback carries no coordinates (decision 013).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
@@ -260,7 +260,7 @@ Finish with a hand-off note: what works, how to run it, what is stubbed.
 
 ## 11. Acceptance checks
 
-- **Manual product:** with automation stopped, submit a report, see it on another phone, retry without duplicates, and request routes using that hazard.
+- **Manual product:** with automation stopped, confirm denied/unavailable location blocks new reports, then obtain current location and submit a report, see it on another phone, retry without duplicates, and request routes using that hazard.
 - **API boundary:** a standalone HTTP client publishes, updates, and resolves an automatic fixture; the unchanged mobile app displays its source correctly. Invalid credentials, stale revisions, and invalid payloads are rejected.
 - **Independent automation:** recorded or simulated observations become hazards through the publication API; product outages leave publications queued, and automatic outages leave manual reporting functional.
 - **Data lifecycle:** automatic recomputation preserves manual reports; expired/resolved hazards leave the map and routing; simulated evidence remains labeled.

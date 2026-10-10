@@ -15,7 +15,7 @@ export type OverlayInput = {
   screen: 'map' | 'report' | 'route';
   hazards: readonly HazardFeature[];
   submissions: readonly PendingReport[];
-  pin: Point;
+  pin: Point | null;
   routes: { shortest: Line; lowerRisk: Line | null } | null;
   origin: Point | null;
   destination: Point | null;
@@ -41,7 +41,7 @@ export function buildOverlay(input: OverlayInput): Overlay {
     markers.push({ id: `pending-${sub.id}`, position: at(sub.body), color: MARKER_COLORS.pending,
       title: 'Pending report (not yet accepted)', description: sub.body.kind });
   }
-  if (input.screen === 'report') markers.push({ id: 'pin', position: at(input.pin), color: MARKER_COLORS.pin, title: 'Report location', draggable: true });
+  if (input.screen === 'report' && input.pin) markers.push({ id: 'pin', position: at(input.pin), color: MARKER_COLORS.pin, title: 'Current report location', draggable: false });
 
   const routes: RouteLine[] = [];
   if (input.screen === 'route') {

@@ -42,13 +42,13 @@ mobile/
     model.ts                   draft/submission types and transitions
     storage.ts                 versioned AsyncStorage queue persistence
     queue.ts                   one serialized sender and retry scheduling
-    ReportScreen.tsx           kind, pin, description and submission status
+    ReportScreen.tsx           kind (category picker), pin and submission status
   src/map/
     bounds.ts                  viewport to product bbox
     HazardMap.tsx              polygons/markers and local queued overlays
     HazardDetail.tsx           source/evidence/time/expiry
     useHazards.ts              refresh, expiry and app lifecycle
-  src/location/foreground.ts   one-shot foreground location convenience
+  src/location/foreground.ts   one-shot foreground report location
   src/routes/
     model.ts                   selected endpoints/request state
     RouteScreen.tsx            comparison and failure state
@@ -56,7 +56,7 @@ mobile/
   tests/                      queue/refresh behavior without a phone
 ```
 
-User chooses a pin → editable draft → immutable submission persisted locally → sender → product
+User obtains current device location → editable draft → immutable submission persisted locally → sender → product
 receipt → current-viewport refetch. A queued pin is a separate local overlay, never an accepted
 server hazard. Server responses and change hints update the feed; expiry hides entries locally.
 Route requests use selected origin/destination and the same product API, independently of form and
@@ -67,10 +67,22 @@ refresh the map. Do not add a global state library merely to split `App.tsx`. Ad
 foreground-location dependencies to the mobile manifest only, using the installed Expo-compatible
 versions during implementation. No detector or observation client is needed.
 
+## Required report location
+
+[Decision 021](../decisions/021-required-report-location.md) supersedes permission-free report pin placement.
+Only a device fix acquired for the current draft enables submission. A fix expires after 60 seconds;
+refreshing revokes the old fix immediately. Saving or backgrounding with no lookup in flight clears
+it; switching tabs preserves a fresh fix. Permission-dialog background events preserve the pending
+lookup. A 20-second position deadline starts after permission is granted; late results cannot
+replace a retry. Expiry publishes a refresh prompt immediately and is rechecked before saving.
+The observation timestamp is the device fix time. See [decision 022](../decisions/022-report-location-lifecycle.md).
+No map tap/drag sets a report point. Route endpoint selection remains unchanged. Queue retries
+never request location or replace the original body, including reports saved before this change.
+
 ## Report model and durable queue
 
-A draft has editable kind, point and optional description. On submit, validate selected coordinates,
-kind and 280-character plain text limit; create the UUID and observation timestamp once, then freeze
+A draft has an editable category (one of the API's four kinds; no free-text description, see issue #24); its point comes only from a current one-shot device fix. On submit, validate current coordinates
+and kind; create the UUID and observation timestamp once, then freeze
 the complete product request. State belongs to the submission, not to whatever form is now open.
 
 | State | Meaning and transition |
@@ -89,7 +101,7 @@ safe through server idempotency. Never remove pending work on a transport timeou
 
 | Proposed method | Implementation and behavior |
 |---|---|
-| `freezeSubmission(draft, now, uuid) -> Submission` | Validate and normalize optional description; capture selected point and observation time once. Return immutable body and queued metadata. |
+| `freezeSubmission(draft, now, uuid) -> Submission` | Require a current device fix; the app sends no description (the optional API field and older queued reports with one still work). Capture the device point and observation time once. Return immutable body and queued metadata. |
 | `loadQueue() -> QueueSnapshot` | Parse versioned AsyncStorage data. Recover sending entries to queued, preserve original bodies/times and surface unreadable data rather than silently discarding it. Small version migrations must retain IDs. |
 | `persistQueue(snapshot) -> Promise<void>` | Await serialized writes. Update durable metadata before scheduling dependent work; report storage errors to the form/controller. |
 | `enqueue(draft) -> Promise<SubmissionId>` | Freeze and persist before scheduling the sender. Disable duplicate submit taps during creation; one press/retry cannot mint several UUIDs. |
@@ -117,7 +129,7 @@ structured API error handling without changing public endpoint shapes. `getHazar
 | `visibleHazards(feed, now) -> Hazard[]` | Filter active and unexpired entries on render/timer and immediately on foreground return. Retain source/evidence/count fields; never infer source from kind or geometry. |
 | `connectLive(url, onChange) -> dispose` | Connect product WS/WSS matching HTTP/HTTPS, debounce change hints into a visible-bounds refetch, refetch on reconnect, retry with capped backoff and close sockets/timers on disposal. Ignore malformed hints safely. |
 | `onForeground()` | Refresh current bounds, reevaluate expiry, reconnect as needed and resume queue. If live remains unavailable, retain a documented foreground polling fallback with one timer. |
-| `locateOnce() -> Point or PermissionResult` | Request foreground location only after the user asks to use their location, or when a trip is opened to resolve the Current location origin (decision 020). Supply one initial pin/endpoint; denied/unavailable position leaves manual pin placement and address search usable. Do not start continuous updates. |
+| `locateOnce() -> Point or PermissionResult` | Request foreground location only after the user asks to use their location, or when a trip is opened to resolve the Current location origin (decision 020). New reports require the returned device point; denied/unavailable position blocks report submission with retry/Settings guidance and leaves trip address search usable. Only route endpoints retain manual pin placement. Do not start continuous updates. |
 
 Show cached/last successful feed with an offline/stale indicator on transient refresh failure.
 Live hints are not authoritative deletions: an expired hazard may have been republished before the
@@ -151,12 +163,12 @@ refresh is used. Local queued reports do not influence routing until accepted se
 ## Implementation slices and acceptance
 
 1. **A1 — Extract feature seams and durable reporting (milestone 1).** Build on stage-0 screens,
-   retain permission-free pin reporting, add queue model/storage/controller and explicit five states.
+   require current device location for new reports per decision 021, add queue model/storage/controller and explicit five states.
    Exit: kill/relaunch after queueing or an unknown send outcome, then retry with exactly the same
    ID/body and obtain one server report. Use a fake transport for development without C persistence.
 2. **A2 — Live map and location convenience (milestone 1).** Add current-bounds refresh integration,
-   reconnecting live channel, foreground lifecycle and one-shot location. Exit: deny permission,
-   submit a pin, observe on another phone, reconnect after a missed change and hide expiry. Run
+   reconnecting live channel, foreground lifecycle and one-shot location. Exit: deny permission and verify reporting is blocked,
+   enable permission and retry location, submit and observe on another phone, reconnect after a missed change and hide expiry. Run
    against C with automation stopped; preserve delayed-submit/pan regression checks.
 3. **A3 — Selectable route comparison (milestone 2).** Add endpoint state and typed route request,
    geometry/metrics/fallback/error views. Use fixtures while C develops the planner. Exit: real

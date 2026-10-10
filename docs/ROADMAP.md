@@ -57,8 +57,8 @@ Small PRs, `lane/<letter>-<name>` branches, rebase before opening — see
 
 ## Demo and cut line
 
-Release only when milestones 0–2 work together: place a report pin without location permission,
-submit over HTTPS, see it on a second phone, retry a queued report without a duplicate, and
+Release only when milestones 0–2 work together: verify denied/unavailable location blocks new reports,
+obtain current device location and submit over HTTPS, see it on a second phone, retry a queued report without a duplicate, and
 compare shortest/lower-risk routes using that hazard with automation off. Rehearse with fresh demo
 data and keep the deployed URL and launch steps in README. CI is the routine gate; this brief
 on-device rehearsal checks integration rather than repeating every test locally.

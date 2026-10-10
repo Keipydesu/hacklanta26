@@ -84,7 +84,11 @@ Use your computer's LAN address on a phone (not the phone's localhost). The phon
 must share a reachable network; use HTTPS for hosted services. The backend listens on `0.0.0.0`.
 Never put a publication key in this app or any Expo public variable.
 
-Tap Report, place/drag a pin, choose a kind and submit. No location permission is needed. Submit
+Tap Report: the app requests one foreground fix, you choose a category, and Submit appears once a category is selected (decision 023).
+Location is required: denial offers Settings and retry; unavailable location offers retry. Report
+markers cannot be placed or dragged. Refresh a fix older than 60 seconds; saving or backgrounding
+with no lookup in flight clears it. Switching tabs preserves a fresh fix. Permission dialogs have
+no deadline; after permission is granted, the position lookup times out after 20 seconds. Submit
 freezes the report (UUID, observation time, body) and saves it to AsyncStorage before any network
 call. It is then shown as queued/sending/submitted/failed and resent with the identical body after
 transient failures (bounded exponential backoff), app foregrounding and relaunch. Pending reports
@@ -97,11 +101,11 @@ Live updates: the app connects to `ws(s)://<API>/v1/live`, debounces `hazards.ch
 visible-bounds refetch, refetches on every (re)connect, and reconnects with capped backoff. While
 the socket is down (or the backend does not serve it yet) it falls back to 5 s polling. Foregrounding
 refreshes the feed, re-evaluates expiry and resumes the queue; a failed refresh keeps the last results
-labeled stale. "Use my location" requests foreground permission only when tapped and reads one fix
-(no continuous or background updates); denial leaves pin placement working.
+labeled stale. Opening Report requests foreground permission and reads one fix
+(no continuous or background updates). Denial blocks new reports; route endpoint pin placement remains available.
 
-Route comparison (slice A3): on the Route tab, tap the map to place the start (A) and destination
-(B) pins, drag them to adjust, or use "Use my location as start" (one foreground fix, optional).
+Route comparison (slice A3): choose endpoints as described under Trip search below; map points remain
+a secondary option ("Choose on map").
 "Compare routes" posts exactly those two points to `POST /v1/route` and draws the shortest route
 (grey, dashed when there is an alternative) and the lower-risk route (teal) with distance, time,
 the 0–1 risk heuristic and how many reported hazards each crosses. The contract's `safest` kind is
@@ -191,3 +195,40 @@ only a one-shot foreground location when the user taps the location action.
 Start/build automatically fetch and verify Satoshi Italic and Light Italic from Fontshare.
 A first build needs network access and Python 3; subsequent runs reuse verified local files.
 See [font setup](assets/fonts/README.md) and [dependency review](docs/FONT-DEPENDENCY-REVIEW.md).
+
+## Required report location (issue #23)
+
+Run with the live API URL above and open Report; the location request starts automatically. New reports require a
+fresh fix; existing queued reports resume without acquiring one. A successful save refreshes the
+next draft location only while Report is still open and foregrounded. Both Report and Trip grants
+activate nearby prompts immediately; browsing only checks existing permission. Route endpoint controls are
+unchanged. No API changes or dependencies were added; fixture submissions remain disabled.
+
+Verified locally after review fixes: TypeScript typecheck, 79 Node tests (including location gating, stale results,
+expiry and queue identity after restart), documentation links, whitespace checks and iOS/Android bundle exports. Native
+permission dialogs and Settings return still need physical-device verification:
+
+- Deny permission: submission stays disabled, retry/Settings are offered, and map taps cannot
+  place a report pin. Enable permission in Settings and retry successfully.
+- Disable location services or let a lookup time out: retry stays available. Late results must
+  not overwrite a newer fix. A successful report marker cannot be dragged.
+- Let a fix age beyond one minute: the marker/coordinates disappear, Submit disables and a refresh
+  prompt appears without another interaction. Switching tabs preserves a fresh fix. Backgrounding
+  with no lookup in flight clears it; permission-dialog background/inactive events must preserve
+  a pending lookup on both platforms. Leave the permission prompt open for over 20 seconds before
+  allowing it: only the subsequent position lookup has a 20-second deadline.
+- Queue offline, relaunch and revoke location permission: the saved report still retries with
+  its original UUID/body. Route start/destination pins remain draggable without permission.
+
+The hosted two-phone gate and native interaction checks remain pending; Node tests do not verify
+OS permission prompts or native map gestures. CI remains the native bundle export gate.
+
+PR #31 review fixes: controller-owned expiry/deadline timers, native-fix observation timestamps,
+permission-dialog lifecycle handling, and fixture-mode location gating have deterministic regression
+tests. The MapLibre report marker is read-only and absent without a fresh fix. Route pins retain
+their existing behavior. No dependency or public API changes. Native Android/iOS permission dialogs
+and Settings return remain unverified; automated lifecycle tests do not replace device checks.
+
+## Report categories
+
+The Report screen has no free-text field. Riders pick one of four categories (pothole or rough surface, obstruction, closed path or road, other), which map one-to-one to the API's `kind` values in `src/reports/categories.ts`; "Other" needs no explanation. The API's optional `description` is unchanged, so reports queued by earlier versions still send. Adding a category beyond these four needs a coordinated contract change.

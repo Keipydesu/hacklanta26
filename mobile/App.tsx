@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, Keyboard, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
+import { AppState, Keyboard, Linking, SafeAreaView, ScrollView, View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
 import { SilverTexture } from './src/ui/SilverTexture';
 import { Icon } from './src/ui/Icon';
@@ -11,10 +11,13 @@ import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
-import { locateOnce } from './src/location/foreground';
+import { locateOnce, locatePosition, requestForegroundPermission } from './src/location/foreground';
 import { createForegroundWatch } from './src/location/foregroundWatch';
+import { createReportLocation, ReportLocationState } from './src/reports/location';
+import { CATEGORIES, categoryLabel, hazardTitle } from './src/reports/categories';
+import { canSubmit, locationAction, shouldLocateOnEnter, showSubmit } from './src/reports/reportFlow';
 import { createSubmitGuard } from './src/reports/submit';
-import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
+import { createReportQueue, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, searchPlaces, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createFeedback, FeedbackState } from './src/feedback/feedback';
@@ -31,8 +34,6 @@ const CENTER: LngLat = [-84.3853, 33.7531];
 const INITIAL_ZOOM = 14.5;
 // Same area the old initial region covered; replaced by the map's real bounds once it settles.
 const INITIAL_BOUNDS = boundsAround(CENTER, 0.012, 0.012);
-const center = { latitude: CENTER[1], longitude: CENTER[0] };
-const toLatLng = ([longitude, latitude]: LngLat) => ({ latitude, longitude });
 export default function App() {
   return <ThemeProvider><CampusApp /></ThemeProvider>;
 }
@@ -47,7 +48,12 @@ function CampusApp() {
   const [pageHeight, setPageHeight] = useState(0);
   const [safeFrame, setSafeFrame] = useState({ y: 0, height: 0 });
   const bottomInset = Math.max(0, pageHeight - safeFrame.y - safeFrame.height);
-  function openScreen(next: 'map' | 'report' | 'route') { setScreen(next); setExpanded(false); if (next !== 'route') { setPicking(null); setEditing(null); } }
+  function openScreen(next: 'map' | 'report' | 'route') {
+    screenRef.current = next;
+    setScreen(next); setExpanded(false);
+    if (next !== 'route') { setPicking(null); setEditing(null); }
+    if (next === 'report' && shouldLocateOnEnter(reportLocationRef.current.status)) void reportLocator.request();
+  }
   const mapTheme = colorScheme;
   const ROUTE_COLORS = { ...routeColors(theme), shortest: mapTheme === 'dark' ? palette.silver : palette.charcoal };
   // One object per settled viewport (moveend): the hazard refresh compares it by identity.
@@ -57,7 +63,24 @@ function CampusApp() {
     currentRegion.current = next;
     setRegion(next);
   }
-  const [pin, setPin] = useState({ latitude: center.latitude, longitude: center.longitude });
+  const [reportLocation, setReportLocation] = useState<ReportLocationState>({ status: 'idle' });
+  const reportLocationRef = useRef<ReportLocationState>({ status: 'idle' });
+  const [reportLocator] = useState(() => createReportLocation({
+    requestPermission: () => requestForegroundPermission(Location, () => setPermissionRevision(value => value + 1)),
+    locate: () => locatePosition(Location, Location.Accuracy.Balanced),
+    enabled: !fixtureMode,
+    setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>),
+    now: Date.now, onChange: next => { reportLocationRef.current = next; setReportLocation(next); },
+  }));
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      reportLocator.onAppState(state);
+      if (state === 'active' && screenRef.current === 'report' && shouldLocateOnEnter(reportLocationRef.current.status)) void reportLocator.request();
+    });
+    return () => { sub.remove(); reportLocator.clear(); };
+  }, []);
   const [hazards, setHazards] = useState<HazardCollection['features']>([]);
   const [permissionRevision, setPermissionRevision] = useState(0);
   const locateForAction = () => locateOnce(Location, Location.Accuracy.Balanced,
@@ -82,8 +105,7 @@ function CampusApp() {
   function editEndpoint(which: Which | null) { setEditing(which); setPicking(null); placeSearch.reset(); }
   function planTrip() { openScreen('route'); editEndpoint(trip.state().destination.kind === 'none' ? 'destination' : null); void trip.start(); }
   const [server, setServer] = useState<Health>();
-  const [kind, setKind] = useState<Report['kind']>('pothole');
-  const [description, setDescription] = useState('');
+  const [kind, setKind] = useState<Report['kind'] | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [error, setError] = useState('');
   const [hazardError, setHazardError] = useState('');
@@ -156,11 +178,6 @@ function CampusApp() {
   }, [submissions]);
   const [submitting, setSubmitting] = useState(false);
   const [guardSubmit] = useState(createSubmitGuard);
-  async function useMyLocation() {
-    const result = await locateForAction();
-    if (result.ok) { setPin({ latitude: result.lat, longitude: result.lon }); setError(''); }
-    else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the pin instead.' : 'Could not get your location. Tap the map to place the pin instead.');
-  }
   useEffect(() => {
     if (routeState.status === 'idle' && canRequest(routeState)) void comparison.request();
   }, [routeState.origin, routeState.destination, routeState.status]);
@@ -169,8 +186,12 @@ function CampusApp() {
     return guardSubmit(async () => {
       setSubmitting(true); setError('');
       try {
-        await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude, description }, Date.now(), Crypto.randomUUID()));
-        setDescription('');
+        if (fixtureMode || kind === null) return;
+        await queue.enqueue(reportLocator.freeze({ kind }, Crypto.randomUUID()));
+        reportLocator.clear();
+        setKind(null);
+        // Persistence may finish after navigation or backgrounding; read the live context.
+        if (screenRef.current === 'report' && AppState.currentState === 'active') void reportLocator.request();
         void queue.drain();
       } catch (e) { setError(`Report was not saved: ${String(e)}`); }
       finally { setSubmitting(false); }
@@ -178,7 +199,7 @@ function CampusApp() {
   }
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   const overlay = buildOverlay({
-    screen, hazards: visible, submissions, pin: { lat: pin.latitude, lon: pin.longitude },
+    screen, hazards: visible, submissions, pin: reportLocation.status === 'ready' && reportLocator.ready() ? reportLocation : null,
     routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors: ROUTE_COLORS,
     selectedHazardId: selected?.id,
   });
@@ -211,12 +232,10 @@ function CampusApp() {
     if (hazard) void selection.select(hazard);
   }
   function onMapPress(position: LngLat) {
-    if (screen === 'report') setPin(toLatLng(position));
-    else if (screen === 'route' && picking) { trip.pick(picking, { lat: position[1], lon: position[0] }); setPicking(null); }
+    if (screen === 'route' && picking) { trip.pick(picking, { lat: position[1], lon: position[0] }); setPicking(null); }
   }
   function onMarkerDrag(id: string, position: LngLat) {
-    if (id === 'pin') setPin(toLatLng(position));
-    else if (id === 'origin' || id === 'destination') trip.pick(id, { lat: position[1], lon: position[0] });
+    if (id === 'origin' || id === 'destination') trip.pick(id, { lat: position[1], lon: position[0] });
   }
   const latestSubmission = submissions[submissions.length - 1];
   const pendingCount = submissions.filter(sub => sub.state !== 'submitted').length;
@@ -256,35 +275,39 @@ function CampusApp() {
           {visible.length === 0 && <Text style={styles.caption}>No reports here. Unreported hazards may still exist.</Text>}
           {visible.map(h => <View key={h.properties.id} style={styles.card}>
             <Text style={styles.source}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
-            <Text style={styles.heading}>{h.properties.label}</Text>
+            <Text style={styles.heading}>{hazardTitle(h.properties)}</Text>
             <Text style={styles.caption}>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
           </View>)}
           <Button title="Refresh reports" onPress={() => void refresh()} />
         </>}
       </>}
       {screen === 'report' && <>
-        <Text style={styles.caption}>Tap to place · drag to adjust</Text>
-        {expanded && <Button icon="locate" title="Use my location" onPress={() => void useMyLocation()} />}
-        <View style={styles.categories}>{(['pothole','obstruction','closure','other'] as const).map(k => <Pressable key={k}
-          accessibilityRole="button" accessibilityLabel={k} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
+        {reportLocation.status === 'locating' && <Text accessibilityRole="alert" style={styles.caption}>Getting your current location…</Text>}
+        {reportLocation.status === 'denied' && <Text accessibilityRole="alert" style={styles.error}>Location permission is required to report a hazard. Enable it in Settings, then retry.</Text>}
+        {reportLocation.status === 'unavailable' && <Text accessibilityRole="alert" style={styles.error}>Current location is unavailable. Check location services and retry; location is required to submit.</Text>}
+        {reportLocation.status === 'expired' && <Text accessibilityRole="alert" style={styles.error}>Your location has expired. Refresh it before submitting.</Text>}
+        {locationAction(reportLocation.status, fixtureMode) && <Button icon="locate" title={locationAction(reportLocation.status, fixtureMode)!}
+          disabled={fixtureMode || submitting} onPress={() => void reportLocator.request()} />}
+        {reportLocation.status === 'denied' && <Button title="Open location settings" onPress={() => void Linking.openSettings().catch(() => setError('Open device Settings to enable location permission.'))} />}
+        <View style={styles.categories} accessibilityRole="radiogroup" accessibilityLabel="Hazard category">{CATEGORIES.map(({ kind: k, label, hint }) => <Pressable key={k}
+          accessibilityRole="radio" accessibilityLabel={`${label}. ${hint}`} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
           style={[styles.category, k === kind && styles.categorySelected]}>
           {k !== kind && <SilverTexture />}
-          <Icon name={k} color={k === kind ? theme.inverse : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{k[0].toUpperCase() + k.slice(1)}</Text>
+          <Icon name={k} color={k === kind ? theme.inverse : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{label}</Text>
         </Pressable>)}</View>
-        {expanded && <TextInput accessibilityLabel="Optional report description" style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholderTextColor={theme.muted} placeholder="Description (optional)" />}
 
-        <Button primary title={submitting ? 'Saving report…' : 'Submit report'} disabled={fixtureMode || submitting} onPress={() => void send()} />
+        {showSubmit(kind) && <Button primary title={submitting ? 'Saving…' : 'Submit'}
+          disabled={!canSubmit({ kind, locationReady: reportLocator.ready(), fixtureMode, submitting })} onPress={() => void send()} />}
         {!expanded && latestSubmission && <Text accessibilityLiveRegion="polite" style={latestSubmission.state === 'failed' ? styles.error : styles.caption}>
           {latestSubmission.state === 'submitted' ? 'Report submitted' : latestSubmission.state === 'sending' ? 'Sending report…' : latestSubmission.state === 'queued' ? 'Queued · not yet accepted' : 'Report failed · expand for details and retry'}
         </Text>}
         {expanded && submissions.map(sub => <View key={sub.id} style={styles.card}>
-          <Text style={styles.heading}>{sub.body.kind} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
+          <Text style={styles.heading}>{categoryLabel(sub.body.kind)} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
           <Text style={styles.caption}>Observed {new Date(sub.body.observed_at).toLocaleString()}{sub.attempts ? ` · attempts ${sub.attempts}` : ''}</Text>
           {!!sub.error && <Text style={styles.error}>{sub.error}{sub.retryable ? '' : '\nThe server rejected this report; dismiss it and submit a corrected one.'}</Text>}
           {sub.state === 'failed' && sub.retryable && <Button title="Retry original report" onPress={() => void queue.retry(sub.id)} />}
           {(sub.state === 'submitted' || (sub.state === 'failed' && !sub.retryable)) && <Button title="Dismiss" onPress={() => void queue.dismiss(sub.id)} />}
         </View>)}
-        {fixtureMode && <Text style={styles.caption}>Demo · submitting is unavailable</Text>}
       </>}
       {screen === 'route' && <RouteScreen colors={ROUTE_COLORS} expanded={expanded} state={routeState} offlinePreview={fixtureMode}
         fields={<TripFields trip={tripState} editing={editing} picking={picking} search={searchState}
