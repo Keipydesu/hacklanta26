@@ -32,7 +32,7 @@ automatic/service/
     cluster.py                  metric DBSCAN and buffered hulls
     scoring.py                  frozen-time decay
     identity.py                 deterministic match/split/merge lifecycle
-    abandonment.py              deferred daily traffic analysis
+    abandonment.py              daily traffic analysis (implemented; see decision 007)
   app/publisher.py               existing HTTP adapter, shared async client
   app/outbox.py                  claim, send, acknowledge, retry/conflict state
   migrations/                   private DB schema evolution
@@ -146,16 +146,16 @@ worker is down. Tests must exercise both directions independently.
 
 ## Abandonment extension after brake/bump integration
 
-This is deferred beyond the manual release and basic automatic bridge. Agree H3 resolution and UTC
+Implemented after the brake/bump bridge (`app/abandonment.py`); H3 resolution and window boundaries are internal tuning. Agree H3 resolution and UTC
 window boundaries with F before fixtures are generated; neither is a new public HTTP field.
 
-`aggregate_traffic(points, now)` counts distinct ride IDs per cell/day, with days 3–14 ago forming
+`aggregate_traffic(points, now)` counts distinct ride IDs per cell/day, with rolling 24 h days 2–13 forming
 the daily-mean baseline and last 48h forming recent daily mean. Include zero-traffic days in the
 baseline denominator. Require baseline >=5 rides/day, recent <30% of baseline, and a neighbor within
 2 rings with recent >130% of its own baseline. Handle no-history/zero-baseline neighbors explicitly
 rather than dividing by zero or declaring evidence from missing data.
 
-`find_abandoned_cells(stats)` returns flagged cells; `group_cells(cells)` joins touching candidates.
+`find_abandoned_cells(days)` returns flagged cells, per-cell rates and, for each flagged cell, the neighbor cells whose gain qualified it (their traffic sources count toward the hazard's `evidence_source`); `group_cells(cells)` joins touching candidates.
 Build valid longitude-first geometry from H3 boundaries, respecting the library's coordinate order.
 Merged outlines may be multipart or touch only at a point: the product schema accepts Polygon,
 not MultiPolygon. Split into valid connected Polygon publications with stable identities, or propose

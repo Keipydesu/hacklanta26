@@ -5,6 +5,7 @@ import random
 import httpx
 
 from .publisher import send
+from .worker import LOCK_KEY
 
 LEASE = timedelta(seconds=60)
 BACKOFF_CAP_S = 300
@@ -96,12 +97,31 @@ async def rebase(pool, external_id, first_revision):
     Renumbers this hazard's undelivered outbox rows (blocked first, in order) to start at first_revision,
     which the operator must set above the product's latest revision, then re-queues them. Delivered rows
     and their history are untouched. Returns the number of rows renumbered.
+
+    Runs under the evaluator's advisory lock (waiting for a running evaluation to finish and keeping a new
+    one from enqueuing revision N+1 mid-recovery) and refuses while a delivery of this hazard is in flight,
+    because that sender would later acknowledge a revision number that no longer exists.
     """
+    async with pool.connection() as lock:
+        await lock.set_autocommit(True)
+        await lock.execute('SELECT pg_advisory_lock(%s)', (LOCK_KEY,))
+        try:
+            return await _rebase_locked(pool, external_id, first_revision)
+        finally:
+            await lock.execute('SELECT pg_advisory_unlock(%s)', (LOCK_KEY,))
+            await lock.set_autocommit(False)
+
+async def _rebase_locked(pool, external_id, first_revision):
     async with pool.connection() as conn, conn.transaction():
         rows = await (await conn.execute(
-            "SELECT revision FROM outbox WHERE external_id = %s AND state <> 'delivered' ORDER BY revision", (external_id,))).fetchall()
+            "SELECT revision, state, lease_until FROM outbox WHERE external_id = %s AND state <> 'delivered' "
+            "ORDER BY revision FOR UPDATE", (external_id,))).fetchall()
         if not rows:
             return 0
+        busy = await (await conn.execute(
+            "SELECT 1 FROM outbox WHERE external_id = %s AND state = 'sending' AND lease_until >= now()", (external_id,))).fetchone()
+        if busy:
+            raise RuntimeError('a delivery of this hazard is in flight; stop the worker or retry after its lease expires')
         delivered = await (await conn.execute(
             "SELECT coalesce(max(revision), 0) AS top FROM outbox WHERE external_id = %s AND state = 'delivered'", (external_id,))).fetchone()
         if first_revision <= delivered['top']:

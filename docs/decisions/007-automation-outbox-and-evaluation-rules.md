@@ -15,7 +15,7 @@ the periodic tick only. One invalid candidate is skipped, never fatal for the pa
 
 ## Why
 
-Code review of PR #13 found: republishing abandoned hazards every minute; a snapshot taken before the
+A second review of #8 added: abandonment `evidence_source` now includes the qualifying neighbor cells' traffic (device baseline beside simulated diversion is `mixed`); `rebase` takes the evaluator's advisory lock and refuses during an in-flight delivery; the D4 probe only accepts a hazard on its own events' location that is new or changed. Code review of PR #13 found: republishing abandoned hazards every minute; a snapshot taken before the
 lock; evaluation failures stalling delivery; unhandled receipt shapes stranding claims; and a 409 that
 `release` alone could never resolve. Ingest still serializes on one `worker_state` row: a sequence would
 not be transactional and could mark uncommitted work as evaluated, so the hotspot is accepted for the MVP.

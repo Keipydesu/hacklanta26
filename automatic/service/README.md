@@ -22,9 +22,9 @@ Resolution and window boundaries are internal tuning to agree with Lane F's clos
 
 **Operator**: `AUTOMATION_DATABASE_URL=... uv run --project automatic/service python -m app.cli status|blocked|release <id>`
 (run from `automatic/service`). `rebase` is for a 409 where the product holds a higher revision than ours (e.g. restored backup): it renumbers the
-undelivered rows above the revision the operator supplies and re-queues them. **Acceptance probe** (live processes, HTTP only):
+undelivered rows above the revision the operator supplies and re-queues them. It takes the evaluator's advisory lock (waiting for a running evaluation) and refuses while a delivery of that hazard is in flight, so it is safe to run while the service is up. **Acceptance probe** (live processes, HTTP only):
 `PRODUCT_API_URL=... OBSERVATION_API_URL=... python3 automatic/tests/acceptance_probe.py` posts a manual report and
-simulated brakes, waits for the automatic hazard, and checks the manual hazard is unchanged.
+simulated brakes at a fresh location, then waits for an automatic hazard attributable to this run (on that location, and new or changed since the pre-ingest feed; an old matching hazard never passes), and checks the manual hazard is unchanged.
 
 Run exactly one process. Tunables live at the top of `app/worker.py` (`MIN_SCORE`, `SCORE_DELTA`,
 `REFRESH_MARGIN`, `MATCH_DISTANCE_M`). The product API can be completely stopped (observations keep

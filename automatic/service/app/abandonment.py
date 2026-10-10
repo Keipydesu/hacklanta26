@@ -39,8 +39,9 @@ def rates(days_for_cell):
     return baseline, recent
 
 def find_abandoned_cells(days):
+    """Returns (flagged cells, per-cell rates, {flagged cell: neighbor cells whose traffic gain qualified it})."""
     stats = {cell: rates(d) for cell, d in days.items()}
-    flagged = set()
+    flagged, gainers = set(), defaultdict(set)
     for cell, (baseline, recent) in stats.items():
         if baseline < MIN_BASELINE_RATE or recent >= RECENT_FRACTION * baseline:
             continue
@@ -50,8 +51,8 @@ def find_abandoned_cells(days):
             n_base, n_recent = stats[neighbor]
             if n_base > 0 and n_recent > NEIGHBOR_GAIN * n_base:
                 flagged.add(cell)
-                break
-    return flagged, stats
+                gainers[cell].add(neighbor)   # this traffic is part of the evidence, so its provenance counts
+    return flagged, stats, gainers
 
 def group_cells(cells):
     """Connected components over shared edges (grid_disk(1)); each becomes one Polygon candidate."""
@@ -75,10 +76,12 @@ def polygons(group):
     return [{'type': 'Polygon', 'coordinates': [[list(p) for p in ring] for ring in part]} for part in parts]
 
 def candidates(days, sources, now):
-    flagged, stats = find_abandoned_cells(days)
+    flagged, stats, gainers = find_abandoned_cells(days)
     found = []
     for group in sorted(group_cells(flagged), key=lambda g: min(g)):
-        origin = evidence_source(s for cell in group for s in sources[cell])
+        # The abandoned cells' own traffic and the neighbors whose increase qualified the hazard.
+        contributing = group | set().union(*(gainers[cell] for cell in group))
+        origin = evidence_source(s for cell in contributing for s in sources[cell])
         rides = set().union(*(r for cell in group for k, r in days[cell].items() if k in BASELINE_DAYS))
         for geometry in polygons(group):
             found.append({'kind': 'abandoned', 'geometry': geometry, 'score': SCORE, 'event_count': 0,

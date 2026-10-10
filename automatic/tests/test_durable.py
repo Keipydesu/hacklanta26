@@ -445,3 +445,45 @@ def test_evaluator_holds_session_lock_before_its_snapshot():
             await holder.set_autocommit(False)
         return blocked, await worker.evaluate(pool, NOW)
     assert with_pool(scenario) == (None, 1)
+
+
+def test_abandonment_provenance_includes_the_qualifying_neighbors_traffic():
+    rows = traffic(BUSY, 6, range(2, 14)) + traffic(NEIGHBOR, 5, range(2, 14), source='simulated') + traffic(NEIGHBOR, 9, range(0, 2), source='simulated')
+    post_points(rows)
+    assert evaluate() == 1
+    assert sql("SELECT body->>'evidence_source' FROM outbox") == [('mixed',)]
+
+def test_rebase_waits_for_a_running_evaluator_and_renumbers_the_row_it_enqueues():
+    first = cluster()
+    seed(first)
+    evaluate()
+    assert deliver(Product(409))['blocked'] == 1
+    external_id = sql('SELECT external_id FROM outbox LIMIT 1')[0][0]
+    async def scenario(pool):
+        async with pool.connection() as evaluator:
+            await evaluator.set_autocommit(True)
+            await evaluator.execute('SELECT pg_advisory_lock(%s)', (worker.LOCK_KEY,))   # an evaluation is running
+            recovery = asyncio.create_task(outbox.rebase(pool, str(external_id), 8))
+            await asyncio.sleep(0.3)
+            assert not recovery.done()                                                    # recovery must wait for it
+            body = sql("SELECT public_body FROM derived_hazards")[0][0]
+            await worker.enqueue(evaluator, str(external_id), dict(body, revision=2, event_count=body['event_count'] + 1), body['geometry'], NOW)
+            await evaluator.execute('SELECT pg_advisory_unlock(%s)', (worker.LOCK_KEY,))
+            await evaluator.set_autocommit(False)
+        return await recovery
+    assert with_pool(scenario) == 2
+    assert states() == [(8, 'pending', 1), (9, 'pending', 0)]
+    assert sql("SELECT (body->>'revision')::int FROM outbox ORDER BY revision") == [(8,), (9,)]
+    assert sql("SELECT revision, (public_body->>'revision')::int FROM derived_hazards") == [(9, 9)]
+    assert sql("SELECT (body->>'event_count')::int FROM outbox ORDER BY revision")[1][0] == sql("SELECT (public_body->>'event_count')::int FROM derived_hazards")[0][0]
+
+def test_rebase_refuses_while_a_delivery_of_the_hazard_is_in_flight():
+    seed(cluster())
+    evaluate()
+    external_id = str(sql('SELECT external_id FROM outbox LIMIT 1')[0][0])
+    async def scenario(pool):
+        assert len(await outbox.claim_due(pool, NOW)) == 1                                # claimed: state sending, lease in the future
+        with pytest.raises(RuntimeError, match='in flight'):
+            await outbox.rebase(pool, external_id, 8)
+    with_pool(scenario)
+    assert sql('SELECT revision, state FROM outbox') == [(1, 'sending')]
