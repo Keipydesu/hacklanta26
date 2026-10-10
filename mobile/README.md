@@ -74,8 +74,8 @@ reports memory storage. Route state lives in `src/routes/model.ts` (tested in No
 Dependencies (exact): `@react-native-async-storage/async-storage` 2.2.0 and `expo-location` 55.1.14.
 A3 adds none.
 
-Verification for A3: `npm test` passes (30 Node tests, 14 new). `npm run typecheck`, `npm run build`
-and on-device checks were **not** run for this slice (it was written without npm registry access);
-CI's mobile job is the gate. Still open: the hosted two-phone rehearsal (A4) with real routing over
-HTTPS, and confirming automatic hazards render unchanged (A5). This is a comparison, not
-turn-by-turn navigation.
+Verification for A3: `npm test` passes (30 Node tests, 14 new), and CI's mobile job passes on the
+pull request (`npm ci`, typecheck, tests, iOS and Android bundle export). No physical device has
+run this slice. Still open: the hosted two-phone rehearsal (A4) with real routing over HTTPS, and
+confirming automatic hazards render unchanged (A5). This is a comparison, not turn-by-turn
+navigation.
