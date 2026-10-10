@@ -109,7 +109,7 @@ test('hazards become polygons plus labelled markers at the first ring vertex, as
   assert.equal(overlay.routes.length, 0);
 });
 
-test('pending reports show until submitted; the draggable pin only on the report screen', () => {
+test('pending reports show until submitted; the read-only device pin only on the report screen', () => {
   const submissions = [
     { id: 'q', state: 'queued', body: { lat: 33.7, lon: -84.3, kind: 'pothole' } },
     { id: 's', state: 'submitted', body: { lat: 33.7, lon: -84.3, kind: 'closure' } },
@@ -117,7 +117,7 @@ test('pending reports show until submitted; the draggable pin only on the report
   const map = buildOverlay({ ...base, hazards: [], submissions });
   assert.deepEqual(map.markers.map(m => [m.id, m.title, m.description, m.color]), [['pending-q', 'Pending report (not yet accepted)', 'pothole', MARKER_COLORS.pending]]);
   const report = buildOverlay({ ...base, hazards: [], screen: 'report' });
-  assert.deepEqual(report.markers.map(m => [m.id, m.position, m.draggable]), [['pin', [-84.38, 33.75], true]]);
+  assert.deepEqual(report.markers.map(m => [m.id, m.position, m.draggable]), [['pin', [-84.38, 33.75], false]]);
 });
 
 test('route lines: lower-risk solid under a dashed shortest; shortest alone is solid; A/B pins draggable', () => {
@@ -407,4 +407,9 @@ test('hazard pins carry their hazard id and the selected one is highlighted', ()
     ['hazard-m1', 'm1', MARKER_COLORS.hazard],
     ['hazard-a1', 'a1', MARKER_COLORS.selected],
   ]);
+});
+
+test('no report marker is shown without a fresh device fix', () => {
+  const overlay = buildOverlay({ ...base, screen: 'report', hazards: [], pin: null });
+  assert.deepEqual(overlay.markers, []);
 });

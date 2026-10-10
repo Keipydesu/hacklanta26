@@ -63,7 +63,7 @@ EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:8000 npm start --prefix mobile
 ```
 
 Omit the API variable for offline fixture preview. Use SDK-57-compatible Expo Go or a development
-build. Reporting works with a manually placed pin and no location permission. The stub loses
+build. New reports require a current one-shot foreground location; denied/unavailable location offers retry, not manual pin placement. Route endpoint pins remain available. The stub loses
 reports on restart; offline persistence is milestone 1. The route preview is not navigation.
 
 For API + PostGIS startup, optional routing/automation profiles, HTTPS and the Vultr deployment

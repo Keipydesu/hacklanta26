@@ -25,11 +25,11 @@ C3 does not require real routes. Use G's HTTPS endpoint for the separate hosted 
 ## Phone checks (automation remains stopped)
 
 1. Record the API/app commit, API URL, phone models, OS/app versions, network and UTC start time.
-   On both phones view the same campus bounds. Deny location permission and place a report pin
-   manually on phone A. Submit once; record its receipt/hazard ID using the API feed or debugger.
+   On both phones view the same campus bounds. Deny location permission on phone A and verify new report submission is blocked with retry/Settings guidance.
+   Enable permission, retry the one-shot location request, and submit once; record its receipt/hazard ID using the API feed or debugger.
    Phone B must display the accepted manual hazard without a manual reload. Verify the manual
    source label and expiry, and confirm one hazard exists in the bbox feed.
-2. Disconnect phone A from the network, submit another report and verify it is queued locally,
+2. Disconnect phone A from the network, obtain a fresh device location, submit another report and verify it is queued locally,
    not displayed as an accepted hazard on B. Kill/relaunch A, restore connectivity and foreground
    it. Verify submission completes once and B receives one new hazard. Record the original/retried
    submission IDs and bodies from the debugger/API logs; they must match. If retries exhaust,

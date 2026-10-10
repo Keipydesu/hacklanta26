@@ -84,7 +84,11 @@ Use your computer's LAN address on a phone (not the phone's localhost). The phon
 must share a reachable network; use HTTPS for hosted services. The backend listens on `0.0.0.0`.
 Never put a publication key in this app or any Expo public variable.
 
-Tap Report, place/drag a pin, choose a kind and submit. No location permission is needed. Submit
+Tap Report, choose a kind, tap "Use my location" and submit after the foreground fix succeeds.
+Location is required: denial offers Settings and retry; unavailable location offers retry. Report
+markers cannot be placed or dragged. Refresh a fix older than 60 seconds; saving or backgrounding
+with no lookup in flight clears it. Switching tabs preserves a fresh fix. Permission dialogs have
+no deadline; after permission is granted, the position lookup times out after 20 seconds. Submit
 freezes the report (UUID, observation time, body) and saves it to AsyncStorage before any network
 call. It is then shown as queued/sending/submitted/failed and resent with the identical body after
 transient failures (bounded exponential backoff), app foregrounding and relaunch. Pending reports
@@ -98,7 +102,7 @@ visible-bounds refetch, refetches on every (re)connect, and reconnects with capp
 the socket is down (or the backend does not serve it yet) it falls back to 5 s polling. Foregrounding
 refreshes the feed, re-evaluates expiry and resumes the queue; a failed refresh keeps the last results
 labeled stale. "Use my location" requests foreground permission only when tapped and reads one fix
-(no continuous or background updates); denial leaves pin placement working.
+(no continuous or background updates). Denial blocks new reports; route endpoint pin placement remains available.
 
 Route comparison (slice A3): on the Route tab, tap the map to place the start (A) and destination
 (B) pins, drag them to adjust, or use "Use my location as start" (one foreground fix, optional).
@@ -189,3 +193,34 @@ only a one-shot foreground location when the user taps the location action.
 Start/build automatically fetch and verify Satoshi Italic and Light Italic from Fontshare.
 A first build needs network access and Python 3; subsequent runs reuse verified local files.
 See [font setup](assets/fonts/README.md) and [dependency review](docs/FONT-DEPENDENCY-REVIEW.md).
+
+## Required report location (issue #23)
+
+Run with the live API URL above, open Report, and tap "Use my location". New reports require a
+fresh fix; existing queued reports resume without acquiring one. Route endpoint controls are
+unchanged. No API changes or dependencies were added; fixture submissions remain disabled.
+
+Verified locally after review fixes: TypeScript typecheck, 79 Node tests (including location gating, stale results,
+expiry and queue identity after restart), documentation links, whitespace checks and iOS/Android bundle exports. Native
+permission dialogs and Settings return still need physical-device verification:
+
+- Deny permission: submission stays disabled, retry/Settings are offered, and map taps cannot
+  place a report pin. Enable permission in Settings and retry successfully.
+- Disable location services or let a lookup time out: retry stays available. Late results must
+  not overwrite a newer fix. A successful report marker cannot be dragged.
+- Let a fix age beyond one minute: the marker/coordinates disappear, Submit disables and a refresh
+  prompt appears without another interaction. Switching tabs preserves a fresh fix. Backgrounding
+  with no lookup in flight clears it; permission-dialog background/inactive events must preserve
+  a pending lookup on both platforms. Leave the permission prompt open for over 20 seconds before
+  allowing it: only the subsequent position lookup has a 20-second deadline.
+- Queue offline, relaunch and revoke location permission: the saved report still retries with
+  its original UUID/body. Route start/destination pins remain draggable without permission.
+
+The hosted two-phone gate and native interaction checks remain pending; Node tests do not verify
+OS permission prompts or native map gestures. CI remains the native bundle export gate.
+
+PR #31 review fixes: controller-owned expiry/deadline timers, native-fix observation timestamps,
+permission-dialog lifecycle handling, and fixture-mode location gating have deterministic regression
+tests. The MapLibre report marker is read-only and absent without a fresh fix. Route pins retain
+their existing behavior. No dependency or public API changes. Native Android/iOS permission dialogs
+and Settings return remain unverified; automated lifecycle tests do not replace device checks.
