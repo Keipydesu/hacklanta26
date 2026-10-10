@@ -1,0 +1,25 @@
+{
+  "name": "publication-lifecycle",
+  "kind": "publication",
+  "version": 1,
+  "description": "HTTP bridge before detection: publish, retry, update, stale probe and resolve one simulated hazard; a manual report must survive untouched.",
+  "prerequisites": "Product API with AUTOMATION_PUBLISH_KEY set server-side; the same key in this CLI's environment. No worker or detector involved.",
+  "hazard": {
+    "kind": "braking",
+    "lat": 33.75455,
+    "lon": -84.38665,
+    "half_size_m": 10,
+    "score": 0.72,
+    "updated_score": 0.8,
+    "event_count": 8,
+    "ride_count": 4,
+    "label": "DEMO: repeated hard braking",
+    "evidence_source": "simulated"
+  },
+  "control_report": {
+    "kind": "other",
+    "lat": 33.7526,
+    "lon": -84.3846,
+    "description": "DEMO: manual control report"
+  }
+}
