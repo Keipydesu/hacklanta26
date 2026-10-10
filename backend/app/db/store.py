@@ -8,7 +8,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 from shapely.geometry import shape
 
-from ..feedback import HazardState, apply_feedback
+from ..feedback import RECENT_NEEDED, HazardState, apply_feedback
 from ..schemas import AutomaticPublication, HazardFeedback, ManualReport
 
 class Conflict(Exception):
@@ -128,10 +128,10 @@ class PostgresStore:
                    ON CONFLICT (id) DO NOTHING RETURNING id''', (body.id, hazard_id, body.response, now))).fetchone()
             if not inserted:
                 raise Conflict()
-            responses = [row['response'] for row in await (await conn.execute(
-                'SELECT response FROM hazard_feedback WHERE hazard_id = %s ORDER BY received_at, id',
-                (hazard_id,))).fetchall()]
-            change = apply_feedback(HazardState(**hazard), responses, now)
+            recent = [row['response'] for row in await (await conn.execute(
+                'SELECT response FROM hazard_feedback WHERE hazard_id = %s ORDER BY received_at DESC, id DESC LIMIT %s',
+                (hazard_id, RECENT_NEEDED))).fetchall()]
+            change = apply_feedback(HazardState(**hazard), recent, now)
             if change:
                 await conn.execute(
                     '''UPDATE hazards SET status = %s, last_seen = %s, expires_at = %s,

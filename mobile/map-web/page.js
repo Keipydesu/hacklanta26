@@ -102,12 +102,19 @@ function startCampusMap(ml, env) {
           var p = marker.getLngLat();
           post({ type: 'drag', id: m.id, position: [p.lng, p.lat] });
         });
+        if (m.select) {
+          marker.getElement().addEventListener('click', function (event) {
+            event.stopPropagation();
+            post({ type: 'select', id: m.select });
+          });
+        }
         marker.setLngLat(m.position).addTo(map);
         markers[m.id] = marker;
       } else if (!marker.campusDragging) {
         marker.setLngLat(m.position);
       }
       marker.setDraggable(!!m.draggable);
+      if (m.select) return;
       var popup = marker.getPopup();
       if (!popup) { popup = new ml.Popup({ offset: 25, closeButton: false }); marker.setPopup(popup); }
       popup.setDOMContent(popupContent(m));

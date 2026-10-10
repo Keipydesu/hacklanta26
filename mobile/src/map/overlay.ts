@@ -9,7 +9,7 @@ type PendingReport = { id: string; state: string; body: { lat: number; lon: numb
 type Point = { lat: number; lon: number };
 type Line = { coordinates: number[][] };
 
-export const MARKER_COLORS = { hazard: '#d64532', pending: '#2b6cd4', pin: '#d64532', origin: '#2f8f3a', destination: '#7b3fb0' } as const;
+export const MARKER_COLORS = { hazard: '#d64532', selected: '#f2a900', pending: '#2b6cd4', pin: '#d64532', origin: '#2f8f3a', destination: '#7b3fb0' } as const;
 
 export type OverlayInput = {
   screen: 'map' | 'report' | 'route';
@@ -20,6 +20,7 @@ export type OverlayInput = {
   origin: Point | null;
   destination: Point | null;
   routeColors: { shortest: string; safest: string };
+  selectedHazardId?: string | null;
 };
 
 const at = (p: Point): LngLat => [p.lon, p.lat];
@@ -31,8 +32,9 @@ export const hazardTitle = (h: HazardFeature) =>
 export function buildOverlay(input: OverlayInput): Overlay {
   const markers: MapMarker[] = [];
   for (const h of input.hazards) {
-    markers.push({ id: `hazard-${h.properties.id}`, position: ring([h.geometry.coordinates[0][0]])[0], color: MARKER_COLORS.hazard,
-      title: hazardTitle(h), description: h.properties.label });
+    markers.push({ id: `hazard-${h.properties.id}`, position: ring([h.geometry.coordinates[0][0]])[0],
+      color: h.properties.id === input.selectedHazardId ? MARKER_COLORS.selected : MARKER_COLORS.hazard,
+      title: hazardTitle(h), description: h.properties.label, select: h.properties.id });
   }
   for (const sub of input.submissions) {
     if (sub.state === 'submitted') continue;

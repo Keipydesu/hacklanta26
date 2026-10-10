@@ -24,7 +24,7 @@ from shapely.ops import transform
 import yaml
 from .db.migrate import migrate
 from .db.store import Conflict, NotFound, PostgresStore, Result
-from .feedback import HazardState, apply_feedback
+from .feedback import RECENT_NEEDED, HazardState, apply_feedback
 from .routing import planner
 from .routing.valhalla import NoPath, Unavailable, ValhallaClient
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
@@ -259,8 +259,8 @@ def create_app(database_url=None):
         if not props or props['status'] != 'active' or props['expires_at'] <= now:
             raise HTTPException(404, 'Hazard is unknown, resolved or expired')
         feedback[key] = (hazard_id, body.response)
-        responses = [answer for (target, answer) in feedback.values() if target == hazard_id]
-        change = apply_feedback(HazardState(props['source'], props['status'], props['last_seen'], props['expires_at']), responses, now)
+        recent = [answer for (target, answer) in reversed(feedback.values()) if target == hazard_id][:RECENT_NEEDED]
+        change = apply_feedback(HazardState(props['source'], props['status'], props['last_seen'], props['expires_at']), recent, now)
         if change:
             props.update(status=change.status, last_seen=change.last_seen, expires_at=change.expires_at)
         return Result(hazard_id, False, 201, changed=change is not None)

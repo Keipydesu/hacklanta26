@@ -13,6 +13,7 @@ export type MapMarker = {
   title: string;
   description?: string;
   draggable?: boolean;
+  select?: string;
 };
 export type RouteLine = { id: string; coordinates: LngLat[]; color: string; width: number; dashed: boolean };
 export type Overlay = { hazards: HazardShape[]; markers: MapMarker[]; routes: RouteLine[] };
@@ -26,6 +27,7 @@ export type FromWeb =
   | { type: 'ready' }
   | { type: 'press'; position: LngLat }
   | { type: 'drag'; id: string; position: LngLat }
+  | { type: 'select'; id: string }
   | { type: 'bounds'; bounds: Bounds }
   | { type: 'basemap'; status: 'loaded' | 'unavailable'; detail?: string };
 
@@ -86,6 +88,8 @@ export function parseFromWeb(data: string): FromWeb | null {
       const bounds = normalizeBounds(b);
       return bounds ? { type: 'bounds', bounds } : null;
     }
+    case 'select':
+      return typeof message.id === 'string' && message.id.length > 0 && message.id.length <= 64 ? { type: 'select', id: message.id } : null;
     case 'basemap':
       if (message.status !== 'loaded' && message.status !== 'unavailable') return null;
       return { type: 'basemap', status: message.status, detail: typeof message.detail === 'string' ? message.detail.slice(0, 200) : undefined };

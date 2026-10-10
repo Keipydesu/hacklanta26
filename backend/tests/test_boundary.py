@@ -240,3 +240,35 @@ def test_feedback_on_automatic_hazard_never_alters_its_publication(client):
     assert after == before
     update = client.put(PUB, json=dict(automatic, revision=2, label='Updated by publisher'), headers=AUTH)
     assert update.status_code == 200 and update.json()['revision'] == 2
+
+def manual_hazard(client, manual):
+    hazard_id = client.post('/v1/reports', json=manual).json()['hazard_id']
+    return hazard_id, f'/v1/hazards/{hazard_id}/feedback'
+
+def active_props(client, hazard_id):
+    return next((f['properties'] for f in client.get(FEED).json()['features'] if f['properties']['id'] == hazard_id), None)
+
+def test_still_there_extends_a_manual_hazard_and_sends_a_live_hint(client):
+    manual, _ = fresh()
+    manual['observed_at'] = (datetime.now(timezone.utc) - timedelta(hours=20)).isoformat()
+    hazard_id, url = manual_hazard(client, manual)
+    before = active_props(client, hazard_id)['expires_at']
+    with client.websocket_connect('/v1/live') as socket:
+        assert client.post(url, json=feedback_body('still_there')).status_code == 201
+        assert socket.receive_json() == {'type': 'hazards.changed', 'data': {'hazard_id': hazard_id}}
+    after = active_props(client, hazard_id)
+    assert datetime.fromisoformat(after['expires_at']) > datetime.fromisoformat(before) + timedelta(hours=19)
+    assert after['source'] == 'manual' and after['report_count'] == 1
+
+def test_two_gone_answers_remove_a_manual_hazard_but_still_there_in_between_resets(client):
+    manual, _ = fresh()
+    hazard_id, url = manual_hazard(client, manual)
+    assert client.post(url, json=feedback_body('gone')).status_code == 201
+    assert client.post(url, json=feedback_body('still_there')).status_code == 201
+    assert client.post(url, json=feedback_body('gone')).status_code == 201
+    assert active_props(client, hazard_id) is not None, 'a still_there answer resets the gone count'
+    last = feedback_body('gone')
+    assert client.post(url, json=last).status_code == 201
+    assert active_props(client, hazard_id) is None
+    assert client.post(url, json=last).json()['duplicate'] is True, 'a lost receipt can still be retried after removal'
+    assert client.post(url, json=feedback_body('gone')).status_code == 404

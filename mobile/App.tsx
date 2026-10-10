@@ -10,7 +10,7 @@ import { createReportQueue, freezeReport, Submission } from './src/reports/queue
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createFeedback, FeedbackState } from './src/feedback/feedback';
-import { FeedbackRow } from './src/feedback/FeedbackRow';
+import { HazardPanel, PanelHazard } from './src/feedback/HazardPanel';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
 import { DARK_ROUTE_COLORS, ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
 import { MapLibreView } from './src/map/MapLibreView';
@@ -75,6 +75,7 @@ export default function App() {
   }, [region, liveConnected]);
   // The queue persists each frozen report before any network I/O and resends the same body until resolved.
   const [feedbackStates, setFeedbackStates] = useState<Readonly<Record<string, FeedbackState>>>({});
+  const [selected, setSelected] = useState<PanelHazard | null>(null);
   const [feedback] = useState(() => createFeedback({
     send: submitFeedback, uuid: Crypto.randomUUID, onChange: setFeedbackStates, onAccepted: () => void refresh(),
   }));
@@ -136,7 +137,16 @@ export default function App() {
   const overlay = buildOverlay({
     screen, hazards: visible, submissions, pin: { lat: pin.latitude, lon: pin.longitude },
     routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors,
+    selectedHazardId: selected?.id,
   });
+  const selectedOnMap = visible.find(h => h.properties.id === selected?.id);
+  useEffect(() => {
+    if (selectedOnMap) setSelected(current => current && { ...current, ...selectedOnMap.properties });
+  }, [selectedOnMap && JSON.stringify(selectedOnMap.properties)]);
+  function onSelectHazard(id: string) {
+    const hazard = visible.find(h => h.properties.id === id);
+    if (hazard) setSelected({ ...hazard.properties });
+  }
   function onMapPress(position: LngLat) {
     if (screen === 'report') setPin(toLatLng(position));
     else if (screen === 'route') placeRouteEndpoint(toLatLng(position));
@@ -152,16 +162,18 @@ export default function App() {
     <Button title={mapTheme === 'light' ? 'Map: Positron (switch to Dark Matter)' : 'Map: Dark Matter (switch to Positron)'}
       onPress={() => setMapTheme(mapTheme === 'light' ? 'dark' : 'light')} />
     <MapLibreView style={styles.map} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
-      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} />
+      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} onSelect={onSelectHazard} />
     <ScrollView style={styles.content}>
+      {selected && <HazardPanel hazard={selected} onMap={!!selectedOnMap} state={feedbackStates[selected.id]} disabled={fixtureMode}
+        onRespond={response => void feedback.respond(selected.id, response)} onRetry={() => void feedback.retry(selected.id)}
+        onClose={() => setSelected(null)} />}
       {screen === 'map' && <>
         <Button title="Refresh hazards" onPress={() => void refresh()} />
         {visible.length === 0 && <Text>No active reports in these bounds.</Text>}
+        {visible.length > 0 && !selected && <Text>Tap a hazard pin to answer “Is it still there?”</Text>}
         {visible.map(h => <View key={h.properties.id} style={styles.card}>
           <Text style={styles.heading}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
           <Text>{h.properties.label}</Text><Text>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
-          <FeedbackRow kind={h.properties.kind} state={feedbackStates[h.properties.id]} disabled={fixtureMode}
-            onRespond={response => void feedback.respond(h.properties.id, response)} onRetry={() => void feedback.retry(h.properties.id)} />
         </View>)}
       </>}
       {screen === 'report' && <>

@@ -257,3 +257,23 @@ def test_same_feedback_uuid_racing_for_two_hazards_yields_one_201_and_one_409():
         return sorted(r.status_code for r in results)
     assert run(scenario) == [201, 409]
     assert sql('SELECT count(*) FROM hazard_feedback') == [(1,)]
+
+def test_feedback_policy_extends_and_resolves_manual_hazards_in_the_database():
+    manual, _ = fresh()
+    manual['observed_at'] = (datetime.now(timezone.utc) - timedelta(hours=20)).isoformat()
+    async def scenario(client, app):
+        hazard_id = (await client.post('/v1/reports', json=manual)).json()['hazard_id']
+        url = f'/v1/hazards/{hazard_id}/feedback'
+        answer = lambda response: {'id': str(uuid4()), 'response': response}
+        assert (await client.post(url, json=answer('still_there'))).status_code == 201
+        return hazard_id, url, answer
+    hazard_id, url, answer = run(scenario)
+    [(expires_at, status)] = sql('SELECT expires_at, status FROM hazards WHERE id = %s', hazard_id)
+    assert status == 'active' and expires_at > datetime.now(timezone.utc) + timedelta(hours=23)
+    async def remove(client, app):
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert [f['properties']['id'] for f in (await client.get(FEED)).json()['features']] == [hazard_id]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert (await client.get(FEED)).json()['features'] == []
+    run(remove)
+    assert sql('SELECT status, source, report_count FROM hazards WHERE id = %s', hazard_id) == [('resolved', 'manual', 1)]
