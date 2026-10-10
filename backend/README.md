@@ -1,4 +1,4 @@
-# Product API · Lane C1/C2 persistence
+# Product API · persistence, live updates and routing
 
 Two storage modes, chosen by `DATABASE_URL`:
 
@@ -40,13 +40,14 @@ Set `AUTOMATION_PUBLISH_KEY` in the server environment if testing publication. W
 publication is disabled (401); manual reporting still works. No `.env` file is loaded automatically
 by these commands. The interactive API docs are at `http://localhost:8000/docs`.
 
-Implemented for fixture integration: report retry/conflict, 8 m UTM-buffered polygons, bbox and
+Implemented for fixture integration: report retry/conflict, 8 m point-centered buffered polygons, bbox and
 expiry filtering, authenticated publication revisions/resolution, source separation, live change
 hints, and a fixed route response. In memory mode `/healthz` reports `storage: memory`.
 
-`POST /v1/route` ignores its coordinates and returns the illustrative GSU fixture, with an
+Without `VALHALLA_URL`, `POST /v1/route` ignores its coordinates and returns the illustrative GSU fixture, with an
 `X-Stage-0-Stub` response header. It does not evaluate hazards or call Valhalla.
-Real route planning is Lane C work in milestone 2 (C4–C5). Contracts remain frozen after the stage 0 handoff.
+The real routing implementation is selected by `VALHALLA_URL`; its live C4–C5 gates remain separate
+from fixture checks. Contracts remain frozen after the stage 0 handoff.
 
 With a dedicated local/demo instance and the same publisher key in the CLI environment:
 
@@ -67,3 +68,15 @@ See [decision 006](../docs/decisions/006-routing-errors-and-refreshed-hazard-sna
 
 Regression checks: `uv run --project backend pytest -c backend/pyproject.toml backend/tests/routing -q`.
 These replay recorded responses and lifecycle changes without a live routing engine.
+
+## C3 live manual gate
+
+Conditional database expiry batches, bounded socket sends/closes, post-commit hints and database
+readiness are implemented. The database slow-socket regression now invokes its scenario rather
+than passing without exercising it. Five focused PostGIS checks passed on 2026-10-10: restart/exact
+retry, expired queued reports, expiry/reactivation, database health and post-commit/slow-socket behavior.
+
+The physical two-phone refresh/reconnect rehearsal is **pending**, tracked in
+[issue #19](https://github.com/Keipydesu/hacklanta26/issues/19). Follow the
+[C3 rehearsal checklist](C3-rehearsal.md); a reachable LAN is sufficient for C3.
+Hosted HTTPS and real routing are additional A4/C5 gates. Automated tests do not complete the device gate.

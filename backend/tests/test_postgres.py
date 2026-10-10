@@ -207,6 +207,7 @@ def test_live_hint_arrives_after_commit_and_stalled_socket_is_dropped():
         await asyncio.wait_for(closed.wait(), 3)
         hold.set()
         await asyncio.gather(*tasks, return_exceptions=True)
+    run(scenario)
 
 def test_unstorable_text_is_422_not_500_and_unchanged_expiry_keeps_notification_state():
     manual, auto = fresh()
