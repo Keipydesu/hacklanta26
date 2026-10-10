@@ -1,0 +1,8 @@
+{
+  "name": "campus-detector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsc", "test": "npm run build && node --test test.mjs" },
+  "devDependencies": { "typescript": "~5.9.2" }
+}

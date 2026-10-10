@@ -34,33 +34,48 @@ introduces them. Keep records short and update affected plans to match.
 
 ## Current state
 
-Documentation only: no application code, dependency manifests, OpenAPI files, infrastructure, or
-runnable build/test commands exist yet. Treat every path, command, and dependency named below and
-in the architecture/lane docs as a planned deliverable, not something installed or runnable, until
-it actually exists in the tree.
+Stage 0 contracts, fixtures and independently runnable skeletons now exist. Product and
+observation APIs use nonpersistent memory; mobile/collector export native bundles; the detector is
+an explicit no-op. Real persistence, offline queues, sensors, routing and deployment remain later
+milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
 
-## Planned stack
+## Stack
 
-| Layer | Choice |
+| Layer | Stage 0 state |
 |---|---|
-| Mobile | Expo + TypeScript |
-| Backend | FastAPI |
-| Data | PostgreSQL + PostGIS |
-| Routing | Valhalla (`costing: pedestrian`, scooter-paced walking speed, heavy step penalty) |
-| Automatic collector | Separate Expo sensor/recorder app |
-| Automatic detector | Pure TypeScript signal detection (`automatic/detector/`) |
-| Automatic service | FastAPI ingestion, private observation DB, risk worker, publisher |
-| Hosting | Vultr; one PostgreSQL server for the demo, product and observation DBs separate |
-
-These are design decisions recorded in the architecture, not installed dependencies. When
-bootstrapping an assigned lane, add and verify its setup/build/test commands; do not claim that
-planned commands already work.
+| Mobile | Expo SDK 55 + TypeScript + React Native Maps; fixture/live stub screens |
+| Backend | FastAPI in-memory stub |
+| Data | PostgreSQL + PostGIS Compose container; API persistence not connected |
+| Routing | Fixed fixture; planned Valhalla pedestrian costing with scooter pace/step penalty |
+| Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
+| Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
+| Automatic service | Independent FastAPI memory ingestion + HTTP publication client; no worker/outbox |
+| Hosting | Local Compose verified; Vultr deployment remains planned |
 
 ## Commands
 
-None exist yet. When a lane adds a runnable component, document its exact setup, start, build, and
-test commands in that lane's README/plan and update this section — do not present a planned command
-as verified.
+From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
+
+- Contracts: `uv sync --project contracts --frozen`, then
+  `uv run --project contracts python contracts/scripts/validate.py`.
+- Generated types: `npm ci --prefix contracts`, then `npm run generate --prefix contracts`.
+- Product API: `uv sync --project backend --frozen`, then
+  `uv run --project backend uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000`.
+- Product tests: `uv run --project backend pytest -c backend/pyproject.toml backend/tests -q`.
+- Mobile: `npm ci --prefix mobile`; `npm start --prefix mobile`;
+  `npm run typecheck --prefix mobile`; `npm run build --prefix mobile`.
+- Observation API: `uv sync --project automatic/service --frozen`, then
+  `uv run --project automatic/service uvicorn app.main:app --app-dir automatic/service --port 8001`.
+- Observation tests:
+  `uv run --project automatic/service pytest -c automatic/service/pyproject.toml automatic/tests -q`.
+- Collector: `npm ci --prefix automatic/collector`; `npm start --prefix automatic/collector`;
+  `npm run typecheck --prefix automatic/collector`; `npm run build --prefix automatic/collector`.
+- Detector: `npm ci --prefix automatic/detector`; `npm test --prefix automatic/detector`.
+- Documentation: `python3 scripts/check_docs.py`; `git diff --check`.
+- Compose setup/start/stop: [infra README](infra/README.md).
+
+Verified commands and remaining device checks are recorded in the handoff. Native exports produce
+JavaScript/Hermes bundles, not signed binaries. Keep local checks scoped; CI is the routine gate.
 
 ## Architecture orientation
 
@@ -82,9 +97,9 @@ dependency on the automatic service. Automatic publication uses a server-side cr
 the product database or imports into the manual app. Its observation database and credentials are
 separate from the product database, even when they share a server.
 
-## Planned ownership
+## Ownership
 
-These paths describe the intended layout; they are not all present yet.
+Stage 0 created initial skeletons; ownership now follows these lanes. Some later deliverables remain planned.
 
 | Lane | Plan | Owned paths |
 | --- | --- | --- |
@@ -153,7 +168,7 @@ This is a hackathon: prioritize a functioning app over exhaustive coverage. See
 
 ## Testing
 
-No application tests exist yet. Keep local checks scoped to the behavior you changed and whatever
+Stage 0 contract and stub behavior tests exist. Keep local checks scoped to the behavior you changed and whatever
 blocks the demo path — not exhaustive edge cases; see [decision 001](docs/decisions/001-mvp-delivery-workflow.md).
 Prefer behavior tests for a lane's golden-path acceptance criteria (manual operation with automation
 absent, the core retry/conflict/expiry/source-preservation cases that are actually demo-visible).
@@ -161,9 +176,8 @@ Use recorded routing responses and fixtures so checks do not require live upstre
 
 ## Gotchas
 
-- This is a design-and-planning-phase repository. Do not assume any directory under `mobile/`,
-  `backend/`, `automatic/`, `contracts/`, `infra/`, or `simulator/` exists — check first.
-- The lane table above is the intended, not current, layout.
+- Stage 0 stubs are not production implementations. Check component READMEs before relying on behavior.
+- `simulator/`, real DB models, routing infrastructure and sensor processing are still planned.
 
 ## Working agreements
 
@@ -171,6 +185,12 @@ End each PR/handoff with what works, how to run it, and what remains stubbed. Wh
 components, update this file's Commands and Stack sections rather than leaving them stale.
 
 ### Shared work with Talking Stick
+
+Talking Stick is optional, not a prerequisite for contributing. If it is unavailable or you are
+not participating in a room, follow the normal single-agent Git/PR workflow in this file; no
+installation or `tt` commands are required. The room-specific rules below apply only when using
+Talking Stick. Lack of tooling does not authorize concurrent writes to an active shared checkout;
+coordinate with its participants or use a separate checkout.
 
 When using this repository's Talking Stick room, follow the installed `talking-stick` skill and
 load `tt instructions show --json`. Join once; use room chat for operator interaction. Agree on a
@@ -190,8 +210,7 @@ edits require renewed final review. Stay joined on standby when only operator in
 
 For documentation-only changes, review the diff, verify relative links point to existing files,
 check consistency with the architecture and lane plans, and run `git diff --check`. For newly
-created untracked files, inspect their contents too; ordinary `git diff` does not include them. No
-application tests can be run at the current stage.
+created untracked files, inspect their contents too; ordinary `git diff` does not include them. Run the owning component checks for code changes.
 
 State which checks actually ran and their outcomes, along with anything unavailable or still
 stubbed. Keep implementation and its corresponding contracts, fixtures, and documentation

@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Campus Hazards",
+    "slug": "campus-manual",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "permissions": []
+    }
+  }
+}

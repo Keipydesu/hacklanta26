@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: product
+      POSTGRES_USER: product
+      POSTGRES_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD in infra/.env}
+    volumes:
+      - product-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U product -d product']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    ports:
+      - '8000:8000'
+    environment:
+      AUTOMATION_PUBLISH_KEY: ${AUTOMATION_PUBLISH_KEY:?Set a development-only publisher key in infra/.env}
+      DATABASE_URL: postgresql://product:${PRODUCT_DB_PASSWORD}@db:5432/product
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  product-data:

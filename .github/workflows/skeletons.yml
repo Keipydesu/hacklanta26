@@ -1,0 +1,115 @@
+name: Stage 0 skeletons
+on:
+  push:
+    paths: ['backend/**', 'automatic/**', 'mobile/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
+  pull_request:
+    paths: ['backend/**', 'automatic/**', 'mobile/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
+concurrency:
+  group: skeletons-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.paths.outputs.backend }}
+      service: ${{ steps.paths.outputs.service }}
+      mobile: ${{ steps.paths.outputs.mobile }}
+      collector: ${{ steps.paths.outputs.collector }}
+      detector: ${{ steps.paths.outputs.detector }}
+      contracts: ${{ steps.paths.outputs.contracts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: paths
+        with:
+          filters: |
+            backend: ['backend/**', 'contracts/**', '.github/workflows/skeletons.yml']
+            service: ['automatic/service/**', 'automatic/tests/**', 'contracts/**', '.github/workflows/skeletons.yml']
+            mobile: ['mobile/**', 'contracts/**', '.github/workflows/skeletons.yml']
+            collector: ['automatic/collector/**', 'contracts/**', '.github/workflows/skeletons.yml']
+            detector: ['automatic/detector/**', '.github/workflows/skeletons.yml']
+            contracts: ['contracts/**', 'mobile/src/api/schema.d.ts', 'automatic/collector/src/api/schema.d.ts', 'automatic/service/product-api.d.ts', '.github/workflows/skeletons.yml']
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {python-version: '3.13'}
+      - run: uv sync --project backend --frozen
+      - run: uv run --project backend pytest -c backend/pyproject.toml backend/tests -q
+  service:
+    needs: changes
+    if: needs.changes.outputs.service == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {python-version: '3.13'}
+      - run: uv sync --project automatic/service --frozen
+      - run: uv run --project automatic/service pytest -c automatic/service/pyproject.toml automatic/tests -q
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix mobile
+      - run: npm run typecheck --prefix mobile
+      - run: npm run build --prefix mobile
+        env: {CI: '1', EXPO_NO_TELEMETRY: '1'}
+  collector:
+    needs: changes
+    if: needs.changes.outputs.collector == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix automatic/collector
+      - run: npm run typecheck --prefix automatic/collector
+      - run: npm run build --prefix automatic/collector
+        env: {CI: '1', EXPO_NO_TELEMETRY: '1'}
+  detector:
+    needs: changes
+    if: needs.changes.outputs.detector == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix automatic/detector
+      - run: npm test --prefix automatic/detector
+  generated-types:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix contracts
+      - run: npm run generate --prefix contracts
+      - run: git diff --exit-code -- mobile/src/api/schema.d.ts automatic/collector/src/api/schema.d.ts automatic/service/product-api.d.ts
+  docs-and-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - run: python3 scripts/check_docs.py
+      - run: docker compose --env-file infra/.env.example -f infra/docker-compose.yml config --quiet
+      - name: Check changed-line whitespace
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            git diff --check "$BASE" HEAD
+          else
+            git show --format= --check HEAD
+          fi

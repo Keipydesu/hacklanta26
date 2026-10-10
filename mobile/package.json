@@ -1,0 +1,22 @@
+{
+  "name": "campus-manual",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "typecheck": "tsc --noEmit",
+    "build": "expo export --platform ios --platform android"
+  },
+  "dependencies": {
+    "expo": "~55.0.0",
+    "react": "19.2.0",
+    "react-native": "0.83.10",
+    "react-native-maps": "1.27.2",
+    "expo-crypto": "~55.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "typescript": "~5.9.2"
+  }
+}
