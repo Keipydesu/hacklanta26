@@ -2,7 +2,7 @@
 import type { LngLat } from './protocol';
 
 export type PageAssets = { main: string; shared: string; worker: string; css: string; sharedImport: string; pageScript: string };
-export type PageOptions = { styleUrl: string; darkStyleUrl: string; center: LngLat; zoom: number; styleTimeoutMs?: number };
+export type PageOptions = { styleUrl: string; darkStyleUrl: string | Record<string, unknown>; center: LngLat; zoom: number; styleTimeoutMs?: number };
 
 const LINE_SEPARATOR = new RegExp(String.fromCharCode(0x2028), 'g');
 const PARAGRAPH_SEPARATOR = new RegExp(String.fromCharCode(0x2029), 'g');

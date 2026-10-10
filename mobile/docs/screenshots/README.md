@@ -1,5 +1,9 @@
 # UI concept screenshots
 
+Latest dark basemap: [Fiord with Satoshi UI](ui-fiord-dark.png), captured on iPhone 17.
+Earlier dark-map captures below show the superseded Dark Matter style.
+
+
 Current OSM layout with unified appearance switch (verified both directions on iPhone 17):
 
 | Light UI and Positron | Dark UI and Dark Matter |

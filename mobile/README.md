@@ -50,7 +50,7 @@ ships in Expo Go. The page runs MapLibre GL JS 6.11.2, inlined from `node_module
 scripts run that step first. Nothing loads from a CDN at runtime.
 
 - **Basemap:** OpenFreeMap's OSM-derived Positron style is the default light map. The map button
-  switches to OpenFreeMap Dark, a fork of Dark Matter, without resetting the viewport or overlays.
+  switches to the bundled Fiord style on OpenFreeMap tiles, without resetting the viewport or overlays.
   The choice resets to Positron on launch. Override the light and dark styles with
   `EXPO_PUBLIC_MAP_STYLE_URL` and `EXPO_PUBLIC_MAP_DARK_STYLE_URL` (public values, never secrets).
   MapLibre shows the required OpenFreeMap/OpenMapTiles/OpenStreetMap attribution; its links open in
