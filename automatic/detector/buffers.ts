@@ -1,35 +1,6 @@
 /** Time-indexed buffers. Everything is driven by pushed timestamps; nothing reads a wall clock. */
 
 /**
- * Keeps values no older than `horizonMs` behind the newest timestamp. Timestamps must strictly
- * increase: a duplicate or older timestamp is rejected, so late data never moves time backward.
- */
-export class WindowBuffer<T> {
-  private items: { t: number; value: T }[] = [];
-  constructor(private readonly horizonMs: number) {}
-
-  push(t: number, value: T): boolean {
-    const last = this.items[this.items.length - 1];
-    if (!Number.isFinite(t) || (last && t <= last.t)) return false;
-    this.items.push({ t, value });
-    const cutoff = t - this.horizonMs;
-    let drop = 0;
-    while (drop < this.items.length && this.items[drop].t < cutoff) drop++;
-    if (drop) this.items.splice(0, drop);
-    return true;
-  }
-
-  /** Values with timestamp >= t, oldest first. */
-  valuesSince(t: number): T[] {
-    return this.items.filter((item) => item.t >= t).map((item) => item.value);
-  }
-
-  values(): T[] { return this.items.map((item) => item.value); }
-  get latestMs(): number | null { return this.items.length ? this.items[this.items.length - 1].t : null; }
-  clear(): void { this.items = []; }
-}
-
-/**
  * Time-weighted moving average over the trailing `windowMs`.
  *
  * Each sample is held back to the previous sample (capped at `maxHoldMs`), so irregular spacing

@@ -72,8 +72,12 @@ export class BrakeTracker {
   }
 
   /** A material gap in motion samples: nothing sustained can be claimed across it. */
-  onGap(): void {
-    if (this.awaitingRelease) { this.awaitingRelease = false; this.blockedUntilMs = -Infinity; }
+  onGap(lastMotionMs: number | null): void {
+    // The stop that was already reported is still the same stop: keep its refractory, armed from the gap.
+    if (this.awaitingRelease) {
+      this.awaitingRelease = false;
+      this.blockedUntilMs = (lastMotionMs ?? -Infinity) + this.config.brakeRefractoryMs;
+    }
     const c = this.candidate;
     if (c && c.endMs === null) this.endActive(c, c.lastMs);
   }
@@ -89,10 +93,11 @@ export class BrakeTracker {
     if (!c || !c.qualified) return null;
     const { speedDropWindowMs, minSpeedBeforeMps, minSpeedDropMps, brakeRefractoryMs, demoMode } = this.config;
     const windowEnd = c.startMs + speedDropWindowMs;
-    const motionPastWindow = motionMs !== null && motionMs >= windowEnd;
     const locationMs = track.latestMs;
     const locationPastWindow = locationMs !== null && locationMs >= windowEnd;
-    const settled = c.endMs !== null || motionPastWindow;
+    // Settled only once every in-window fix has been seen (location stream past the window, or the motion
+    // clock past it by the lateness allowance), so speed_after does not depend on GPS callback latency.
+    const settled = locationPastWindow || (motionMs !== null && motionMs >= windowEnd + LOCATION_LATENESS_MS);
 
     const before = track.speedAtOrBefore(c.startMs);
     const slowest = track.slowestIn(c.startMs, windowEnd);
@@ -106,13 +111,19 @@ export class BrakeTracker {
       speeds = { before: before.speed_mps, after: slowest.speed_mps };
     }
 
+    const expired = locationPastWindow || (motionMs !== null && motionMs >= windowEnd + LOCATION_LATENESS_MS);
     if (speeds && settled) {
       const fix = track.locatePeak(c.peakMs);
+      if (!fix) {
+        // Nothing to place the event on yet: keep the candidate until a fix arrives or it expires,
+        // and never arm a refractory for an event that was not emitted.
+        if (expired) this.candidate = null;
+        return null;
+      }
       const endMs = c.endMs ?? motionMs ?? c.lastMs;
       this.candidate = null;
       if (c.endMs !== null) this.blockedUntilMs = c.endMs + brakeRefractoryMs;
       else this.awaitingRelease = true;
-      if (!fix) return null;
       return {
         type: 'hard_brake', t_ms: c.peakMs, lat: fix.lat, lon: fix.lon, accuracy_m: fix.accuracy_m,
         speed_before_mps: speeds.before, speed_after_mps: speeds.after, peak_g: c.peakG,
@@ -122,7 +133,6 @@ export class BrakeTracker {
 
     // Every in-window fix has been seen once the ordered location stream passes the window; the
     // motion clock alone needs the extra lateness allowance. Unknown speed is never treated as zero.
-    const expired = locationPastWindow || (motionMs !== null && motionMs >= windowEnd + LOCATION_LATENESS_MS);
     if (!speeds && expired) this.candidate = null;
     return null;
   }

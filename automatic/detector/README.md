@@ -25,7 +25,7 @@ automatic track; `mobile/` never imports it.
 | `index.ts` | `createDetector` facade, stream ordering, gap handling, event delivery |
 | `config.ts` | defaults and `validateConfig` (invalid values throw instead of disabling detection) |
 | `signal.ts` | `projectMotion`: horizontal/vertical components in g, independent of phone orientation |
-| `buffers.ts` | time-evicted buffer and time-weighted moving average with a coverage requirement |
+| `buffers.ts` | time-weighted moving average with a coverage requirement |
 | `location.ts` | GPS quality control, speed lookups and `locatePeak` |
 | `brake.ts` | idle → candidate → pending → emitted/discarded |
 | `bump.ts` | detrended short vertical spike while moving |
@@ -66,3 +66,10 @@ covered.
 
 These are synthetic signals. No recorded scooter rides exist yet, so thresholds are untuned
 starting values and no real-ride accuracy is claimed.
+
+## Conventions fixed during review
+
+- Bump duration is measured to the first sample back under the threshold (it includes the final sample period), so with 50 Hz sampling a spike must be at most ~7 samples above threshold to stay under `bumpMaxDurationMs`.
+- A brake is emitted only after its full `speedDropWindowMs` of fixes has been seen (location stream past the window, or the motion clock past it plus a 2 s lateness allowance), so `speed_after_mps` is independent of GPS callback latency. An event that cannot yet be placed on a fix waits; it never arms the refractory unless emitted.
+- A motion gap during an already-reported stop keeps that stop's refractory. Bumps require measured speed above `bumpMinSpeedMps` on both sides of the spike.
+- Listener exceptions are isolated; pass `createDetector(config, { onListenerError })` to observe them.
