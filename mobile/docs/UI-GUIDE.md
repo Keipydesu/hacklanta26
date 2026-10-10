@@ -40,8 +40,10 @@ See [decision 014](../../docs/decisions/014-silver-cyan-mobile-palette.md).
 | `#353535` charcoal | Light-mode text; dark-mode surfaces |
 | `#3c6e71` teal/cyan | Selected controls and lower-risk route accent |
 | `#ffffff` white | Light surfaces; selected/primary and dark-mode foreground |
-| `#d9d9d9` metallic silver | Dividers, dark-mode outlines and secondary foreground |
+| `#d9d9d9` metallic silver | Light-mode dividers, metallic controls and dark-mode secondary foreground |
 | `#284b63` deep blue | Primary action and light-mode notices |
+
+Dark-mode panels and controls have no silver outlines; colored control edges match their fill.
 
 Device appearance supplies the initial mode; the header switch overrides UI and map together for this session (decision 016). Silver secondary buttons and unselected hazard categories use the operator-supplied metal
 grain at 22% opacity over silver, with charcoal labels in both appearances. Keep the map,

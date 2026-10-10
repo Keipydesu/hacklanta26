@@ -259,7 +259,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   categoryLabelSelected: { color: theme.inverse },
   content: { flexShrink: 1 }, contentInner: { paddingBottom: 8 },
   caption: { fontSize: 12, lineHeight: 18, color: theme.muted },
-  source: { color: theme.selectedEdge, fontSize: 12, fontWeight: '600' },
+  source: { color: theme.ink, fontSize: 12, fontWeight: '600' },
   card: { paddingVertical: 10, borderBottomWidth: 1, borderColor: theme.line },
   heading: { fontSize: 16, fontWeight: '600', color: theme.ink, marginVertical: 4 },
   input: { color: theme.ink, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius,

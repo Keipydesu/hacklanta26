@@ -19,8 +19,8 @@ const light = {
 export type Theme = typeof light;
 const dark: Theme = {
   ...light, ink: palette.white, muted: palette.silver, surface: palette.charcoal,
-  canvas: palette.charcoal, quiet: palette.silver, line: palette.silver,
-  selectedEdge: palette.silver, primaryEdge: palette.silver,
+  canvas: palette.charcoal, quiet: palette.silver, line: 'transparent',
+  selectedEdge: palette.cyan, primaryEdge: palette.blue,
   warning: palette.silver, danger: '#ffb4ab', routeShortest: palette.silver,
 };
 type Appearance = 'light' | 'dark';
