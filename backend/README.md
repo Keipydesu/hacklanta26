@@ -1,8 +1,27 @@
-# Product API · stage 0
+# Product API · Lane C1/C2 persistence
 
-This is a **single-process, nonpersistent in-memory stub**. Restarting loses all reports and
-publication revisions. The product database is provisioned by Compose but is not used yet.
-Do not deploy this stub as a durable service or run multiple workers.
+Two storage modes, chosen by `DATABASE_URL`:
+
+- **Set** (Compose does this): reports, hazards and publication revisions live in PostGIS and
+  survive restarts. Pending SQL migrations in `app/db/migrations/` are applied at startup under a
+  Postgres advisory lock (or manually: `DATABASE_URL=... uv run --project backend python -m app.db.migrate`).
+  `/healthz` returns `storage: postgis` and 503 if the product database is unreachable.
+- **Unset**: the stage 0 **single-process, nonpersistent in-memory stub** (`storage: memory`). Use it only
+  for fixtures and quick local runs.
+
+Run a single API process: live notifications and the expiry scan are in-process (see the Lane C plan).
+Routing is still the fixed fixture until C4–C5.
+
+DB-backed tests need a disposable PostGIS database (the test tables are dropped):
+
+```sh
+docker run -d --name pg -e POSTGRES_USER=product -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=product -p 55432:5432 postgis/postgis:16-3.4
+TEST_DATABASE_URL=postgresql://product:dev@localhost:55432/product uv run --project backend pytest -c backend/pyproject.toml backend/tests -q
+```
+
+Without `TEST_DATABASE_URL`, `tests/test_postgres.py` is skipped.
+
+## Stage 0 notes (memory mode)
 
 From the repository root, with Python 3.11+ and uv:
 
@@ -18,12 +37,11 @@ by these commands. The interactive API docs are at `http://localhost:8000/docs`.
 
 Implemented for fixture integration: report retry/conflict, 8 m UTM-buffered polygons, bbox and
 expiry filtering, authenticated publication revisions/resolution, source separation, live change
-hints, and a fixed route response. `/healthz` explicitly reports `storage: memory`.
+hints, and a fixed route response. In memory mode `/healthz` reports `storage: memory`.
 
 `POST /v1/route` ignores its coordinates and returns the illustrative GSU fixture, with an
 `X-Stage-0-Stub` response header. It does not evaluate hazards or call Valhalla.
-Database transactions, durable idempotency, real route planning and production health checks are
-Lane C work in milestones 1–2. Contracts remain frozen after the stage 0 handoff.
+Real route planning is Lane C work in milestone 2 (C4–C5). Contracts remain frozen after the stage 0 handoff.
 
 With a dedicated local/demo instance and the same publisher key in the CLI environment:
 
