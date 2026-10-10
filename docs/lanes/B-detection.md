@@ -82,7 +82,10 @@ not invent a final sample to force emission; any needed interface addition requi
 ### Brake state machine
 
 1. From idle, smoothed horizontal magnitude >=0.35g begins a candidate. Track time and peak.
-2. Stay in candidate until below 0.25g; duration must reach 300ms. A shorter candidate is discarded.
+2. Qualification requires a continuous 300ms at or above 0.35g; a dip below that threshold
+   resets the qualification timer. The 0.25g release hysteresis may retain candidate state, but
+   time between 0.25g and 0.35g cannot count toward sustained-threshold duration. Discard an
+   unqualified candidate at release or a material sample gap.
 3. A qualified candidate waits for valid speed observations through the 2s window from its start.
    Speed before is the last good fix before start; speed after is the lowest good fix within that
    window. Both must be known/accurate; require before >=3m/s and drop >=2m/s. Expire an unconfirmed
@@ -166,7 +169,8 @@ manual release. Synthetic data cannot satisfy the real-ride validation claim.
 1. **B1 — Pure detector.** Implement config/math/buffers and brake/bump state machines against
    synthetic tests before sensor integration. Exit: clean brake and curb hit emit once; acceleration,
    swerve, walking, poor GPS, missing speed and refractory cases reject correctly. Test rotation,
-   irregular sample spacing, reset and separate instance state in Node.
+   irregular sample spacing, reset and separate instance state in Node. Include a brief >=0.35g
+   pulse followed by 300ms at 0.30g: it must not qualify as sustained braking.
 2. **B2 — Collector adapter/privacy.** Wire explicit lifecycle and sensor units, then first/last 100m
    trimming with deterministic path fixtures. Exit: no outbound observation contains either endpoint
    zone, a short ride uploads nothing, and denied permission/suspension fail visibly. Verify units
