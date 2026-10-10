@@ -1,0 +1,9 @@
+{
+ "status": 400,
+ "body": {
+  "error_code": 120,
+  "error": "Insufficient number of locations provided",
+  "status_code": 400,
+  "status": "Bad Request"
+ }
+}

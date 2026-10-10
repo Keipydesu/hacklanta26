@@ -124,8 +124,12 @@ receives product hazards only. No worker, observation DB or sensor process is re
 | `classify_upstream_error(response) -> NoPath or Unavailable` | Recognize a real no-path response for the pinned upstream version. Do not treat every HTTP 400 as no-path: malformed requests/configuration failures must surface operationally. Timeouts, invalid responses and upstream outages map to product 503. |
 
 Only if the exclusion request has no path and the baseline succeeded, return that baseline under
-both kinds with `safest_available=false`. A baseline routing failure returns 503. Reporting and map
-reads continue during either case. A successful lower-risk result may share geometry with the baseline;
+both kinds with `safest_available=false`. A verified baseline no-path response returns 422. Other
+engine errors, including unknown HTTP 400 codes, malformed response bodies and nonfinite metrics,
+return 503 on either call. Reporting and map
+reads continue during either case. See [decision 006](../decisions/006-routing-errors-and-refreshed-hazard-snapshots.md),
+which supersedes decision 005's generic rejected-request fallback. A successful lower-risk result
+may share geometry with the baseline;
 do not invent an alternative or promise it avoids every hazard.
 
 The [Valhalla API reference](https://github.com/valhalla/valhalla/blob/master/docs/docs/api/route/api-reference.md)
@@ -139,9 +143,11 @@ shortest option that discards the intended penalties.
 For spatial selection, initially use a documented bounded campus trip envelope expanded around
 origin/destination; check returned geometry against it. If a candidate leaves it, load active hazards
 covering the returned line before scoring and reconsider exclusions within a bounded second pass.
-After expansion, rescore both candidates against the same merged hazard snapshot and evaluation
-time. If the second pass leaves covered bounds again, return 503 rather than assign risk from
-incomplete coverage; keep reporting and map reads available.
+After expansion, replace the full union-envelope snapshot at a fresh evaluation time, dropping
+resolved, expired or moved-out hazards absent from that query. Rescore both candidates against the
+same final snapshot and use it for the next exclusion pass. Do not retain old entries by unioning
+records across refreshes. If the second pass leaves covered bounds again, return 503 rather than
+assign risk from incomplete coverage; keep reporting and map reads available.
 Record the search bounds/limit and test a detour; never claim risk for an unseen area is zero.
 Choose the concrete envelope and timeout budgets with measured GSU routes during C4; no new API
 field or unsupported global routing promise is introduced by this plan.

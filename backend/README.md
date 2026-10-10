@@ -10,7 +10,12 @@ Two storage modes, chosen by `DATABASE_URL`:
   for fixtures and quick local runs.
 
 Run a single API process: live notifications and the expiry scan are in-process (see the Lane C plan).
-Routing is still the fixed fixture until C4–C5.
+Set `VALHALLA_URL` for real routing (pedestrian costing, hazard exclusions, risk scoring from both sources;
+503 on engine outage without affecting reports). Unset, `/v1/route` returns the fixed fixture with an
+`X-Stage-0-Stub` header. Routing tests replay responses recorded from a real Valhalla
+(`tests/routing/fixtures`); they were recorded from a local Valhalla 3.9.1 built from a campus-area OSM extract.
+To reproduce: fetch the bbox from Overpass (`-84.40,33.74,-84.37,33.77`), run `valhalla_build_config` +
+`valhalla_build_tiles` in the `ghcr.io/valhalla/valhalla` image, serve on :8002, and re-run the recorder.
 
 DB-backed tests need a disposable PostGIS database (the test tables are dropped):
 
@@ -51,3 +56,14 @@ python3 contracts/scripts/smoke_product.py
 
 This creates a demo manual report and exercises automatic publication over HTTP. It does not
 require the observation service, collector, or detector.
+
+## Routing failure and refresh semantics
+
+Only Valhalla's recorded no-path code 442 permits a no-alternative fallback; a baseline no-path
+returns 422. Other engine errors, malformed error JSON, and nonfinite route metrics return 503.
+A widened search replaces the complete hazard snapshot at the time of that query, removing
+resolved, expired, or moved-out hazards. Both candidates use the final snapshot for risk scoring.
+See [decision 006](../docs/decisions/006-routing-errors-and-refreshed-hazard-snapshots.md).
+
+Regression checks: `uv run --project backend pytest -c backend/pyproject.toml backend/tests/routing -q`.
+These replay recorded responses and lifecycle changes without a live routing engine.

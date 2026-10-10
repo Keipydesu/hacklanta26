@@ -46,7 +46,7 @@ milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md)
 | Mobile | Expo SDK 55 + TypeScript + React Native Maps; fixture/live stub screens |
 | Backend | FastAPI; PostGIS persistence via psycopg when `DATABASE_URL` is set, memory stub otherwise |
 | Data | PostgreSQL + PostGIS Compose container; product API persists reports/hazards/revisions |
-| Routing | Fixed fixture; planned Valhalla pedestrian costing with scooter pace/step penalty |
+| Routing | Valhalla pedestrian costing (scooter pace/step penalty) when `VALHALLA_URL` is set; fixed fixture otherwise |
 | Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
 | Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
 | Automatic service | Independent FastAPI memory ingestion + HTTP publication client; no worker/outbox |

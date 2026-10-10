@@ -1,6 +1,6 @@
 """Product API. DATABASE_URL selects PostGIS persistence; without it, nonpersistent stage 0 memory.
 
-Routing is still the fixed stage 0 fixture (Lane C4-C5)."""
+VALHALLA_URL enables real routing; without it /v1/route returns the fixed stage 0 fixture."""
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
@@ -24,6 +24,8 @@ from shapely.ops import transform
 import yaml
 from .db.migrate import migrate
 from .db.store import Conflict, PostgresStore
+from .routing import planner
+from .routing.valhalla import NoPath, Unavailable, ValhallaClient
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
                       HazardCollection, RouteRequest, RouteResponse)
 
@@ -55,6 +57,8 @@ def report_area(lon, lat, radius_m=8):
 def create_app(database_url=None):
     url = database_url if database_url is not None else os.getenv('DATABASE_URL')
     store = PostgresStore(url) if url else None
+    valhalla_url = os.getenv('VALHALLA_URL')
+    valhalla = ValhallaClient(valhalla_url) if valhalla_url else None
     reports, publications, hazards = {}, {}, {}
     sockets = set()
     spec = yaml.safe_load((CONTRACTS/'openapi.yaml').read_text())
@@ -116,6 +120,8 @@ def create_app(database_url=None):
                 pass
             if store:
                 await store.close()
+            if valhalla:
+                await valhalla.close()
 
     app = FastAPI(title='Campus product stub', lifespan=lifespan)
 
@@ -134,6 +140,7 @@ def create_app(database_url=None):
     app.openapi = lambda: spec
     app.state.hazards = hazards
     app.state.store = store
+    app.state.valhalla = valhalla
 
     def authenticate(credentials: HTTPAuthorizationCredentials | None = Depends(BEARER)):
         key = os.getenv('AUTOMATION_PUBLISH_KEY')
@@ -149,8 +156,8 @@ def create_app(database_url=None):
             except Exception:
                 log.exception('product database health check failed')
                 raise HTTPException(503, 'Product database unavailable')
-            return {'status':'ok','storage':'postgis','routing':'fixed-fixture','persistent':True}
-        return {'status':'ok','storage':'memory','routing':'fixed-fixture','persistent':False}
+            return {'status':'ok','storage':'postgis','routing':'valhalla' if valhalla else 'fixed-fixture','persistent':True}
+        return {'status':'ok','storage':'memory','routing':'valhalla' if valhalla else 'fixed-fixture','persistent':False}
 
     @app.post('/v1/reports', response_model=ReportReceipt, status_code=201)
     async def create_report(body: ManualReport, response: Response):
@@ -216,14 +223,33 @@ def create_app(database_url=None):
         now = datetime.now(timezone.utc)
         if store:
             return {'type':'FeatureCollection','features':await store.list_active(bounds, now)}
-        return {'type':'FeatureCollection','features':[h for h in hazards.values()
-                if h['properties']['status'] == 'active' and h['properties']['expires_at'] > now
-                and shape(h['geometry']).intersects(box(*bounds))]}
+        return {'type':'FeatureCollection','features':memory_active(bounds, now)}
+
+    def memory_active(bounds, now):
+        area = box(*bounds)
+        return [h for h in hazards.values() if h['properties']['status'] == 'active'
+                and h['properties']['expires_at'] > now and shape(h['geometry']).intersects(area)]
+
+    async def load_hazards(bounds):
+        # Each full-envelope refresh uses one evaluation time; the planner replaces
+        # the previous snapshot and scores both candidates against this complete set.
+        now = datetime.now(timezone.utc)
+        features = await store.list_active(bounds, now) if store else memory_active(bounds, now)
+        return [planner.hazard_from_feature(f) for f in features]
 
     @app.post('/v1/route', response_model=RouteResponse)
-    def plan_routes(body: RouteRequest, response: Response):
-        response.headers['X-Stage-0-Stub'] = 'fixed-route-fixture-not-navigation'
-        return route_fixture
+    async def plan_routes(body: RouteRequest, response: Response):
+        if not valhalla:
+            response.headers['X-Stage-0-Stub'] = 'fixed-route-fixture-not-navigation'
+            return route_fixture
+        try:
+            # Hazards are loaded (and the DB connection released) before/between Valhalla calls.
+            return await planner.plan(valhalla, body.origin, body.destination, load_hazards)
+        except NoPath:
+            raise HTTPException(422, 'No walkable route between those points')
+        except Unavailable:
+            log.exception('routing unavailable')
+            raise HTTPException(503, 'Routing is temporarily unavailable; reports and the map still work')
 
     @app.websocket('/v1/live')
     async def live(socket: WebSocket):
