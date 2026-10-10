@@ -1,8 +1,8 @@
-# 018. Trip address search and Current location origin
+# 020. Trip address search and Current location origin
 
 - Status: Accepted
 - Date: 2026-10-10
-- Supersedes: decision 012's exclusion of geocoding, and Lane A's pin-first trip endpoints. Map
+- Supersedes: decision 014's exclusion of geocoding, and Lane A's pin-first trip endpoints. Map
   points remain available as a secondary way to choose an endpoint.
 
 ## Decision

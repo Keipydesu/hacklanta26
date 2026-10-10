@@ -79,7 +79,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Address and place search for trip endpoints (decision 018). Results are limited to the metro-Atlanta routing area, best match first, at most five. `q` must be 3-100 characters after trimming (422 otherwise). `near` (lat,lon) only ranks results and is rounded before use. 503 when the search provider is unavailable or not configured; trips can still use map points. Routes keep using lat/lon coordinates. */
+        /** @description Address and place search for trip endpoints (decision 020). Results are limited to the metro-Atlanta routing area, best match first, at most five. `q` must be 3-100 characters after trimming (422 otherwise). `near` (lat,lon) only ranks results and is rounded before use. 503 when the search provider is unavailable or not configured; trips can still use map points. Routes keep using lat/lon coordinates. */
         get: operations["search_places"];
         put?: never;
         post?: never;

@@ -154,7 +154,7 @@ field or unsupported global routing promise is introduced by this plan.
 
 ## Place search
 
-`GET /v1/places` proxies Photon for trip endpoint search (`app/places.py`, decision 018): metro-Atlanta
+`GET /v1/places` proxies Photon for trip endpoint search (`app/places.py`, decision 020): metro-Atlanta
 bbox, rounded ranking point, 3-100 character queries, a short cache, and 503 on provider failure. It
 never touches product storage or routing, and routing keeps taking lat/lon.
 

@@ -142,7 +142,7 @@ off. Tapping a field searches addresses and places through the product API. Resu
 and address, and choosing one sets the endpoint, dismisses the keyboard and, once both ends are
 set, compares routes. Typing clears the old point, late answers are ignored, and "Choose on map"
 is the secondary option. The offline preview searches the fixture places. See `src/trip/` and
-[decision 018](../docs/decisions/018-trip-address-search-and-current-origin.md).
+[decision 020](../docs/decisions/020-trip-address-search-and-current-origin.md).
 
 ## SDK 57 upgrade (2026-10-10)
 

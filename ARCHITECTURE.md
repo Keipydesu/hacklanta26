@@ -91,7 +91,7 @@ JSON over HTTPS. Version prefix `/v1`. Coordinates are WGS84: objects use `lat`/
 | POST | `/v1/reports` | Create a user-submitted report and its map hazard |
 | PUT | `/v1/automatic/hazards/{external_id}` | Publish or update an automatically derived hazard |
 | GET | `/v1/hazards?bbox=` | Active, unexpired manual and automatic hazards as one GeoJSON FeatureCollection |
-| GET | `/v1/places?q=&near=` | Address/place search for trip endpoints, proxied to Photon within the routing area ([decision 018](docs/decisions/018-trip-address-search-and-current-origin.md)) |
+| GET | `/v1/places?q=&near=` | Address/place search for trip endpoints, proxied to Photon within the routing area ([decision 020](docs/decisions/020-trip-address-search-and-current-origin.md)) |
 | POST | `/v1/route` | Shortest and lower-risk routes using the same combined feed |
 | WS | `/v1/live` | Notify phones that hazards changed |
 | GET | `/healthz` | Product API/database health, independent of automation |
@@ -202,7 +202,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 ## 8. Privacy and source labeling
 
 - The manual app asks for foreground location only when needed; a user can instead place a pin. Submission sends that selected point and report, not a ride trace.
-- Trip planning takes one foreground fix for the Current location origin, asking permission only when a trip is opened (decision 018). Place searches go to the product API, which forwards the query and a ~100 m-rounded ranking point to Photon; no account or device ID is sent.
+- Trip planning takes one foreground fix for the Current location origin, asking permission only when a trip is opened (decision 020). Place searches go to the product API, which forwards the query and a ~100 m-rounded ranking point to Photon; no account or device ID is sent.
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.

@@ -64,7 +64,7 @@ require the observation service, collector, or detector.
 (`PHOTON_URL`, default `https://photon.komoot.io`; set it empty to disable search with 503) within
 the metro-Atlanta routing box. It requires 3-100 characters, rounds `near` to about 100 m, caches
 answers for 10 minutes, and turns provider failures into 503. Tests use a mock transport, so no
-network is needed. See [decision 018](../docs/decisions/018-trip-address-search-and-current-origin.md).
+network is needed. See [decision 020](../docs/decisions/020-trip-address-search-and-current-origin.md).
 
 ## Routing failure and refresh semantics
 

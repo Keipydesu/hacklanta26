@@ -2,7 +2,7 @@
 
 The app only talks to this API, so rider IPs and queries are not sent to the provider directly and the
 provider can be swapped. Results are limited to the metro-Atlanta area that Valhalla routes over.
-Decision 018 records the provider choice, limits and privacy notes.
+Decision 020 records the provider choice, limits and privacy notes.
 """
 from collections import OrderedDict
 from dataclasses import dataclass

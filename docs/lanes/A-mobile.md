@@ -117,7 +117,7 @@ structured API error handling without changing public endpoint shapes. `getHazar
 | `visibleHazards(feed, now) -> Hazard[]` | Filter active and unexpired entries on render/timer and immediately on foreground return. Retain source/evidence/count fields; never infer source from kind or geometry. |
 | `connectLive(url, onChange) -> dispose` | Connect product WS/WSS matching HTTP/HTTPS, debounce change hints into a visible-bounds refetch, refetch on reconnect, retry with capped backoff and close sockets/timers on disposal. Ignore malformed hints safely. |
 | `onForeground()` | Refresh current bounds, reevaluate expiry, reconnect as needed and resume queue. If live remains unavailable, retain a documented foreground polling fallback with one timer. |
-| `locateOnce() -> Point or PermissionResult` | Request foreground location only after the user asks to use their location, or when a trip is opened to resolve the Current location origin (decision 018). Supply one initial pin/endpoint; denied/unavailable position leaves manual pin placement and address search usable. Do not start continuous updates. |
+| `locateOnce() -> Point or PermissionResult` | Request foreground location only after the user asks to use their location, or when a trip is opened to resolve the Current location origin (decision 020). Supply one initial pin/endpoint; denied/unavailable position leaves manual pin placement and address search usable. Do not start continuous updates. |
 
 Show cached/last successful feed with an offline/stale indicator on transient refresh failure.
 Live hints are not authoritative deletions: an expired hazard may have been republished before the
@@ -132,7 +132,7 @@ successful submissions or fixture data that appears live.
 
 ## Routing flow and methods
 
-The origin defaults to Current location (one foreground fix when a trip is opened), and either endpoint can be set by address/place search through `GET /v1/places`; map points remain a secondary choice (decision 018). `src/trip/` holds the endpoint model, the debounced search and the From/To fields.
+The origin defaults to Current location (one foreground fix when a trip is opened), and either endpoint can be set by address/place search through `GET /v1/places`; map points remain a secondary choice (decision 020). `src/trip/` holds the endpoint model, the debounced search and the From/To fields.
 `requestRoutes(origin, destination)` posts both selected points and keys request state by that pair.
 When endpoints change, invalidate the displayed comparison and suppress stale responses just as for
 viewport reads. Disable the route action until two valid points exist, independently of reporting.
