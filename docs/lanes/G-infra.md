@@ -84,7 +84,7 @@ multiple scripts actually need them; no deployment framework is required for thi
 | `build_tiles(extract, bbox, version)` | Download source to temporary location, record date/checksum, clip, build with pinned engine, validate routes, then atomically select the new tile directory. Keep previous tiles for rollback. |
 | `deploy(host, commit, profile)` | Stage exact commit/artifacts, render config, backup before risky migrations, migrate, start the selected stack and run acceptance probes. Record deployed commit and previous release; mark success only after probes pass. |
 | `probe_manual(base_url)` | Check product/DB health and an explicitly demo-labeled create/read/identical-retry flow in the designated demo environment; verify HTTPS and live reconnect. Run a real route probe for milestone 2. |
-| `rollback(release)` | Restore previous application image/config/compatible tiles and probe. Do not roll the DB backward automatically; use a forward fix or separately planned restore if schema is incompatible. |
+| `rollback(release)` | After a failed rollout restart `current` (the last good release); otherwise restore `previous`. Restart its image/config/compatible tiles and probe. Do not roll the DB backward automatically; use a forward fix or separately planned restore if schema is incompatible. |
 | `seed_demo(target, mode)` | Default to F's manual scenario. Optional automation requires explicit separate URL and server-only publisher environment. Freeze run identity/time using F's CLI; log IDs and evidence labels, not secrets. |
 | `reset_demo(dataset, target)` | Require explicit demo environment, selected product or observation dataset and confirmation. Display affected dataset; never reset both implicitly or delete production data. |
 

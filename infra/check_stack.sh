@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Acceptance probes for a running stack. Read-only by default.
-#   infra/check_stack.sh BASE_URL [--automation-url URL] [--write-demo] [--expect-storage postgis] [--expect-routing valhalla]
+#   infra/check_stack.sh BASE_URL [--automation-url URL] [--write-demo] [--probe-route] [--probe-report] [--expect-storage postgis] [--expect-routing valhalla]
+# --probe-route (read-only) requires a real, successful /v1/route response: HTTP 200, not the
+# stage 0 fixed-fixture stub, with at least one LineString route. Use it whenever routing is enabled.
+# --probe-report writes one DEMO-labeled report, retries it identically and reads it back from the
+# feed; it needs DEMO_ENVIRONMENT=yes but not the simulator.
 # --write-demo creates one DEMO-labeled manual report (create, identical retry, conflict, read back)
 # and requests a route; it needs DEMO_ENVIRONMENT=yes and the simulator from Lane F.
 set -euo pipefail
@@ -8,11 +12,13 @@ set -euo pipefail
 
 BASE_URL="${1:-}"; [ -n "$BASE_URL" ] || die "usage: $0 BASE_URL [--automation-url URL] [--write-demo] [--expect-storage NAME] [--expect-routing NAME]"
 shift
-AUTOMATION_URL="" WRITE_DEMO=0 EXPECT_STORAGE="" EXPECT_ROUTING=""
+AUTOMATION_URL="" PROBE_ROUTE=0 PROBE_REPORT=0 WRITE_DEMO=0 EXPECT_STORAGE="" EXPECT_ROUTING=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --automation-url) AUTOMATION_URL="${2:?}"; shift 2 ;;
     --write-demo) WRITE_DEMO=1; shift ;;
+    --probe-route) PROBE_ROUTE=1; shift ;;
+    --probe-report) PROBE_REPORT=1; shift ;;
     --expect-storage) EXPECT_STORAGE="${2:?}"; shift 2 ;;
     --expect-routing) EXPECT_ROUTING="${2:?}"; shift 2 ;;
     *) die "unknown option $1" ;;
@@ -50,6 +56,56 @@ esac
 if [ -n "$AUTOMATION_URL" ]; then
   status="$(curl -fsS --max-time 10 "${AUTOMATION_URL%/}/healthz" | field status 2>/dev/null || true)"
   [ "$status" = "ok" ] && pass "observation service health ok" || fail "observation service health at ${AUTOMATION_URL%/}/healthz"
+fi
+
+if [ "$PROBE_ROUTE" = 1 ]; then
+  python3 - "$BASE_URL" <<'PY' && pass "real route returned (not the fixed fixture)" || fail "route probe"
+import json, sys, urllib.request, urllib.error
+base = sys.argv[1]
+body = json.dumps({"origin": {"lat": 33.7531, "lon": -84.3853}, "destination": {"lat": 33.7560, "lon": -84.3880}}).encode()
+request = urllib.request.Request(base + "/v1/route", body, {"Content-Type": "application/json"})
+try:
+    with urllib.request.urlopen(request, timeout=30) as response:
+        stub, data = response.headers.get("X-Stage-0-Stub"), json.load(response)
+except urllib.error.HTTPError as e:
+    sys.exit(f"route request returned HTTP {e.code}")
+except Exception as e:
+    sys.exit(f"route request failed: {e}")
+if stub:
+    sys.exit(f"route is the fixed stage 0 fixture ({stub}), not real routing")
+routes = data.get("routes") or []
+if not routes or any(r.get("geometry", {}).get("type") != "LineString" or not r.get("distance_m") for r in routes):
+    sys.exit("route response has no usable LineString route")
+PY
+fi
+
+if [ "$PROBE_REPORT" = 1 ]; then
+  require_demo_environment
+  python3 - "$BASE_URL" <<'PY' && pass "report probe: create, identical retry, read-back" || fail "report probe"
+import json, sys, uuid, urllib.request, urllib.error
+from datetime import datetime, timezone
+base = sys.argv[1]
+body = {"id": str(uuid.uuid4()), "kind": "other", "lat": 33.75312, "lon": -84.38531,
+        "observed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "description": "DEMO deployment acceptance probe"}
+def post():
+    request = urllib.request.Request(base + "/v1/reports", json.dumps(body).encode(), {"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return response.status, json.load(response)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"POST /v1/reports returned HTTP {e.code}")
+status, first = post()
+if status != 201 or first.get("duplicate") is not False:
+    sys.exit(f"first submission: expected 201 duplicate=false, got {status} {first}")
+status, again = post()
+if status != 200 or again.get("duplicate") is not True or again.get("hazard_id") != first["hazard_id"]:
+    sys.exit(f"identical retry: expected 200 duplicate=true with the same hazard, got {status} {again}")
+with urllib.request.urlopen(base + "/v1/hazards?bbox=-84.3860,33.7525,-84.3845,33.7540", timeout=15) as response:
+    ids = [f["properties"]["id"] for f in json.load(response)["features"]]
+if ids.count(first["hazard_id"]) != 1:
+    sys.exit(f"the new hazard appears {ids.count(first['hazard_id'])} times in the feed, expected once")
+PY
 fi
 
 if [ "$WRITE_DEMO" = 1 ]; then

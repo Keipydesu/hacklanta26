@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy one exact commit of main to a prepared host and mark it current only after probes pass.
 #
-#   infra/vultr/deploy.sh deploy@HOST COMMIT [--profile routing] [--profile automation]
+#   infra/vultr/deploy.sh deploy@HOST COMMIT [--profile routing] [--profile automation] [--demo]
 #
 # Host layout (created by cloud-init.yaml):
 #   /opt/campus/shared/.env        real settings, mode 600, created by the operator on the host
@@ -9,6 +9,13 @@
 #   /opt/campus/releases/<commit>  an exported copy of that commit, never a working tree
 #   /opt/campus/current, previous  symlinks to releases
 #
+# Acceptance: product health, feed, auth and proxy probes always run. With the routing profile it
+# also requires a real successful /v1/route (not the fixed fixture) and routing=valhalla. With --demo
+# (a designated demo host that sets DEMO_ENVIRONMENT=yes) it also creates a labeled report, retries it
+# identically and reads it back, once, after the stack is otherwise ready. Without --demo the write path
+# is NOT exercised and the deployment log says so.
+# If a rollout fails after the new stack was started, `current` keeps pointing at the last good
+# release and $ROOT/failed_release records the failed one; rollback.sh then restarts `current`.
 # The https profile is always on. Deployments are serialized with a lock on the host. The database
 # is dumped before the new release starts and is never rolled back automatically.
 # NOT YET RUN against a real host.
@@ -19,9 +26,11 @@ TARGET="${1:-}"; COMMIT="${2:-}"
 [ -n "$TARGET" ] && [ -n "$COMMIT" ] || die "usage: $0 deploy@HOST COMMIT [--profile NAME]..."
 shift 2
 PROFILES=(--profile https)
+DEMO=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile) case "${2:-}" in routing|automation) PROFILES+=(--profile "$2") ;; *) die "profile must be routing or automation" ;; esac; shift 2 ;;
+    --demo) DEMO=1; shift ;;
     *) die "unknown option $1" ;;
   esac
 done
@@ -41,7 +50,7 @@ git -C "$REPO_DIR" archive --format=tar "$SHA" | ssh "$TARGET" "rm -rf /opt/camp
 # The script is written to a file and run from there: `bash -s` would read it from stdin, and any
 # `docker compose exec` inside would inherit that stdin and swallow the rest of the script.
 QUOTED="$(printf '%q ' "${PROFILES[@]}")"
-ssh "$TARGET" "cat > /tmp/campus-deploy-$SHORT.sh && { flock -n /opt/campus/deploy.lock bash /tmp/campus-deploy-$SHORT.sh '$SHORT' $QUOTED </dev/null; rc=\$?; rm -f /tmp/campus-deploy-$SHORT.sh; exit \$rc; }" <<'REMOTE'
+ssh "$TARGET" "cat > /tmp/campus-deploy-$SHORT.sh && { flock -n /opt/campus/deploy.lock env DEMO=$DEMO bash /tmp/campus-deploy-$SHORT.sh '$SHORT' $QUOTED </dev/null; rc=\$?; rm -f /tmp/campus-deploy-$SHORT.sh; exit \$rc; }" <<'REMOTE'
 set -euo pipefail
 SHORT="$1"; shift
 PROFILES=("$@")
@@ -49,6 +58,9 @@ ROOT=/opt/campus
 ENV_FILE="$ROOT/shared/.env"
 die() { echo "error: $*" >&2; exit 1; }
 note() { echo "==> $*" >&2; }
+STARTED=
+# Once the new stack may be running, a failure must be recoverable by restarting `current`.
+trap 'rc=$?; if [ "$rc" -ne 0 ] && [ -n "$STARTED" ]; then echo "$SHORT" > "$ROOT/failed_release"; fi' EXIT
 value() { grep -E "^$1=" "$ENV_FILE" | tail -n 1 | cut -d= -f2-; }
 
 [ -f "$ENV_FILE" ] || die "$ENV_FILE is missing. Create it on the host from infra/.env.example (mode 600)."
@@ -90,25 +102,38 @@ case " ${PROFILES[*]} " in
   *" automation "*) cp "$NEW/infra/caddy/automation.caddy" "$NEW/infra/caddy/enabled/automation.caddy" ;;
 esac
 note "starting"
+STARTED=1
 compose up -d --wait db
 case " ${PROFILES[*]} " in
   # The observation role and database must exist before its service starts.
   *" automation "*) ENV_FILE="$ENV_FILE" "$NEW/infra/provision_observation_db.sh" >/dev/null ;;
 esac
-compose up -d --wait --remove-orphans || die "the stack did not become healthy. Previous release: $(readlink -f "$ROOT/current" 2>/dev/null || echo none). Run infra/vultr/rollback.sh; the database was not rolled back."
+compose up -d --wait --remove-orphans || die "the stack did not become healthy. Last good release (still current): $(readlink -f "$ROOT/current" 2>/dev/null || echo none). Run infra/vultr/rollback.sh to restart it; the database was not rolled back."
 
 HOST="$(value PRODUCT_HOSTNAME)"
 note "probing https://$HOST"
+CHECKS=()
+case " ${PROFILES[*]} " in *" routing "*) CHECKS+=(--probe-route --expect-routing valhalla) ;; esac
 ok=0
 for _ in $(seq 1 30); do
-  if "$NEW/infra/check_stack.sh" "https://$HOST" >/tmp/campus-probe.log 2>&1; then ok=1; break; fi
+  if "$NEW/infra/check_stack.sh" "https://$HOST" ${CHECKS[@]+"${CHECKS[@]}"} >/tmp/campus-probe.log 2>&1; then ok=1; break; fi
   sleep 4   # the first certificate can take a little while
 done
 cat /tmp/campus-probe.log
-[ "$ok" = 1 ] || die "acceptance probes failed for $SHORT. current still points at the previous release; run infra/vultr/rollback.sh to restart it."
+[ "$ok" = 1 ] || die "acceptance probes failed for $SHORT. current still points at the last good release; run infra/vultr/rollback.sh to restart it."
+# The write probe runs once, after readiness, so retries above cannot create several reports.
+WRITE_PROBE=skipped
+if [ "${DEMO:-0}" = 1 ]; then
+  DEMO_ENVIRONMENT=yes "$NEW/infra/check_stack.sh" "https://$HOST" --probe-report | tee /tmp/campus-probe-write.log \
+    || die "demo write probe (create, identical retry, read-back) failed for $SHORT. current still points at the last good release; run infra/vultr/rollback.sh to restart it."
+  WRITE_PROBE=passed
+else
+  note "write path not exercised (no --demo)"
+fi
 
 if [ -L "$ROOT/current" ] && [ "$(readlink -f "$ROOT/current")" != "$NEW" ]; then ln -sfn "$(readlink -f "$ROOT/current")" "$ROOT/previous"; fi
 ln -sfn "$NEW" "$ROOT/current"
-printf '%s %s profiles=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(cat "$NEW/RELEASE")" "${PROFILES[*]}" >> "$ROOT/deployments.log"
+rm -f "$ROOT/failed_release"
+printf '%s %s profiles=%s write_probe=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(cat "$NEW/RELEASE")" "${PROFILES[*]}" "$WRITE_PROBE" >> "$ROOT/deployments.log"
 echo "deployed $(cat "$NEW/RELEASE") at https://$HOST (previous: $(readlink -f "$ROOT/previous" 2>/dev/null || echo none))"
 REMOTE

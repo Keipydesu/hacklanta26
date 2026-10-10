@@ -28,7 +28,7 @@ collector → Caddy, own hostname → automatic [automation] → db (observation
 | Compose file, all profiles parse | run locally (`docker compose config`) and in CI |
 | Images build from locked manifests; manual stack starts healthy; `check_stack.sh`; `backup.sh` → `restore_check.sh`; observation role isolation; automation start/stop independence; `reset_db.sh`; Caddyfile validation | exercised by the CI `stack` job on every change under `infra/` — see that job's result on the PR, not this table, for the current state |
 | `valhalla/build_tiles.sh`, the `routing` profile serving real tiles | **not run** |
-| `vultr/cloud-init.yaml`, `vultr/deploy.sh`, `vultr/rollback.sh`, real TLS issuance | **not run** — no host, hostname or credentials existed when these were written |
+| `vultr/cloud-init.yaml`, `vultr/deploy.sh`, `vultr/rollback.sh`, real TLS issuance | **not run** against a real host — no host, hostname or credentials existed. The remote deploy/rollback logic was exercised locally with mocked `docker`/`flock` for: A/B/C failed rollout restarts B; first-upgrade failure restarts the only release; successful-then-bad release rolls back to `previous`; failed route or write probes leave `current` untouched. `--probe-route` and `--probe-report` were run against the stage 0 backend (fixture rejected, report probe passed). |
 | `seed_demo.sh`, `check_stack.sh --write-demo` | **not run** against a real stack (they call Lane F's simulator) |
 
 Nothing is deployed. There is no public URL yet.
@@ -98,7 +98,7 @@ All take settings from `infra/.env` (override with `ENV_FILE=`). None prints a s
 
 | Script | Purpose |
 |---|---|
-| `check_stack.sh BASE_URL [--automation-url URL] [--expect-storage X] [--expect-routing X] [--write-demo]` | Health, feed read, unauthenticated publication rejected, non-API paths 404 over HTTPS. `--write-demo` adds a DEMO report create/retry/conflict/read-back and a route probe through the simulator. |
+| `check_stack.sh BASE_URL [--automation-url URL] [--expect-storage X] [--expect-routing X] [--probe-route] [--probe-report] [--write-demo]` | Health, feed read, unauthenticated publication rejected, non-API paths 404 over HTTPS. `--probe-route` (read-only) fails unless `/v1/route` returns 200 with a real LineString route and not the stage 0 fixed fixture. `--probe-report` (needs `DEMO_ENVIRONMENT=yes`) creates a DEMO report, retries it identically (expects 200 `duplicate`) and reads it back once from the feed. `--write-demo` adds a DEMO report create/retry/conflict/read-back and a route probe through the simulator. |
 | `seed_demo.sh PRODUCT_URL [--automation-url URL] [--at LAT,LON]` | Demo data through the public APIs via Lane F's simulator. |
 | `backup.sh [product\|observations] [DIR]` | `pg_dump` custom format, mode 600, with a JSON sidecar. |
 | `restore_check.sh FILE` | Restores into a throwaway database, counts rows, drops it. A backup is unverified until this passes. |
@@ -134,17 +134,25 @@ Steps, once those exist:
 2. On the host, create `/opt/campus/shared/.env` from `.env.example` with real values,
    `API_BIND=127.0.0.1`, and `chmod 600` it. For routing, upload the built `custom_files/` to
    `/opt/campus/shared/custom_files/` and set `VALHALLA_URL=http://valhalla:8002`.
-3. From a checkout: `infra/vultr/deploy.sh deploy@HOST <commit-on-main> [--profile routing] [--profile automation]`.
+3. From a checkout: `infra/vultr/deploy.sh deploy@HOST <commit-on-main> [--profile routing] [--profile automation] [--demo]`.
 4. From a phone on mobile data (not the host's network): open `https://HOSTNAME/healthz`, then run
    the app with `EXPO_PUBLIC_API_URL=https://HOSTNAME`.
 
 `deploy.sh` refuses a commit that is not on `origin/main`, refuses placeholder settings, takes a
 lock on the host, uploads an export of that exact commit (never a working tree), dumps the product
 database, builds, provisions the observation database first when automation is selected, starts
-the stack, and runs `check_stack.sh` over HTTPS. Only then does it move the `current` link and
-record the release in `/opt/campus/deployments.log`.
+the stack, and runs `check_stack.sh` over HTTPS. With `--profile routing` acceptance also requires
+`routing=valhalla` and a real successful route request, so broken routing fails the deployment. With
+`--demo` (a designated demo host only) it then creates a DEMO report, retries it identically and
+reads it back, once. Without `--demo` the write path is not exercised and `deployments.log` records
+`write_probe=skipped`. Only after acceptance does it move the `current` link and record the release.
+If a rollout fails after the new stack started, `current` stays on the last good release and
+`/opt/campus/failed_release` names the failed one.
 
-`rollback.sh deploy@HOST` restarts the previous release and probes it. **It does not roll the
+`rollback.sh deploy@HOST [--current|--previous]` restarts a known-good release and probes it. After a
+failed rollout (the `failed_release` marker exists) it restarts `current`, the last good release,
+which also works after the first upgrade when no `previous` exists; otherwise it restarts `previous`.
+The flags override that choice. Pass the same `--profile` flags as the deploy. **It does not roll the
 database back.** Product and observation migrations run at service start and are additive so far;
 if a release ever ships a migration the previous code cannot read, fix forward or restore a
 checked backup on purpose.
