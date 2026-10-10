@@ -93,7 +93,7 @@ dirty for the next pass. Do not clear a newer dirty marker when finishing an old
 | `cluster_events(session, kind, now) -> list[Cluster]` | Select matching observations from the last 30 days, transform to EPSG:32616, and run `ST_ClusterDBSCAN` with eps 12m and minpoints 3. Use deterministic input ordering for repeatable border assignment. Keep >=2 distinct rides. Build hull buffered 8m in meters, then transform Polygon to WGS84. |
 | `score_events(events, now) -> float` | `min(1, sum(0.5 ** (age_days / 7)) / 5)`. Use one evaluation clock and a nonnegative evidence age policy for accepted slight-future timestamps; document/clamp age at zero until timestamp is reached rather than amplify evidence above fresh weight. |
 | `summarize(cluster) -> Candidate` | Derive event/ride counts, first/last evidence times, kind mapping (`hard_brake→braking`, `bump→surface`) and a label such as “Hard braking, 14 events.” Manual reports never enter this calculation. |
-| `evidence_source(events) -> label` | All one origin maps to device/simulated/replay; any mixture maps to mixed. Preserve provenance through clustering, matching and republication. Explicit demo-mode output is simulated. |
+| `evidence_source(events) -> label` | All one origin maps to device/simulated/replay; any mixture maps to mixed. Preserve provenance through clustering, matching and republication. Demo mode may generate simulated inputs but must never relabel ingested device or replay evidence; mixed inputs remain mixed. |
 | `match_clusters(previous, candidates) -> Matches` | Match same-kind spatially overlapping/nearby clusters one-to-one using deterministic ranking and tie breaks. Persist chosen external UUIDs; do not derive identity only from H3 cell or current DBSCAN label. |
 | `build_changes(matches, now) -> publications` | Retain matched IDs, allocate UUIDs for genuinely new clusters, resolve disappeared/retired IDs and create complete higher-revision bodies for changed public state. |
 | `commit_evaluation(session, changes, watermark)` | Write derived state and outbox rows together, advancing persisted revisions only with a committed publication. Commit before any HTTP request; a failed transaction allocates no visible publication. |
@@ -210,8 +210,9 @@ shared contracts; no live product/Valhalla dependency in routine worker tests.
 Tests cover whole-batch rollback including within-batch conflicts, restart identity, future/invalid
 values, same-time determinism, 7-day decay, kind/provenance, minimum rides, cluster identity, outbox
 transaction rollback, duplicate ack, ordered revisions, expired leases, auth/payload/conflict blocks,
-resolution and refresh before expiry. Time-dependent tests freeze `now`. A dedicated HTTP acceptance
-probe preserves a manual report through every automatic operation; compare public fields/ID before
+resolution and refresh before expiry. Include device/replay/mixed evidence while demo mode is
+enabled and verify original provenance survives publication. Time-dependent tests freeze `now`.
+A dedicated HTTP acceptance probe preserves a manual report through every automatic operation; compare public fields/ID before
 and after rather than only checking response status. Never claim persistence from the old memory tests.
 
 Handoff records schema/migration versions, service/worker entrypoints, evaluation settings, fixtures
