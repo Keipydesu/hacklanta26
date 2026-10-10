@@ -1,3 +1,5 @@
+import { jitteredBackoffMs } from '../retry/backoff';
+
 /** product WS URL matching the HTTP scheme: http→ws, https→wss. */
 export const liveUrl = (apiUrl: string) => `${apiUrl.replace(/^http/, 'ws')}/v1/live`;
 
@@ -19,7 +21,7 @@ export interface LiveOptions {
   random(): number;
   debounceMs?: number;
 }
-export const reconnectDelayMs = (failures: number, random: number) => Math.min(30_000, 1000 * 2 ** failures) * (0.5 + random / 2);
+export const reconnectDelayMs = (failures: number, random: number) => jitteredBackoffMs(failures, random, 30_000);
 
 /** Reconnecting change-hint subscription. Returns dispose, which closes the socket and cancels timers. */
 export function connectLive(options: LiveOptions): () => void {

@@ -73,3 +73,16 @@ test('locateOnce: denied, unavailable and success', async () => {
   assert.deepEqual(await locateOnce(api(true, null), 3), { ok: false, reason: 'unavailable' });
   assert.deepEqual(await locateOnce(api(true, { latitude: 1, longitude: 2 }), 3), { ok: true, lat: 1, lon: 2 });
 });
+
+
+test('report and socket backoff share jitter while preserving their caps and index conventions', () => {
+  const { backoffMs } = require('../.test-dist/reports/queue.js');
+  const { reconnectDelayMs } = require('../.test-dist/api/live.js');
+  for (const random of [0, 0.5, 1]) {
+    for (let index = 0; index < 5; index++) {
+      assert.equal(backoffMs(index + 1, random), reconnectDelayMs(index, random));
+    }
+    assert.equal(backoffMs(10, random), 60_000 * (0.5 + random / 2));
+    assert.equal(reconnectDelayMs(9, random), 30_000 * (0.5 + random / 2));
+  }
+});
