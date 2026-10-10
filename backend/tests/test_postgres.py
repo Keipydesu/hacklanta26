@@ -222,3 +222,38 @@ def test_unstorable_text_is_422_not_500_and_unchanged_expiry_keeps_notification_
         assert (await client.put(PUB, json=dict(stale, revision=2, label='renamed'), headers=AUTH)).status_code == 200
         assert await app.state.store.scan_expirations(datetime.now(timezone.utc)) == []  # same expires_at: not re-announced
     run(scenario)
+
+def test_feedback_persists_across_restart_and_rejects_conflicts():
+    manual, automatic = fresh()
+    body = {'id': str(uuid4()), 'response': 'still_there'}
+    async def first(client, app):
+        hazard_id = (await client.post('/v1/reports', json=manual)).json()['hazard_id']
+        created = await client.post(f'/v1/hazards/{hazard_id}/feedback', json=body)
+        assert created.status_code == 201
+        validate('FeedbackReceipt', created.json())
+        return hazard_id, created.json()
+    hazard_id, receipt = run(first)
+    async def after_restart(client, app):
+        url = f'/v1/hazards/{hazard_id}/feedback'
+        retry = await client.post(url, json=body)
+        assert retry.status_code == 200 and retry.json() == dict(receipt, duplicate=True)
+        assert (await client.post(url, json=dict(body, response='gone'))).status_code == 409
+        assert (await client.post(f'/v1/hazards/{uuid4()}/feedback', json={'id': str(uuid4()), 'response': 'gone'})).status_code == 404
+        expired_id = (await client.post('/v1/reports', json=fixture('cases/manual-expired.json'))).json()['hazard_id']
+        assert (await client.post(f'/v1/hazards/{expired_id}/feedback', json={'id': str(uuid4()), 'response': 'gone'})).status_code == 404
+        automatic_id = (await client.put(PUB, json=automatic, headers=AUTH)).json()['hazard_id']
+        assert (await client.post(f'/v1/hazards/{automatic_id}/feedback', json=body)).status_code == 409
+    run(after_restart)
+    assert sql('SELECT hazard_id::text, response FROM hazard_feedback') == [(hazard_id, 'still_there')]
+
+def test_same_feedback_uuid_racing_for_two_hazards_yields_one_201_and_one_409():
+    manual, _ = fresh()
+    second = dict(manual, id=str(uuid4()), lat=manual['lat'] + 0.001)
+    body = {'id': str(uuid4()), 'response': 'gone'}
+    async def scenario(client, app):
+        a = (await client.post('/v1/reports', json=manual)).json()['hazard_id']
+        b = (await client.post('/v1/reports', json=second)).json()['hazard_id']
+        results = await asyncio.gather(*(client.post(f'/v1/hazards/{h}/feedback', json=body) for h in (a, b)))
+        return sorted(r.status_code for r in results)
+    assert run(scenario) == [201, 409]
+    assert sql('SELECT count(*) FROM hazard_feedback') == [(1,)]

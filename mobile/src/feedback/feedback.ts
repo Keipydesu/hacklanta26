@@ -19,7 +19,6 @@ const KIND_NAMES: Record<string, string> = { braking: 'hard-braking spot', surfa
 export const feedbackQuestion = (kind: string) => `Is this ${KIND_NAMES[kind] ?? kind} still there?`;
 
 const isPermanent = (error: unknown) => (error as { permanent?: boolean } | null)?.permanent === true;
-/** Only a receipt for exactly this answer and hazard counts as received. */
 export const confirms = (receipt: unknown, hazardId: string, body: FeedbackBody) => {
   const r = receipt as Partial<FeedbackReceipt> | null;
   return !!r && r.feedback_id === body.id && r.hazard_id === hazardId && typeof r.duplicate === 'boolean';
@@ -43,13 +42,11 @@ export function createFeedback(deps: FeedbackDeps) {
 
   return {
     states: () => states,
-    /** Ignored while an answer for this hazard is sending, accepted, or failed-but-retryable. */
     respond(hazardId: string, response: FeedbackResponse): Promise<void> {
       const current = states[hazardId];
       if (current && (current.status !== 'failed' || current.retryable)) return Promise.resolve();
       return send(hazardId, { id: deps.uuid(), response });
     },
-    /** Resend the identical body after a retryable failure. */
     retry(hazardId: string): Promise<void> {
       const current = states[hazardId];
       if (!current || current.status !== 'failed' || !current.retryable) return Promise.resolve();

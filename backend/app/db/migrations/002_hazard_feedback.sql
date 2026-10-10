@@ -1,4 +1,3 @@
--- "Is this hazard still there?" answers. Separate from reports; no location, account or device ID.
 CREATE TABLE hazard_feedback (
     id uuid PRIMARY KEY,
     hazard_id uuid NOT NULL REFERENCES hazards (id),

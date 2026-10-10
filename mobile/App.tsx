@@ -74,7 +74,6 @@ export default function App() {
     return () => clearInterval(tick);
   }, [region, liveConnected]);
   // The queue persists each frozen report before any network I/O and resends the same body until resolved.
-  // Hazard checks are separate from reports: sent at once, accepted only on the server's receipt.
   const [feedbackStates, setFeedbackStates] = useState<Readonly<Record<string, FeedbackState>>>({});
   const [feedback] = useState(() => createFeedback({
     send: submitFeedback, uuid: Crypto.randomUUID, onChange: setFeedbackStates, onAccepted: () => void refresh(),

@@ -22,7 +22,7 @@ class Result:
     hazard_id: str
     duplicate: bool
     status: int  # HTTP status the adapter should use: 201 created, 200 retry/update
-    changed: bool = True  # whether the hazard itself changed (drives the live hint)
+    changed: bool = True
 
 FEATURE_COLUMNS = '''id, source, kind, label, score, status, first_seen, last_seen, expires_at,
     event_count, ride_count, report_count, evidence_source'''
@@ -112,7 +112,6 @@ class PostgresStore:
     async def record_feedback(self, hazard_id: UUID, body: HazardFeedback, now):
         """Store one answer and apply the feedback policy; retries are idempotent by feedback UUID."""
         async with self.pool.connection() as conn, conn.transaction():
-            # Lock the hazard first so answers about one hazard are applied one at a time.
             hazard = await (await conn.execute(
                 'SELECT source, status, last_seen, expires_at FROM hazards WHERE id = %s FOR UPDATE',
                 (hazard_id,))).fetchone()
@@ -124,7 +123,6 @@ class PostgresStore:
                 return Result(str(hazard_id), True, 200, changed=False)
             if not hazard or hazard['status'] != 'active' or hazard['expires_at'] <= now:
                 raise NotFound()
-            # ON CONFLICT covers the same UUID racing in for a different hazard.
             inserted = await (await conn.execute(
                 '''INSERT INTO hazard_feedback (id, hazard_id, response, received_at) VALUES (%s, %s, %s, %s)
                    ON CONFLICT (id) DO NOTHING RETURNING id''', (body.id, hazard_id, body.response, now))).fetchone()
