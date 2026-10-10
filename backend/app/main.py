@@ -27,8 +27,9 @@ from .db.store import Conflict, NotFound, PostgresStore, Result
 from .feedback import RECENT_NEEDED, Hide, HazardState, apply_feedback
 from .routing import planner
 from .routing.valhalla import NoPath, Unavailable, ValhallaClient
+from .places import PlaceSearch, PlacesUnavailable
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
-                      HazardCollection, HazardFeedback, FeedbackReceipt, RouteRequest, RouteResponse)
+                      HazardCollection, HazardFeedback, FeedbackReceipt, PlaceResults, RouteRequest, RouteResponse)
 
 CONTRACTS = Path(os.getenv('CONTRACTS_DIR', Path(__file__).resolve().parents[2] / 'contracts'))
 BEARER = HTTPBearer(auto_error=False)
@@ -60,6 +61,8 @@ def create_app(database_url=None):
     store = PostgresStore(url) if url else None
     valhalla_url = os.getenv('VALHALLA_URL')
     valhalla = ValhallaClient(valhalla_url) if valhalla_url else None
+    photon_url = os.getenv('PHOTON_URL', 'https://photon.komoot.io').strip()
+    places = PlaceSearch(photon_url) if photon_url else None
     reports, publications, hazards, feedback = {}, {}, {}, {}
     revisions, hidden = {}, {}
     sockets = set()
@@ -124,6 +127,8 @@ def create_app(database_url=None):
                 await store.close()
             if valhalla:
                 await valhalla.close()
+            if places:
+                await places.close()
 
     app = FastAPI(title='Campus product stub', lifespan=lifespan)
 
@@ -143,6 +148,7 @@ def create_app(database_url=None):
     app.state.hazards = hazards
     app.state.store = store
     app.state.valhalla = valhalla
+    app.state.places = places
 
     def authenticate(credentials: HTTPAuthorizationCredentials | None = Depends(BEARER)):
         key = os.getenv('AUTOMATION_PUBLISH_KEY')
@@ -279,6 +285,29 @@ def create_app(database_url=None):
         now = datetime.now(timezone.utc)
         features = await store.list_active(bounds, now) if store else memory_active(bounds, now)
         return [planner.hazard_from_feature(f) for f in features]
+
+    @app.get('/v1/places', response_model=PlaceResults)
+    async def search_places(q: str, near: str | None = None):
+        query = ' '.join(q.split())
+        if not 3 <= len(query) <= 100:
+            raise HTTPException(422, 'Search for 3 to 100 characters')
+        point = None
+        if near is not None:
+            try:
+                lat, lon = (float(value) for value in near.split(','))
+                if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
+                    raise ValueError()
+                point = (lat, lon)
+            except (ValueError, TypeError):
+                raise HTTPException(422, 'near must be lat,lon')
+        if not places:
+            raise HTTPException(503, 'Place search is not configured; pick a point on the map instead')
+        try:
+            found = await places.search(query, point)
+        except PlacesUnavailable:
+            log.exception('place search unavailable')
+            raise HTTPException(503, 'Place search is unavailable right now; you can still pick a point on the map')
+        return {'places': [vars(place) for place in found]}
 
     @app.post('/v1/route', response_model=RouteResponse)
     async def plan_routes(body: RouteRequest, response: Response):

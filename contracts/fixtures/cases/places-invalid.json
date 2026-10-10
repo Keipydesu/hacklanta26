@@ -1,0 +1,5 @@
+{
+  "places": [
+    {"id": "N1", "name": "Too many fields", "address": "", "lat": 33.75, "lon": -84.38, "rank": 1}
+  ]
+}

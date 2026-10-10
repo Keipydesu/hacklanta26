@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
+import { AppState, Keyboard, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
 import { SilverTexture } from './src/ui/SilverTexture';
 import { Icon } from './src/ui/Icon';
@@ -12,16 +12,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
 import { locateOnce } from './src/location/foreground';
+import { createForegroundWatch } from './src/location/foregroundWatch';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
-import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, searchPlaces, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createFeedback, FeedbackState } from './src/feedback/feedback';
 import { HazardPanel } from './src/feedback/HazardPanel';
 import { createNearbyWatcher } from './src/feedback/nearby';
 import { createHazardSelection, HazardSelection, selectionAvailable } from './src/feedback/selection';
-import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
-import { routeColors, RouteScreen, Target } from './src/routes/RouteScreen';
+import { canRequest, createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
+import { routeColors, RouteScreen } from './src/routes/RouteScreen';
+import { createPlaceSearch, SearchState } from './src/trip/placeSearch';
+import { createTrip, endpointPoint, TripState, Which } from './src/trip/trip';
+import { TripFields } from './src/trip/TripFields';
 
 const CENTER: LngLat = [-84.3853, 33.7531];
 const INITIAL_ZOOM = 14.5;
@@ -43,7 +47,7 @@ function CampusApp() {
   const [pageHeight, setPageHeight] = useState(0);
   const [safeFrame, setSafeFrame] = useState({ y: 0, height: 0 });
   const bottomInset = Math.max(0, pageHeight - safeFrame.y - safeFrame.height);
-  function openScreen(next: 'map' | 'report' | 'route') { setScreen(next); setExpanded(false); }
+  function openScreen(next: 'map' | 'report' | 'route') { setScreen(next); setExpanded(false); if (next !== 'route') { setPicking(null); setEditing(null); } }
   const mapTheme = colorScheme;
   const ROUTE_COLORS = { ...routeColors(theme), shortest: mapTheme === 'dark' ? palette.silver : palette.charcoal };
   // One object per settled viewport (moveend): the hazard refresh compares it by identity.
@@ -55,10 +59,28 @@ function CampusApp() {
   }
   const [pin, setPin] = useState({ latitude: center.latitude, longitude: center.longitude });
   const [hazards, setHazards] = useState<HazardCollection['features']>([]);
+  const [permissionRevision, setPermissionRevision] = useState(0);
+  const locateForAction = () => locateOnce(Location, Location.Accuracy.Balanced,
+    () => setPermissionRevision(value => value + 1));
   // Route endpoints and their comparison live apart from the report form and the hazard feed.
   const [routeState, setRouteState] = useState<RouteState>({ origin: null, destination: null, status: 'idle', result: null, error: null, outdated: false });
   const [comparison] = useState(() => createRouteComparison({ load: getRoutes, onChange: setRouteState }));
-  const [routeTarget, setRouteTarget] = useState<Target>('origin');
+  const [tripState, setTripState] = useState<TripState>({ origin: { kind: 'current', status: 'idle', point: null }, destination: { kind: 'none' } });
+  const [trip] = useState(() => createTrip({
+    locate: locateForAction,
+    setOrigin: comparison.setOrigin, setDestination: comparison.setDestination, onChange: setTripState,
+  }));
+  const [editing, setEditing] = useState<Which | null>(null);
+  const [picking, setPicking] = useState<Which | null>(null);
+  const [searchState, setSearchState] = useState<SearchState>({ query: '', status: 'idle', places: [] });
+  const [placeSearch] = useState(() => createPlaceSearch({
+    // Ranking bias only: the chosen origin when known, otherwise the visible map centre.
+    search: query => searchPlaces(query, endpointPoint(trip.state().origin) ?? {
+      lat: (currentRegion.current.south + currentRegion.current.north) / 2, lon: (currentRegion.current.west + currentRegion.current.east) / 2 }),
+    onChange: setSearchState, schedule: (run, ms) => setTimeout(run, ms), cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  }));
+  function editEndpoint(which: Which | null) { setEditing(which); setPicking(null); placeSearch.reset(); }
+  function planTrip() { openScreen('route'); editEndpoint(trip.state().destination.kind === 'none' ? 'destination' : null); void trip.start(); }
   const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind']>('pothole');
   const [description, setDescription] = useState('');
@@ -135,20 +157,13 @@ function CampusApp() {
   const [submitting, setSubmitting] = useState(false);
   const [guardSubmit] = useState(createSubmitGuard);
   async function useMyLocation() {
-    const result = await locateOnce(Location, Location.Accuracy.Balanced);
+    const result = await locateForAction();
     if (result.ok) { setPin({ latitude: result.lat, longitude: result.lon }); setError(''); }
     else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the pin instead.' : 'Could not get your location. Tap the map to place the pin instead.');
   }
-  function placeRouteEndpoint(point: { latitude: number; longitude: number }, which: Target = routeTarget) {
-    const next = { lat: point.latitude, lon: point.longitude };
-    if (which === 'origin') { comparison.setOrigin(next); if (!comparison.state().destination) setRouteTarget('destination'); }
-    else comparison.setDestination(next);
-  }
-  async function useMyLocationAsStart() {
-    const result = await locateOnce(Location, Location.Accuracy.Balanced);
-    if (result.ok) { placeRouteEndpoint({ latitude: result.lat, longitude: result.lon }, 'origin'); setError(''); }
-    else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the start pin instead.' : 'Could not get your location. Tap the map to place the start pin instead.');
-  }
+  useEffect(() => {
+    if (routeState.status === 'idle' && canRequest(routeState)) void comparison.request();
+  }, [routeState.origin, routeState.destination, routeState.status]);
   const presented = routeState.result ? presentRoutes(routeState.result) : null;
   function send() {
     return guardSubmit(async () => {
@@ -178,37 +193,30 @@ function CampusApp() {
   useEffect(() => { if (!selected) nearby.evaluate(); }, [selected]);
   useEffect(() => {
     if (fixtureMode) return;
-    let subscription: { remove(): void } | null = null;
-    let generation = 0;
-    async function start() {
-      const mine = ++generation;
-      try {
-        const { granted } = await Location.requestForegroundPermissionsAsync();
-        if (!granted || mine !== generation) return;
-        const watching = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
-          ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }));
-        if (mine !== generation) watching.remove(); else subscription = watching;
-      } catch {}
-    }
-    function stop() { generation++; subscription?.remove(); subscription = null; }
-    void start();
-    const appState = AppState.addEventListener('change', state => {
-      if (state === 'active') { void nearby.setActive(true); if (!subscription) void start(); }
-      else { void nearby.setActive(false); stop(); }
+    const watcher = createForegroundWatch<Location.LocationObject>({
+      permission: () => Location.getForegroundPermissionsAsync(),
+      watch: onPosition => Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 }, onPosition),
+      onPosition: ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }),
+      onActive: active => { void nearby.setActive(active); },
     });
-    return () => { void nearby.setActive(false); stop(); appState.remove(); };
-  }, []);
+    void watcher.setActive(AppState.currentState === 'active');
+    const appState = AppState.addEventListener('change', state => {
+      void watcher.setActive(state === 'active');
+    });
+    return () => { void watcher.setActive(false); appState.remove(); };
+  }, [permissionRevision]);
   function onSelectHazard(id: string) {
     const hazard = visible.find(h => h.properties.id === id);
     if (hazard) void selection.select(hazard);
   }
   function onMapPress(position: LngLat) {
     if (screen === 'report') setPin(toLatLng(position));
-    else if (screen === 'route') placeRouteEndpoint(toLatLng(position));
+    else if (screen === 'route' && picking) { trip.pick(picking, { lat: position[1], lon: position[0] }); setPicking(null); }
   }
   function onMarkerDrag(id: string, position: LngLat) {
     if (id === 'pin') setPin(toLatLng(position));
-    else if (id === 'origin' || id === 'destination') placeRouteEndpoint(toLatLng(position), id);
+    else if (id === 'origin' || id === 'destination') trip.pick(id, { lat: position[1], lon: position[0] });
   }
   const latestSubmission = submissions[submissions.length - 1];
   const pendingCount = submissions.filter(sub => sub.state !== 'submitted').length;
@@ -242,7 +250,7 @@ function CampusApp() {
         onClose={() => selection.clear()} />}
       {screen === 'map' && <>
         <Button primary icon="route" title={routeState.origin || routeState.destination ? 'Continue trip' : 'Where to?'}
-          onPress={() => { setRouteTarget('destination'); openScreen('route'); }} />
+          onPress={planTrip} />
         {pendingCount > 0 && <Text style={styles.caption}>{pendingCount} pending · not yet accepted</Text>}
         {expanded && <>
           {visible.length === 0 && <Text style={styles.caption}>No reports here. Unreported hazards may still exist.</Text>}
@@ -278,14 +286,22 @@ function CampusApp() {
         </View>)}
         {fixtureMode && <Text style={styles.caption}>Demo · submitting is unavailable</Text>}
       </>}
-      {screen === 'route' && <RouteScreen colors={ROUTE_COLORS} expanded={expanded} state={routeState} target={routeTarget} offlinePreview={fixtureMode}
-        onTarget={setRouteTarget} onUseLocation={() => void useMyLocationAsStart()} onCompare={() => void comparison.request()}
-        onSwap={() => comparison.swap()} onClear={() => { comparison.clear(); setRouteTarget('origin'); }} />}
+      {screen === 'route' && <RouteScreen colors={ROUTE_COLORS} expanded={expanded} state={routeState} offlinePreview={fixtureMode}
+        fields={<TripFields trip={tripState} editing={editing} picking={picking} search={searchState}
+          onEdit={editEndpoint} onCancel={() => editEndpoint(null)}
+          onType={text => { if (editing) trip.edit(editing); placeSearch.type(text); }}
+          onChoose={place => { if (editing) trip.choose(editing, place); editEndpoint(null); Keyboard.dismiss(); }}
+          onRetrySearch={() => void placeSearch.retry()}
+          onUseCurrent={() => { editEndpoint(null); void trip.useCurrentLocation(); }}
+          onRetryLocation={() => void trip.retryLocation()}
+          onPickOnMap={which => { editEndpoint(null); setPicking(which); Keyboard.dismiss(); }} />}
+        canSwap={trip.canSwap()} onCompare={() => void comparison.request()}
+        onSwap={() => trip.swap()} onClear={() => { void trip.clear(); editEndpoint('destination'); }} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazards.length ? 'Offline or stale: showing the last successful results. ' : ''}{hazardError}</Text>}
         </ScrollView>
         <View style={styles.tabs}>{(['map','route','report'] as const).map(tab => <Button key={tab}
-          icon={tab} selected={screen === tab} title={tab === 'map' ? 'Map' : tab === 'route' ? 'Trip' : 'Report'} onPress={() => openScreen(tab)} />)}</View>
+          icon={tab} selected={screen === tab} title={tab === 'map' ? 'Map' : tab === 'route' ? 'Trip' : 'Report'} onPress={() => tab === 'route' ? planTrip() : openScreen(tab)} />)}</View>
       </View>
     </View>
     </KeyboardAvoidingView>

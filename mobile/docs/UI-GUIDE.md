@@ -15,7 +15,9 @@ only by user action. Keep the map touchable around overlays. Provider attributio
 remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Fiord together without resetting the camera.
 
 The resting home has one primary action: Where to? No marketing headline or explanatory
-paragraph. Route summaries show time, distance and reported-hazard count together.
+paragraph. Trip opens with From (Current location by default) and To fields that search
+addresses and places; results show a name and address. There are no pin-mode buttons or
+routine helper lines. Choose on map is a secondary option inside an open field (decision 020). Route summaries show time, distance and reported-hazard count together.
 Categories use a consistent pictogram with a short label. Supporting explanations belong
 in expanded details; fixture warnings, failures and delivery states remain explicit.
 

@@ -134,6 +134,16 @@ HTTP deadlines cover response headers and JSON body consumption, including route
 A stalled body aborts after 15 seconds so a pending report can retry with its original identity.
 The client regression test exercises a stalled body, timeout cleanup, retry, and route stub labeling.
 
+## Trip search
+
+Where to? or the Trip tab opens From and To fields. From is Current location by default: one
+foreground fix when the trip opens, with "Try again" and "Search for a start" if location is
+off. Tapping a field searches addresses and places through the product API. Results show a name
+and address, and choosing one sets the endpoint, dismisses the keyboard and, once both ends are
+set, compares routes. Typing clears the old point, late answers are ignored, and "Choose on map"
+is the secondary option. The offline preview searches the fixture places. See `src/trip/` and
+[decision 020](../docs/decisions/020-trip-address-search-and-current-origin.md).
+
 ## Hazard feedback
 
 Tap a hazard pin to open its panel under the map. The panel shows the source, category, label and
@@ -146,7 +156,9 @@ refreshes on live hints, accepted feedback, foreground return and every five sec
 Removal disables new answers but retains the details and receipt; a failed lookup shows a stale
 notice, and local expiry still disables new answers.
 
-While the app is open with location permission, coming within 40 m of a hazard opens its panel
+The nearby watcher checks existing permission without prompting on launch or foreground return.
+Opening Trip or using Report's location action can request permission; granting it immediately
+rechecks the watcher. While the app is open with location permission, coming within 40 m of a hazard opens its panel
 once per session, wherever the map is panned. The app looks up hazards for the ~500 m grid block
 around the rider, separately from the map, so the server sees only that coarse block. This uses
 foreground location only. Precise positions are never recorded, uploaded or sent with answers, and

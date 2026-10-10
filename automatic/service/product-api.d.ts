@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Address and place search for trip endpoints (decision 020). Results are limited to the metro-Atlanta routing area, best match first, at most five. `q` must be 3-100 characters after trimming (422 otherwise). `near` (lat,lon) only ranks results and is rounded before use. 503 when the search provider is unavailable or not configured; trips can still use map points. Routes keep using lat/lon coordinates. */
+        get: operations["search_places"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/route": {
         parameters: {
             query?: never;
@@ -152,6 +169,16 @@ export interface components {
              */
             observed_at: string;
             description?: string;
+        };
+        Place: {
+            id: string;
+            name: string;
+            address: string;
+            lat: number;
+            lon: number;
+        };
+        PlaceResults: {
+            places: components["schemas"]["Place"][];
         };
         ReportReceipt: {
             /** Format: uuid */
@@ -503,6 +530,52 @@ export interface operations {
             };
             /** @description Invalid feedback */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    search_places: {
+        parameters: {
+            query: {
+                /** @example 55 Park Place NE */
+                q: string;
+                /**
+                 * @description lat,lon used to rank results; never stored.
+                 * @example 33.7531,-84.3853
+                 */
+                near?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceResults"];
+                };
+            };
+            /** @description Query too short or too long, or invalid near */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Place search unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

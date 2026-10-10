@@ -152,6 +152,12 @@ Record the search bounds/limit and test a detour; never claim risk for an unseen
 Choose the concrete envelope and timeout budgets with measured GSU routes during C4; no new API
 field or unsupported global routing promise is introduced by this plan.
 
+## Place search
+
+`GET /v1/places` proxies Photon for trip endpoint search (`app/places.py`, decision 020): metro-Atlanta
+bbox, rounded ranking point, 3-100 character queries, a short cache, and 503 on provider failure. It
+never touches product storage or routing, and routing keeps taking lat/lon.
+
 ## Implementation sequence and dependencies
 
 1. **C1 — Persistence foundation (milestone 1).** After stage 0, add DB configuration, migrations,

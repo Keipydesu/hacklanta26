@@ -1,12 +1,10 @@
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ActionButton as Button } from '../ui/ActionButton';
 import { useTheme, type Theme } from '../ui/theme';
-import { canRequest, presentRoutes, type Point, type RouteLine, type RouteState } from './model';
+import { canRequest, presentRoutes, type RouteLine, type RouteState } from './model';
 
-export type Target = 'origin' | 'destination';
 export const routeColors = (theme: Theme) => ({ shortest: theme.routeShortest, safest: theme.routeLowerRisk });
-const where = (p: Point | null) => (p ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : 'not set');
 
 function RouteCard({ line, expanded, colors }: { line: RouteLine; expanded: boolean; colors: { shortest: string; safest: string } }) {
   const theme = useTheme();
@@ -20,34 +18,23 @@ function RouteCard({ line, expanded, colors }: { line: RouteLine; expanded: bool
 }
 
 export function RouteScreen(props: {
-  colors: { shortest: string; safest: string }; state: RouteState; target: Target; offlinePreview: boolean; expanded: boolean;
-  onTarget(target: Target): void; onUseLocation(): void; onCompare(): void;
-  onSwap(): void; onClear(): void;
+  colors: { shortest: string; safest: string }; state: RouteState; offlinePreview: boolean; expanded: boolean;
+  fields: ReactNode; canSwap: boolean; onCompare(): void; onSwap(): void; onClear(): void;
 }) {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const { state, target, expanded } = props;
+  const { state, expanded } = props;
   const presented = state.result ? presentRoutes(state.result) : null;
   const ready = canRequest(state);
   const loading = state.status === 'loading';
   return <>
-    {(!presented || expanded) && <>
-      <View style={styles.row}>
-        <Button icon="pin" selected={target === 'origin'} title={state.origin ? 'Start set' : 'Set start'} onPress={() => props.onTarget('origin')} />
-        <Button icon="route" selected={target === 'destination'} title={state.destination ? 'Destination set' : 'Set destination'} onPress={() => props.onTarget('destination')} />
-      </View>
-      <Text style={styles.fine}>Tap map to set {target === 'origin' ? 'start' : 'destination'}</Text>
-      {expanded && <>
-        <Text style={styles.fine}>A · {where(state.origin)}   B · {where(state.destination)}</Text>
-        <Button icon="locate" title="Use my location as start" onPress={props.onUseLocation} />
-        <View style={styles.row}>
-          <Button title="Swap" disabled={!state.origin && !state.destination} onPress={props.onSwap} />
-          <Button title="Clear" disabled={!state.origin && !state.destination} onPress={props.onClear} />
-        </View>
-      </>}
-      <Button primary title={loading ? 'Comparing…' : presented ? 'Refresh routes' : 'Compare routes'} disabled={!ready || loading} onPress={props.onCompare} />
-      {!ready && <Text style={styles.fine}>Set two different points to compare</Text>}
-    </>}
+    {props.fields}
+    {expanded && <View style={styles.row}>
+      <Button title="Swap" disabled={!props.canSwap} onPress={props.onSwap} />
+      <Button title="Clear" onPress={props.onClear} />
+    </View>}
+    {loading && <Text style={styles.fine}>Comparing routes…</Text>}
+    {ready && !loading && (!presented || expanded) && <Button primary title={presented ? 'Refresh routes' : 'Compare routes'} onPress={props.onCompare} />}
     {!!state.error && <Text accessibilityRole="alert" style={styles.error}>{state.error}</Text>}
     {state.error && presented && !expanded && <Button title="Retry comparison" onPress={props.onCompare} disabled={loading} />}
     {state.outdated && presented && <View>
