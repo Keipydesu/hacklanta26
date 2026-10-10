@@ -154,6 +154,21 @@ jobs:
           infra/provision_observation_db.sh
           docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation up -d --build --wait automatic
           infra/check_stack.sh http://localhost:8000 --automation-url http://localhost:8001
+      - name: End-to-end demo flow over HTTP (runs once the simulator is in the checkout)
+        run: |
+          if [ ! -d simulator/src/simulator ]; then echo "simulator/ not in this checkout yet; skipping"; exit 0; fi
+          export PYTHONPATH=simulator/src
+          infra/check_stack.sh http://localhost:8000 --write-demo
+          python3 -m simulator.cli manual --scenario manual-expired --product-url http://localhost:8000 --demo-target
+          AUTOMATION_PUBLISH_KEY=ci-publisher-only python3 -m simulator.cli publication --product-url http://localhost:8000 --demo-target
+          if curl -fsS http://localhost:8001/healthz | grep -q '"worker":"running"'; then
+            # Real worker present: synthetic observations must come back as a published, labeled hazard.
+            infra/seed_demo.sh http://localhost:8000 --automation-url http://localhost:8001 --at 33.7570,-84.3895
+            python3 -m simulator.cli observations --scenario demo-seed-negative --automation-url http://localhost:8001 --product-url http://localhost:8000 --demo-target --wait 15
+          else
+            echo "observation service has no worker in this checkout; ingestion-only"
+            python3 -m simulator.cli observations --scenario demo-seed --automation-url http://localhost:8001 --demo-target
+          fi
       - name: Each side keeps running while the other is stopped
         run: |
           docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml stop api
