@@ -159,8 +159,8 @@ export default function App() {
   return <SafeAreaView style={styles.page}>
     <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
     <KeyboardAvoidingView style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <MapLibreView style={[styles.map, { bottom: dockHeight }]} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
-      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} />
+    <View style={[styles.map, { bottom: dockHeight }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
+      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} /></View>
     <View pointerEvents="box-none" style={styles.overlay}>
       <View style={styles.header}>
         <Text style={styles.title}>Campus</Text>
