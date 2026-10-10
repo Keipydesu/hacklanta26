@@ -1,4 +1,4 @@
-# Manual mobile app · stage 0
+# Manual mobile app
 
 Expo SDK 55 + TypeScript, React Native Maps. No sensor imports or motion permissions. Uses only
 its local generated product types and copied fixtures; the automatic tree is not a dependency.
@@ -21,7 +21,8 @@ and interaction check is still needed.
 
 With no `EXPO_PUBLIC_API_URL`, the app opens in visibly labeled offline fixture preview mode.
 Map source/evidence labels and expiry are shown; timestamps shift once per app session. Report
-submission is disabled in fixture mode. The route screen shows fixed illustrative GSU routes.
+submission is disabled in fixture mode. The route screen shows fixed example GSU routes, labeled
+as an offline preview.
 
 For the live product stub, set the URL when starting Metro:
 
@@ -49,7 +50,32 @@ refreshes the feed, re-evaluates expiry and resumes the queue; a failed refresh 
 labeled stale. "Use my location" requests foreground permission only when tapped and reads one fix
 (no continuous or background updates); denial leaves pin placement working.
 
-Dependencies (exact): `@react-native-async-storage/async-storage` 2.2.0 and `expo-location` 55.1.14.
+Route comparison (slice A3): on the Route tab, tap the map to place the start (A) and destination
+(B) pins, drag them to adjust, or use "Use my location as start" (one foreground fix, optional).
+"Compare routes" posts exactly those two points to `POST /v1/route` and draws the shortest route
+(grey, dashed when there is an alternative) and the lower-risk route (teal) with distance, time,
+the 0–1 risk heuristic and how many reported hazards each crosses. The contract's `safest` kind is
+only ever shown as "Lower-risk".
 
-Lane A still owns destination selection and device polish. Routes remain stubs until Lane C supplies
-Valhalla. A routing failure does not disable the map or report form.
+- Moving a pin clears the old comparison, and a response for an earlier pair is never displayed.
+  Repeated taps share one in-flight request.
+- `safest_available: false`, or two identical lines, is shown as one route with an explanation,
+  never as two different paths.
+- A 503 shows "Routing is unavailable right now" with retry; the map and report form keep working.
+- A live `hazards.changed` hint marks an existing comparison as possibly out of date and offers a
+  refresh. Queued reports do not affect routes until the server accepts them.
+- When the server has no routing engine it answers with its fixed example and an
+  `X-Stage-0-Stub` header; the app then labels the lines as examples that do not follow the pins.
+
+The header line shows "Test server · reports are not kept when it restarts" only when `/healthz`
+reports memory storage. Route state lives in `src/routes/model.ts` (tested in Node,
+`tests/routes.cjs`) and the screen in `src/routes/RouteScreen.tsx`.
+
+Dependencies (exact): `@react-native-async-storage/async-storage` 2.2.0 and `expo-location` 55.1.14.
+A3 adds none.
+
+Verification for A3: `npm test` passes (30 Node tests, 14 new). `npm run typecheck`, `npm run build`
+and on-device checks were **not** run for this slice (it was written without npm registry access);
+CI's mobile job is the gate. Still open: the hosted two-phone rehearsal (A4) with real routing over
+HTTPS, and confirming automatic hazards render unchanged (A5). This is a comparison, not
+turn-by-turn navigation.
