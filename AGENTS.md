@@ -36,9 +36,9 @@ introduces them. Keep records short and update affected plans to match.
 
 Stage 0 contracts, fixtures and independently runnable skeletons now exist. The product API persists to PostGIS when `DATABASE_URL` is set (memory otherwise); the
 observation API persists to its private PostGIS database and runs a hazard worker/outbox when
-`AUTOMATION_DATABASE_URL` is set (memory stub otherwise); mobile/collector export native bundles; the detector is
-an explicit no-op. Real persistence, offline queues, sensors, routing and deployment remain later
-milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
+`AUTOMATION_DATABASE_URL` is set (memory stub otherwise); mobile/collector export native bundles. The collector implements foreground sensing, privacy trimming
+and durable uploads; the detector implements hard-brake and bump detection. Physical-device validation,
+real-recording tuning and hosted deployment remain outstanding. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
 
 ## Stack
 
@@ -48,8 +48,8 @@ milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md)
 | Backend | FastAPI; PostGIS persistence via psycopg when `DATABASE_URL` is set, memory stub otherwise |
 | Data | PostgreSQL + PostGIS Compose container; product API persists reports/hazards/revisions |
 | Routing | Valhalla pedestrian costing (scooter pace/step penalty) when `VALHALLA_URL` is set; fixed fixture otherwise |
-| Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
-| Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
+| Automatic collector | Separate Expo app: device motion/GPS sensing (foreground only), privacy trimming, durable upload queue, indoor demo |
+| Automatic detector | Pure TypeScript hard-brake and bump detector in `automatic/detector/` |
 | Automatic service | Independent FastAPI; durable PostGIS ingestion, serialized hazard worker and publication outbox when `AUTOMATION_DATABASE_URL` is set (memory stub otherwise) |
 | Hosting | Compose manual stack with opt-in `routing` / `https` / `automation` profiles and Vultr deploy/rollback scripts (`infra/`); Vultr path not yet run on a real host |
 
@@ -70,7 +70,8 @@ From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
 - Observation tests:
   `uv run --project automatic/service pytest -c automatic/service/pyproject.toml automatic/tests -q`.
 - Collector: `npm ci --prefix automatic/collector`; `npm start --prefix automatic/collector`;
-  `npm run typecheck --prefix automatic/collector`; `npm run build --prefix automatic/collector`.
+  `npm run typecheck --prefix automatic/collector`; `npm test --prefix automatic/collector`;
+  `npm run build --prefix automatic/collector`.
 - Detector: `npm ci --prefix automatic/detector`; `npm test --prefix automatic/detector`.
 - Simulator: `PYTHONPATH=simulator/src python3 -m unittest discover -s simulator/tests -t simulator`;
   `node --test "simulator/replay-detector/*.test.mjs"`.

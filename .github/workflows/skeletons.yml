@@ -97,7 +97,7 @@ jobs:
         with: {node-version: '22'}
       - run: npm ci --prefix automatic/collector
       - run: npm run typecheck --prefix automatic/collector
-      - run: npm test --if-present --prefix automatic/collector
+      - run: npm test --prefix automatic/collector
       - run: npm run build --prefix automatic/collector
         env: {CI: '1', EXPO_NO_TELEMETRY: '1'}
   detector:
