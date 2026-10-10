@@ -1,0 +1,10 @@
+{
+  "name": "campus-replay-detector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs Lane B's detector over recorded CSV rides. No dependencies; uses the detector's public interface only.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

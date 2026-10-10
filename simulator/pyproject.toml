@@ -1,0 +1,8 @@
+[project]
+name = "campus-simulator"
+version = "0.1.0"
+description = "Reproducible HTTP scenarios for the campus hazard map (Lane F)"
+requires-python = ">=3.11"
+# Standard library only, on purpose: nothing to vet, lock, build or install.
+# Run it straight from the source tree: PYTHONPATH=simulator/src python3 -m simulator.cli
+dependencies = []

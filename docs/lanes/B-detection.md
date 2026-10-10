@@ -6,8 +6,9 @@ Implement milestone 3's sensor path independently of the manual product, followi
 [ARCHITECTURE.md](../../ARCHITECTURE.md), [the roadmap](../ROADMAP.md) and
 [decision 001](../decisions/001-mvp-delivery-workflow.md). Stage 0 is merged through
 [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1): the detector exports the agreed interface
-but emits no events, and the collector sends simulated fixtures only. There are no real sensors,
-recorder, privacy buffer or durable queues yet. The manual release does not wait on this lane.
+and PR #7 implements hard-brake/bump detection plus the foreground collector, local recorder,
+privacy buffer and durable queue. Synthetic regression tests cover these paths; physical-device
+checks, real-recording tuning and B5 integration remain outstanding. The manual release does not wait on this lane.
 
 **Owns:** `automatic/detector/` and `automatic/collector/`. Detector code is pure TypeScript with
 no React Native imports; collector uses the separate observation API. No product credentials,
@@ -186,7 +187,7 @@ manual release. Synthetic data cannot satisfy the real-ride validation claim.
    evidence. F supplies scenarios/recordings and G observation URL; none blocks B1–B3 synthetic work.
    Record missing real rides/device checks instead of marking them passed.
 
-Existing stage-0 commands (they prove skeleton build, not real detection):
+Detector and collector commands (synthetic tests and bundle builds do not verify physical sensors):
 
 ```sh
 npm ci --prefix automatic/detector
@@ -194,13 +195,13 @@ npm run build --prefix automatic/detector
 npm test --prefix automatic/detector
 npm ci --prefix automatic/collector
 npm run typecheck --prefix automatic/collector
+npm test --prefix automatic/collector
 npm run build --prefix automatic/collector
 EXPO_PUBLIC_AUTOMATION_API_URL=http://YOUR_LAN_IP:8001 npm start --prefix automatic/collector
 ```
 
-Replace the no-op detector expectation when algorithms land; preserve public API compatibility.
-Add privacy/queue tests and their exact verified command in the collector manifest/README when
-implemented. Ask G to extend existing lane-filtered CI, not run sensors on CI. Local checks focus
+Detector and collector regression tests run in the lane-filtered CI, including rejected GPS fixes
+and persistence barriers during concurrent drains. Preserve public API compatibility. Local checks focus
 on changed behavior; physical sensor/replay evidence belongs in the handoff. Verify the manual app
 can still build without this tree in a disposable checkout, not by deleting a shared workspace.
 

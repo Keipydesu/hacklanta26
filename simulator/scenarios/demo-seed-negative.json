@@ -1,0 +1,38 @@
+{
+  "name": "demo-seed-negative",
+  "kind": "observations",
+  "version": 1,
+  "description": "Negative control: two events from two rides are accepted but are below the three-event threshold, so nothing may be published.",
+  "prerequisites": "Observation API. To see a published hazard: Lane D's worker and the product API. Thresholds are the worker's own (12 m, 3 events, 2 rides); this scenario does not lower them.",
+  "evidence_source": "simulated",
+  "points_per_ride": 0,
+  "clusters": [
+    {
+      "key": "spot",
+      "type": "hard_brake",
+      "center": {
+        "lat": 33.7522,
+        "lon": -84.3871
+      },
+      "events": 2,
+      "rides": 2,
+      "radius_m": 3,
+      "age_minutes": [
+        0,
+        5
+      ]
+    }
+  ],
+  "expect": {
+    "absent": [
+      {
+        "kind": "braking",
+        "near": {
+          "lat": 33.7522,
+          "lon": -84.3871
+        },
+        "within_m": 40
+      }
+    ]
+  }
+}
