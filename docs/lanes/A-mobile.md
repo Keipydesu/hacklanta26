@@ -196,5 +196,5 @@ permissions work on-device. Use phone-reachable LAN URLs locally and G's HTTPS U
 
 Handoff records what works, exact app/API revisions and launch URL, commands and devices actually
 checked, retry IDs/receipts, outage behavior, and remaining stubs. Do not remove fixture warnings
-until the corresponding live capability exists. Defer accounts, voting, cross-source merging,
+until the corresponding live capability exists. Defer accounts, cross-source merging,
 continuous tracking, motion detection, dashboard and cosmetic polish beyond the manual release.

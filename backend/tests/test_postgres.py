@@ -277,3 +277,25 @@ def test_feedback_policy_extends_and_resolves_manual_hazards_in_the_database():
         assert (await client.get(FEED)).json()['features'] == []
     run(remove)
     assert sql('SELECT status, source, report_count FROM hazards WHERE id = %s', hazard_id) == [('resolved', 'manual', 1)]
+
+def test_automatic_hazard_hidden_by_answers_until_newer_revision_in_the_database():
+    _, automatic = fresh()
+    async def scenario(client, app):
+        hazard_id = (await client.put(PUB, json=automatic, headers=AUTH)).json()['hazard_id']
+        url = f'/v1/hazards/{hazard_id}/feedback'
+        answer = lambda response: {'id': str(uuid4()), 'response': response}
+        ids = lambda feed: [f['properties']['id'] for f in feed['features']]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert ids((await client.get(FEED)).json()) == [hazard_id]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert ids((await client.get(FEED)).json()) == []
+        assert (await client.post(url, json=answer('gone'))).status_code == 404
+        return hazard_id, url, answer, ids
+    hazard_id, url, answer, ids = run(scenario)
+    assert sql('SELECT revision, status, hidden_at_revision FROM hazards WHERE id = %s', hazard_id) == [(1, 'active', 1)]
+    async def republish(client, app):
+        assert (await client.put(PUB, json=dict(automatic, revision=2), headers=AUTH)).status_code == 200
+        assert ids((await client.get(FEED)).json()) == [hazard_id]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert ids((await client.get(FEED)).json()) == [hazard_id]
+    run(republish)

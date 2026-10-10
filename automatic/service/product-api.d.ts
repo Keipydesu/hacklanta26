@@ -81,7 +81,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description A rider answers "Is this hazard still there?" for an active hazard. 201 records new feedback. The same feedback UUID with the same hazard and body returns 200 duplicate=true, even after the hazard has changed; a different hazard or body returns 409. 404 when the hazard is unknown, resolved or expired. Feedback is separate from reports and never changes source/evidence labels or automatic publication revisions. Its effect on visibility and expiry follows decision 012. No location, account or device identifier is collected. */
+        /** @description A rider answers "Is this hazard still there?" for an active hazard. 201 records new feedback. The same feedback UUID with the same hazard and body returns 200 duplicate=true, even after the hazard has changed; a different hazard or body returns 409. 404 when the hazard is unknown, resolved, expired or hidden by feedback. Feedback is separate from reports and never changes source/evidence labels or automatic publication revisions. Its effect on visibility and expiry follows decision 012. No location, account or device identifier is collected. */
         post: operations["submit_hazard_feedback"];
         delete?: never;
         options?: never;
@@ -483,7 +483,7 @@ export interface operations {
                     "application/json": components["schemas"]["FeedbackReceipt"];
                 };
             };
-            /** @description Hazard is unknown, resolved or expired */
+            /** @description Hazard is unknown, resolved, expired or hidden by feedback */
             404: {
                 headers: {
                     [name: string]: unknown;

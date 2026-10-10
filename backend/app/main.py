@@ -24,7 +24,7 @@ from shapely.ops import transform
 import yaml
 from .db.migrate import migrate
 from .db.store import Conflict, NotFound, PostgresStore, Result
-from .feedback import RECENT_NEEDED, HazardState, apply_feedback
+from .feedback import RECENT_NEEDED, Hide, HazardState, apply_feedback
 from .routing import planner
 from .routing.valhalla import NoPath, Unavailable, ValhallaClient
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
@@ -61,6 +61,7 @@ def create_app(database_url=None):
     valhalla_url = os.getenv('VALHALLA_URL')
     valhalla = ValhallaClient(valhalla_url) if valhalla_url else None
     reports, publications, hazards, feedback = {}, {}, {}, {}
+    revisions, hidden = {}, {}
     sockets = set()
     spec = yaml.safe_load((CONTRACTS/'openapi.yaml').read_text())
     route_fixture = json.loads((CONTRACTS/'fixtures/route.json').read_text())
@@ -215,6 +216,7 @@ def create_app(database_url=None):
         props.update(id=hazard_id, source='automatic', report_count=0)
         hazards[hazard_id] = {'type':'Feature','geometry':body.geometry.model_dump(),'properties':props}
         publications[key] = (body, hazard_id)
+        revisions[hazard_id] = body.revision
         await notify(hazard_id)
         return {'hazard_id':hazard_id,'revision':body.revision,'duplicate':False}
 
@@ -226,9 +228,12 @@ def create_app(database_url=None):
             return {'type':'FeatureCollection','features':await store.list_active(bounds, now)}
         return {'type':'FeatureCollection','features':memory_active(bounds, now)}
 
+    def memory_hidden(hazard_id):
+        return hazard_id in hidden and hidden[hazard_id] == revisions.get(hazard_id)
+
     def memory_active(bounds, now):
         area = box(*bounds)
-        return [h for h in hazards.values() if h['properties']['status'] == 'active'
+        return [h for h in hazards.values() if h['properties']['status'] == 'active' and not memory_hidden(h['properties']['id'])
                 and h['properties']['expires_at'] > now and shape(h['geometry']).intersects(area)]
 
     @app.post('/v1/hazards/{hazard_id}/feedback', response_model=FeedbackReceipt, status_code=201)
@@ -251,17 +256,20 @@ def create_app(database_url=None):
     def memory_feedback(hazard_id, body, now):
         key = str(body.id)
         if key in feedback:
-            if feedback[key] != (hazard_id, body.response):
+            if feedback[key][:2] != (hazard_id, body.response):
                 raise HTTPException(409, 'Feedback ID already used for a different hazard or answer')
             return Result(hazard_id, True, 200, changed=False)
         hazard = hazards.get(hazard_id)
         props = hazard and hazard['properties']
-        if not props or props['status'] != 'active' or props['expires_at'] <= now:
+        if not props or props['status'] != 'active' or props['expires_at'] <= now or memory_hidden(hazard_id):
             raise HTTPException(404, 'Hazard is unknown, resolved or expired')
-        feedback[key] = (hazard_id, body.response)
-        recent = [answer for (target, answer) in reversed(feedback.values()) if target == hazard_id][:RECENT_NEEDED]
+        revision = revisions.get(hazard_id)
+        feedback[key] = (hazard_id, body.response, revision)
+        recent = [answer for (target, answer, at) in reversed(feedback.values()) if target == hazard_id and at == revision][:RECENT_NEEDED]
         change = apply_feedback(HazardState(props['source'], props['status'], props['last_seen'], props['expires_at']), recent, now)
-        if change:
+        if isinstance(change, Hide):
+            hidden[hazard_id] = revision
+        elif change:
             props.update(status=change.status, last_seen=change.last_seen, expires_at=change.expires_at)
         return Result(hazard_id, False, 201, changed=change is not None)
 

@@ -18,6 +18,7 @@
     "src/map/protocol.ts",
     "src/map/overlay.ts",
     "src/map/html.ts",
-    "src/feedback/feedback.ts"
+    "src/feedback/feedback.ts",
+    "src/feedback/nearby.ts"
   ]
 }

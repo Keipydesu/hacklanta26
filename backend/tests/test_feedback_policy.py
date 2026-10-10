@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from app.feedback import Change, HazardState, apply_feedback
+from app.feedback import Change, HazardState, Hide, apply_feedback
 
 NOW = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
 MANUAL = HazardState('manual', 'active', NOW - timedelta(hours=2), NOW + timedelta(hours=3))
@@ -19,7 +19,8 @@ def test_one_gone_answer_never_removes_a_hazard():
 def test_two_consecutive_gone_answers_resolve_a_manual_hazard():
     assert apply_feedback(MANUAL, ['gone', 'gone'], NOW) == Change('resolved', MANUAL.last_seen, MANUAL.expires_at)
 
-def test_automatic_hazards_are_never_changed_by_answers():
+def test_automatic_hazards_hide_after_two_gone_and_ignore_still_there():
     automatic = HazardState('automatic', 'active', MANUAL.last_seen, MANUAL.expires_at)
-    for recent in (['still_there'], ['gone', 'gone'], ['gone']):
+    assert apply_feedback(automatic, ['gone', 'gone'], NOW) == Hide()
+    for recent in (['still_there'], ['gone'], ['gone', 'still_there'], ['still_there', 'gone']):
         assert apply_feedback(automatic, recent, NOW) is None

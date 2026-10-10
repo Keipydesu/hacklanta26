@@ -87,6 +87,7 @@ JSON over HTTPS. Version prefix `/v1`. Coordinates are WGS84: objects use `lat`/
 | POST | `/v1/reports` | Create a user-submitted report and its map hazard |
 | PUT | `/v1/automatic/hazards/{external_id}` | Publish or update an automatically derived hazard |
 | GET | `/v1/hazards?bbox=` | Active, unexpired manual and automatic hazards as one GeoJSON FeatureCollection |
+| POST | `/v1/hazards/{hazard_id}/feedback` | Rider answer to "Is this hazard still there?" ([decision 012](docs/decisions/012-hazard-feedback.md)) |
 | POST | `/v1/route` | Shortest and lower-risk routes using the same combined feed |
 | WS | `/v1/live` | Notify phones that hazards changed |
 | GET | `/healthz` | Product API/database health, independent of automation |
@@ -144,9 +145,9 @@ New publication returns 201; a newer revision updates the existing hazard and re
 
 Each GeoJSON polygon has properties: `id`, `source` (`manual | automatic`), `kind`, `label`, `score`, `status`, `first_seen`, `last_seen`, `expires_at`, `event_count`, `ride_count`, `report_count`, `evidence_source` (null for manual). Manual reports have `report_count: 1` and zero sensor counts; automatic hazards have `report_count: 0`.
 
-Both sources are visible on the same map; use explicit labels “Community report” and “Automatically detected.” Keep separate records even when they overlap; cross-source merging and community voting are later features. Reads and routing filter expiry at request time, even if cleanup is delayed. The server publishes expiry changes, and the app also hides a hazard when its expiry time passes.
+Both sources are visible on the same map; use explicit labels “Community report” and “Automatically detected.” Keep separate records even when they overlap; cross-source merging is a later feature. Rider "still there / no longer there" feedback follows [decision 012](docs/decisions/012-hazard-feedback.md): it can extend or resolve manual hazards and can hide an automatic hazard until its next newer revision, without editing the publication. Reads and routing filter expiry at request time, even if cleanup is delayed. The server publishes expiry changes, and the app also hides a hazard when its expiry time passes.
 
-Live message: `{ "type": "hazards.changed", "data": { "hazard_id": "uuid" } }`. On receipt, debounce and refetch the visible bounds; also refetch on reconnect. Emit after committed creates, updates, resolutions, and expiry. There is no public raw event feed required by the manual app.
+Live message: `{ "type": "hazards.changed", "data": { "hazard_id": "uuid" } }`. On receipt, debounce and refetch the visible bounds; also refetch on reconnect. Emit after committed creates, updates, resolutions, feedback-driven changes, and expiry. There is no public raw event feed required by the manual app.
 
 ### Routing
 
@@ -197,6 +198,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 ## 8. Privacy and source labeling
 
 - The manual app asks for foreground location only when needed; a user can instead place a pin. Submission sends that selected point and report, not a ride trace.
+- While the app is open with location permission, the app compares the rider's position with visible hazards on the phone to ask "Is this hazard still there?" within 40 m. Nothing is tracked in the background, recorded or uploaded, and feedback carries no coordinates (decision 012).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.

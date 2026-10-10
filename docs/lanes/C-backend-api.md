@@ -213,5 +213,5 @@ neither may silently disappear from risk scoring.
 Handoff records schema version/migration commands, confirmed DB durability, API and routing probes,
 which real-device checks A ran, tested Valhalla version/campus pairs, configuration, failures and
 remaining stubs. Physical-device and HTTPS gates cannot be replaced by fixture tests. Defer soft-cost
-OSMnx routing, cross-source merging/voting, raw event APIs and horizontal scaling until the manual
+OSMnx routing, cross-source merging (hazard feedback follows decision 012), raw event APIs and horizontal scaling until the manual
 release works. No contracts or implementation are changed by this planning PR.

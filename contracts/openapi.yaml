@@ -153,7 +153,8 @@ paths:
       description: A rider answers "Is this hazard still there?" for an active hazard.
         201 records new feedback. The same feedback UUID with the same hazard and
         body returns 200 duplicate=true, even after the hazard has changed; a different
-        hazard or body returns 409. 404 when the hazard is unknown, resolved or expired.
+        hazard or body returns 409. 404 when the hazard is unknown, resolved, expired or
+        hidden by feedback.
         Feedback is separate from reports and never changes source/evidence labels or
         automatic publication revisions. Its effect on visibility and expiry follows
         decision 012. No location, account or device identifier is collected.
@@ -171,7 +172,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/FeedbackReceipt'
         '404':
-          description: Hazard is unknown, resolved or expired
+          description: Hazard is unknown, resolved, expired or hidden by feedback
           content:
             application/json:
               schema:

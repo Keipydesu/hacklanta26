@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 MANUAL_REFRESH = timedelta(hours=24)
-GONE_TO_RESOLVE = 2
-RECENT_NEEDED = GONE_TO_RESOLVE
+GONE_TO_REMOVE = 2
+RECENT_NEEDED = GONE_TO_REMOVE
 
 @dataclass(frozen=True)
 class HazardState:
@@ -16,21 +16,28 @@ class HazardState:
 
 @dataclass(frozen=True)
 class Change:
+    """New lifecycle values for a manual hazard."""
     status: str
     last_seen: datetime
     expires_at: datetime
 
-def apply_feedback(hazard: HazardState, recent: list[str], now: datetime) -> Change | None:
-    """`recent` holds this hazard's latest answers, newest first (at most RECENT_NEEDED), starting
-    with the one just recorded. Returns the hazard's new state, or None to leave it unchanged.
+@dataclass(frozen=True)
+class Hide:
+    """Hide an automatic hazard until its publisher sends a newer revision; its publication is untouched."""
 
-    Manual hazards: "still_there" extends expiry to now + 24 h. GONE_TO_RESOLVE consecutive "gone"
-    answers (none of them followed by "still_there") resolve it; one answer never removes a hazard.
+def apply_feedback(hazard: HazardState, recent: list[str], now: datetime) -> Change | Hide | None:
+    """`recent` holds the hazard's latest answers, newest first (at most RECENT_NEEDED), starting with the
+    one just recorded. For automatic hazards it contains only answers given at the current revision.
+
+    Manual: "still_there" extends expiry to now + 24 h; GONE_TO_REMOVE consecutive "gone" answers resolve it.
+    Automatic: GONE_TO_REMOVE consecutive "gone" answers hide it; "still_there" changes nothing.
+    One answer never removes a hazard, and an unanswered prompt is not an answer.
     """
-    if hazard.source != 'manual' or not recent:
+    if not recent:
         return None
+    gone = len(recent) >= GONE_TO_REMOVE and all(answer == 'gone' for answer in recent[:GONE_TO_REMOVE])
+    if hazard.source == 'automatic':
+        return Hide() if gone else None
     if recent[0] == 'still_there':
         return Change('active', max(hazard.last_seen, now), max(hazard.expires_at, now + MANUAL_REFRESH))
-    if len(recent) >= GONE_TO_RESOLVE and all(answer == 'gone' for answer in recent[:GONE_TO_RESOLVE]):
-        return Change('resolved', hazard.last_seen, hazard.expires_at)
-    return None
+    return Change('resolved', hazard.last_seen, hazard.expires_at) if gone else None

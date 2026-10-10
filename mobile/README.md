@@ -112,6 +112,19 @@ HTTP deadlines cover response headers and JSON body consumption, including route
 A stalled body aborts after 15 seconds so a pending report can retry with its original identity.
 The client regression test exercises a stalled body, timeout cleanup, retry, and route stub labeling.
 
+## Hazard feedback
+
+Tap a hazard pin to open its panel under the map. The panel shows the source, category, label and
+expiry, and asks "Is this … still there?" with "Still there" and "No longer there". An answer shows
+as sending until the server returns a receipt for that exact answer and hazard, and only then as
+received. Failed answers can be retried with the identical body. The app sends one answer per
+hazard per session, separate from the report queue (`src/feedback/`).
+
+While the app is open with location permission, coming within 40 m of a hazard opens its panel
+once per session. This uses foreground location only; nothing is recorded, uploaded or sent with
+answers, and an ignored prompt is not an answer. Answers can't be sent in fixture mode. Server-side
+effects are in [decision 012](../docs/decisions/012-hazard-feedback.md).
+
 ## SDK 57 upgrade (2026-10-10)
 
 After pulling the upgrade, stop Metro, reinstall from the lockfile and clear Metro's cache:

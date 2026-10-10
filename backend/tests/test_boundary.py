@@ -230,16 +230,25 @@ def test_feedback_is_separate_idempotent_and_keeps_labels(client):
     assert props[hazard_id]['source'] == 'manual' and props[hazard_id]['report_count'] == 1
     assert props[automatic_id]['source'] == 'automatic' and props[automatic_id]['evidence_source'] == automatic['evidence_source']
 
-def test_feedback_on_automatic_hazard_never_alters_its_publication(client):
+def test_two_gone_answers_hide_an_automatic_hazard_until_a_newer_revision(client):
     _, automatic = fresh()
     automatic_id = client.put(PUB, json=automatic, headers=AUTH).json()['hazard_id']
-    before = next(f['properties'] for f in client.get(FEED).json()['features'] if f['properties']['id'] == automatic_id)
-    for response in ('gone', 'gone', 'gone', 'still_there'):
-        assert client.post(f'/v1/hazards/{automatic_id}/feedback', json=feedback_body(response)).status_code == 201
-    after = next(f['properties'] for f in client.get(FEED).json()['features'] if f['properties']['id'] == automatic_id)
-    assert after == before
+    url = f'/v1/hazards/{automatic_id}/feedback'
+    before = active_props(client, automatic_id)
+    assert client.post(url, json=feedback_body('still_there')).status_code == 201
+    assert client.post(url, json=feedback_body('gone')).status_code == 201
+    assert active_props(client, automatic_id) == before, 'still_there never extends and one gone never hides'
+    assert client.post(url, json=feedback_body('gone')).status_code == 201
+    assert active_props(client, automatic_id) is None
+    assert client.post(url, json=feedback_body('gone')).status_code == 404
+    duplicate = client.put(PUB, json=automatic, headers=AUTH)
+    assert duplicate.status_code == 200 and duplicate.json()['duplicate'] and active_props(client, automatic_id) is None
     update = client.put(PUB, json=dict(automatic, revision=2, label='Updated by publisher'), headers=AUTH)
     assert update.status_code == 200 and update.json()['revision'] == 2
+    shown = active_props(client, automatic_id)
+    assert shown['label'] == 'Updated by publisher' and shown['source'] == 'automatic'
+    assert client.post(url, json=feedback_body('gone')).status_code == 201
+    assert active_props(client, automatic_id) is not None, 'answers from an older revision do not count'
 
 def manual_hazard(client, manual):
     hazard_id = client.post('/v1/reports', json=manual).json()['hazard_id']
