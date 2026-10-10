@@ -7,11 +7,9 @@ Automation is independently startable and never a prerequisite for reports, map 
 Follow [the architecture](../../ARCHITECTURE.md), [roadmap](../ROADMAP.md) and
 [decision 001](../decisions/001-mvp-delivery-workflow.md).
 
-[PR #1](https://github.com/Keipydesu/hacklanta26/pull/1), pending merge when this plan was written,
-already provides product API/PostGIS Compose, a backend image, environment examples, scoped CI,
+[PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) is merged and provides product API/PostGIS Compose, a backend image, environment examples, scoped CI,
 contract/type drift checks and component startup docs. The API still uses memory; healthy PostGIS
-is not evidence of persistence. There is no Valhalla, TLS or Vultr deployment yet. Extend those files
-after merge. Everything below beyond that baseline is proposed, not a verified deploy command.
+is not evidence of persistence. There is no Valhalla, TLS or Vultr deployment yet. Extend those files. Everything below beyond that baseline is proposed, not a verified deploy command.
 
 **Owns:** `infra/`, `backend/Dockerfile`, `automatic/Dockerfile`, `README.md`, `.github/`.
 C owns product database migrations/routing code; D owns private observation migrations/worker;
@@ -216,7 +214,7 @@ publisher key coordinates C and D; stale queued updates keep their IDs/revisions
 - **G5:** optional observation DB/service/proxy and F seed integration for milestones 3–4; default
   manual startup remains independent. Abandonment, redundancy and raw-recording storage defer.
 
-Stage-0 local commands, available once PR #1 lands, remain:
+Existing stage-0 local commands remain:
 
 ```sh
 cp infra/.env.example infra/.env
