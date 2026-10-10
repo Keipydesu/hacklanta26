@@ -165,6 +165,11 @@ field or unsupported global routing promise is introduced by this plan.
 3. **C3 — Live manual gate.** Move expiry task to conditional DB batches, retain bounded sockets,
    wire DB health and verify two-phone refresh/reconnect with A. Exit: offline retries, API restart,
    expiration/reactivation and a slow socket all preserve correct feed state with automation off.
+   **Current status:** backend behavior implemented; five focused PostGIS checks passed on
+   2026-10-10, including the corrected slow-socket test invocation. The physical two-phone gate
+   remains pending in [issue #19](https://github.com/Keipydesu/hacklanta26/issues/19).
+   Follow the [C3 rehearsal checklist](../../backend/C3-rehearsal.md); LAN connectivity is sufficient
+   for C3, while hosted HTTPS/real routing remain separate A4/C5 requirements.
 4. **C4 — Routing adapter (milestone 2).** Agree pinned Valhalla and sample campus requests with G,
    record responses/errors, implement client/decoder and three-trip costing comparison. Until G's
    engine exists, recorded responses drive unit tests; fixtures do not complete the live gate.
@@ -187,10 +192,9 @@ uv run --project backend uvicorn app.main:app --app-dir backend --host 0.0.0.0 -
 python3 contracts/scripts/smoke_product.py
 ```
 
-The current smoke script asserts memory storage; it is a stage-0 probe, not the durable acceptance
-check. Add a DB-aware probe in backend tests when C1 lands, or coordinate a contracts-script update
-with Lane 0. Migration and DB integration test commands do not exist yet. Add them and verify them in C1; ask G
-to extend the backend CI job with a disposable PostGIS service, path-scoped to backend/contracts.
+The smoke script accepts memory or PostGIS storage; it is an HTTP probe, not proof of restart
+durability or two-phone behavior. Migrations run at API startup under an advisory lock; manual
+migration and disposable PostGIS test commands are documented in the [backend README](../../backend/README.md).
 Use small changes and CI as routine gate, not an exhaustive local suite before every push.
 
 Required tests: atomic rollback, restart persistence, exact/conflicting retries, simultaneous first
