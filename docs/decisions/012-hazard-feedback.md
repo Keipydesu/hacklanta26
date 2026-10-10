@@ -38,8 +38,9 @@ visible after the hazard is removed. While the app is open with location permiss
 within 40 m of a hazard opens its panel, at most once per hazard per session. The prompt uses its
 own hazard lookup, not the map viewport, and re-checks the latest position whenever that lookup
 returns. The lookup asks `GET /v1/hazards` for the 3x3 block of ~500 m grid cells around the
-rider. It refreshes on entering a new cell, after 60 s, or on a live change. The server therefore
-learns only which block is checked, as when someone browses the map, never the exact position.
+rider. It refreshes on entering a new cell, on a later position fix after 60 s, or on a live
+change. The server therefore learns only which block is checked, as when someone browses the map,
+never the exact position.
 This uses foreground location only. It never runs in the background, never records or uploads
 precise positions, and never sends coordinates with an answer, so it is not ride tracking. The
 permission text says so.

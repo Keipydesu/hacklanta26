@@ -110,3 +110,98 @@ test('a failed lookup is retried on the next fix, and resolved or expired hazard
   assert.equal(h.loads.length, 2);
   assert.deepEqual(h.prompts, []);
 });
+
+function steppedWatcher(featuresFor) {
+  const loads = [], prompts = [], pending = [];
+  let now = Date.parse('2026-10-10T12:00:00Z');
+  const watcher = createNearbyWatcher({
+    load: bbox => { loads.push(bbox); return new Promise((resolve, reject) => pending.push({ resolve: () => resolve({ features: featuresFor(bbox) }), reject })); },
+    now: () => now, busy: () => false, onPrompt: h => prompts.push(h.properties.id),
+  });
+  const settle = () => new Promise(r => setImmediate(r));
+  return { watcher, loads, prompts, pending, settle,
+    resolveNext: async () => { pending.shift().resolve(); await settle(); },
+    rejectNext: async () => { pending.shift().reject(new Error('offline')); await settle(); } };
+}
+const A = at(33.7531, -84.3853), B = at(33.7581, -84.3853);
+const nearB = feature('near-b', 33.75815, -84.3853);
+
+test('moving to a new cell during a lookup triggers exactly one follow-up lookup for the new cell', async () => {
+  const h = steppedWatcher(bbox => bbox === cellBbox(B) ? [nearB] : []);
+  void h.watcher.position(A);
+  void h.watcher.position(B);
+  assert.equal(h.loads.length, 1, 'one lookup at a time');
+  await h.resolveNext();
+  assert.deepEqual(h.loads, [cellBbox(A), cellBbox(B)], 'the rider stopped in B, and B is still looked up');
+  await h.resolveNext();
+  assert.deepEqual(h.prompts, ['near-b']);
+  assert.equal(h.pending.length, 0);
+});
+
+test('a result for an old cell cannot prompt before the new cell loads', async () => {
+  const h = steppedWatcher(() => [nearB]);
+  void h.watcher.position(A);
+  void h.watcher.position(B);
+  await h.resolveNext();
+  assert.deepEqual(h.prompts, []);
+  await h.resolveNext();
+  assert.deepEqual(h.prompts, ['near-b']);
+});
+
+test('a failed old-cell lookup still fetches the rider\'s new cell', async () => {
+  const h = steppedWatcher(bbox => bbox === cellBbox(B) ? [nearB] : []);
+  void h.watcher.position(A);
+  void h.watcher.position(B);
+  await h.rejectNext();
+  assert.deepEqual(h.loads, [cellBbox(A), cellBbox(B)]);
+  await h.resolveNext();
+  assert.deepEqual(h.prompts, ['near-b']);
+});
+
+test('a live change during a lookup is not lost', async () => {
+  let version = 0;
+  const h = steppedWatcher(() => version ? [feature('new', 33.75315, -84.3853)] : []);
+  void h.watcher.position(A);
+  version = 1;
+  void h.watcher.invalidate();
+  await h.resolveNext();
+  assert.equal(h.loads.length, 2, 'the change made during the first lookup triggers a follow-up');
+  await h.resolveNext();
+  assert.deepEqual(h.prompts, ['new']);
+});
+
+test('in the background nothing is prompted or fetched; returning resumes', async () => {
+  const h = steppedWatcher(() => [feature('near', 33.75315, -84.3853)]);
+  void h.watcher.position(A);
+  void h.watcher.setActive(false);
+  await h.resolveNext();
+  assert.deepEqual(h.prompts, [], 'an in-flight lookup finishing in the background does not prompt');
+  assert.equal(h.loads.length, 1, 'the background does not start another lookup');
+  void h.watcher.setActive(true);
+  assert.deepEqual(h.prompts, [], 'returning waits for the fresh lookup before prompting');
+  assert.equal(h.loads.length, 2, 'and catches up on the missed live change');
+  await h.resolveNext();
+  assert.deepEqual(h.prompts, ['near']);
+});
+
+test('a live change while backgrounded waits for foreground before fetching', async () => {
+  const h = steppedWatcher(() => []);
+  void h.watcher.position(A);
+  await h.resolveNext();
+  void h.watcher.setActive(false);
+  void h.watcher.invalidate();
+  assert.equal(h.loads.length, 1);
+  void h.watcher.setActive(true);
+  assert.equal(h.loads.length, 2);
+  await h.resolveNext();
+});
+
+test('a failed lookup does not retry in a loop; the next fix retries', async () => {
+  const h = steppedWatcher(() => []);
+  void h.watcher.position(A);
+  await h.rejectNext();
+  assert.equal(h.loads.length, 1);
+  void h.watcher.position(A);
+  assert.equal(h.loads.length, 2);
+  await h.resolveNext();
+});

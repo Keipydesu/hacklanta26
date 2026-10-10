@@ -157,16 +157,21 @@ export default function App() {
     let generation = 0;
     async function start() {
       const mine = ++generation;
-      const { granted } = await Location.requestForegroundPermissionsAsync();
-      if (!granted || mine !== generation) return;
-      const watching = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
-        ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }));
-      if (mine !== generation) watching.remove(); else subscription = watching;
+      try {
+        const { granted } = await Location.requestForegroundPermissionsAsync();
+        if (!granted || mine !== generation) return;
+        const watching = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
+          ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }));
+        if (mine !== generation) watching.remove(); else subscription = watching;
+      } catch {}
     }
     function stop() { generation++; subscription?.remove(); subscription = null; }
     void start();
-    const appState = AppState.addEventListener('change', state => { if (state === 'active') { if (!subscription) void start(); } else stop(); });
-    return () => { stop(); appState.remove(); };
+    const appState = AppState.addEventListener('change', state => {
+      if (state === 'active') { void nearby.setActive(true); if (!subscription) void start(); }
+      else { void nearby.setActive(false); stop(); }
+    });
+    return () => { void nearby.setActive(false); stop(); appState.remove(); };
   }, []);
   function onSelectHazard(id: string) {
     const hazard = visible.find(h => h.properties.id === id);

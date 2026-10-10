@@ -78,16 +78,20 @@ export function cellBbox(p: Position): string {
 /**
  * Feeds the prompter from its own hazard lookup for the rider's ~500 m grid block, independent of the
  * map viewport, and re-checks the latest position whenever that lookup returns. The server only
- * learns which block was looked up, as when browsing the map.
+ * learns which block was looked up, as when browsing the map. One lookup runs at a time; a new cell
+ * or a live change during a lookup triggers one follow-up lookup. While inactive (app in the
+ * background) no new lookup starts and no prompt appears.
  */
 export function createNearbyWatcher<F extends NearbyFeature>(deps: WatcherDeps<F>, prompter = createNearbyPrompter()) {
   let hazards: F[] = [];
   let latest: Position | null = null;
   let fetched: { at: number; cell: string } | null = null;
-  let loading = false;
+  let loading: Promise<void> | null = null;
+  let active = true;
+  let dirty = false;
 
   function evaluate() {
-    if (!latest || deps.busy()) return;
+    if (!active || !latest || stale(latest) || deps.busy()) return;
     const now = deps.now();
     const live = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
     const id = prompter.next(latest, live.map(h => ({ id: h.properties.id, ring: h.geometry.coordinates[0] ?? [] })));
@@ -95,30 +99,45 @@ export function createNearbyWatcher<F extends NearbyFeature>(deps: WatcherDeps<F
     if (hazard) deps.onPrompt(hazard);
   }
 
-  async function refetch(position: Position) {
-    loading = true;
-    fetched = { at: deps.now(), cell: cellOf(position) };
-    try {
-      hazards = (await deps.load(cellBbox(position))).features;
-    } catch {
-      fetched = null;
-    } finally {
-      loading = false;
-    }
-    evaluate();
-  }
+  const stale = (position: Position) => dirty || !fetched || deps.now() - fetched.at >= REFETCH_MS || fetched.cell !== cellOf(position);
 
-  const stale = (position: Position) => !fetched || deps.now() - fetched.at >= REFETCH_MS || fetched.cell !== cellOf(position);
+  function sync(): Promise<void> {
+    if (loading) return loading;
+    if (!active || !latest || !stale(latest)) return Promise.resolve();
+    const position = latest;
+    dirty = false;
+    fetched = { at: deps.now(), cell: cellOf(position) };
+    let failed = false;
+    loading = (async () => {
+      try {
+        hazards = (await deps.load(cellBbox(position))).features;
+      } catch {
+        failed = true;
+        fetched = null;
+      }
+    })().finally(() => { loading = null; });
+    return loading.then(() => {
+      if (!active) return;
+      if (latest && (dirty || cellOf(latest) !== cellOf(position) || (!failed && stale(latest)))) return sync();
+      if (!failed) evaluate();
+    });
+  }
 
   return {
     position(position: Position): Promise<void> {
       latest = position;
-      evaluate();
-      return !loading && stale(position) ? refetch(position) : Promise.resolve();
+      if (!stale(position)) evaluate();
+      return sync();
     },
     invalidate(): Promise<void> {
-      fetched = null;
-      return latest && !loading ? refetch(latest) : Promise.resolve();
+      dirty = true;
+      return sync();
+    },
+    setActive(next: boolean): Promise<void> {
+      active = next;
+      if (!active) { dirty = true; return Promise.resolve(); }
+      if (latest && !stale(latest)) evaluate();
+      return sync();
     },
     evaluate,
   };
