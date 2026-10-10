@@ -19,3 +19,12 @@ Run first. Freeze the integration boundary before the manual and automatic track
 - The shared schema includes expiry, source/evidence labels and revision/idempotency semantics.
 - Product and observation APIs have distinct base URLs and independently generated clients.
 - Stubs are runnable and clearly marked as nonpersistent before handoff.
+
+## Stage 0 implementation checkpoints
+
+See [decision 002](../decisions/002-stage-zero-contract-boundary.md). Review contracts and fixtures
+before implementing consumers; then independently review runnable skeletons. OpenAPI is the
+canonical HTTP boundary; generated consumer types are checked in. Contracts validate with
+`uv sync --project contracts` then
+`uv run --project contracts python contracts/scripts/validate.py` from the repository root.
+Runnable skeleton commands and handoff status are recorded in component READMEs as they land.

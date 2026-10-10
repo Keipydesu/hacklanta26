@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  title: Campus scooter observation API
+  version: 0.1.0
+  description: Independent private observation service; no dependency on product DB.
+    Stage 0 nonpersistent development stub. UUID batches are atomic. Identical repeated
+    IDs count as duplicates; conflicting reused IDs reject the entire batch with 409,
+    including conflicts inside the batch. Timestamps require timezone and cannot exceed
+    now +5 minutes; historical simulation allowed. Nonnegative finite measurements
+    required. Empty batches accepted. Point IDs are unique globally and their identity
+    includes ride_id from the path.
+servers:
+- url: http://localhost:8001
+  description: Local observation stub
+paths:
+  /healthz:
+    get:
+      operationId: observation_health
+      description: Independent observation service health.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /v1/events:
+    post:
+      operationId: ingest_events
+      description: UUID batches are atomic. Identical repeated IDs count as duplicates;
+        conflicting reused IDs reject the entire batch with 409, including conflicts
+        inside the batch. Timestamps require timezone and cannot exceed now +5 minutes;
+        historical simulation allowed. Nonnegative finite measurements required. Empty
+        batches accepted. Point IDs are unique globally and their identity includes
+        ride_id from the path.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestReceipt'
+        '409':
+          description: Conflicting observation UUID; no batch writes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventBatch'
+  /v1/rides/{ride_id}/points:
+    post:
+      operationId: ingest_points
+      description: UUID batches are atomic. Identical repeated IDs count as duplicates;
+        conflicting reused IDs reject the entire batch with 409, including conflicts
+        inside the batch. Timestamps require timezone and cannot exceed now +5 minutes;
+        historical simulation allowed. Nonnegative finite measurements required. Empty
+        batches accepted. Point IDs are unique globally and their identity includes
+        ride_id from the path.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestReceipt'
+        '409':
+          description: Conflicting observation UUID or ride; no batch writes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PointBatch'
+      parameters:
+      - name: ride_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+components:
+  schemas:
+    Coordinate:
+      type: object
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+      required:
+      - lat
+      - lon
+      additionalProperties: false
+    Position:
+      type: array
+      prefixItems:
+      - type: number
+        minimum: -180
+        maximum: 180
+      - type: number
+        minimum: -90
+        maximum: 90
+      items: false
+      minItems: 2
+      maxItems: 2
+    Error:
+      type: object
+      properties:
+        detail:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              type: object
+      required:
+      - detail
+      additionalProperties: false
+    Health:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+        storage:
+          type: string
+      additionalProperties: true
+    ObservationEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ride_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+          - hard_brake
+          - bump
+        ts:
+          type: string
+          format: date-time
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+        accuracy_m:
+          type: number
+          minimum: 0
+        speed_before_mps:
+          type: number
+          minimum: 0
+        speed_after_mps:
+          type: number
+          minimum: 0
+        peak_g:
+          type: number
+          minimum: 0
+        duration_ms:
+          type: integer
+          minimum: 0
+        source:
+          type: string
+          enum:
+          - device
+          - simulated
+          - replay
+      required:
+      - id
+      - ride_id
+      - type
+      - ts
+      - lat
+      - lon
+      - accuracy_m
+      - speed_before_mps
+      - speed_after_mps
+      - peak_g
+      - duration_ms
+      - source
+      additionalProperties: false
+    ObservationPoint:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ts:
+          type: string
+          format: date-time
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+        speed_mps:
+          type: number
+          minimum: 0
+        accuracy_m:
+          type: number
+          minimum: 0
+        source:
+          type: string
+          enum:
+          - device
+          - simulated
+          - replay
+      required:
+      - id
+      - ts
+      - lat
+      - lon
+      - speed_mps
+      - accuracy_m
+      - source
+      additionalProperties: false
+    IngestReceipt:
+      type: object
+      properties:
+        accepted:
+          type: integer
+          minimum: 0
+        duplicates:
+          type: integer
+          minimum: 0
+      required:
+      - accepted
+      - duplicates
+      additionalProperties: false
+    EventBatch:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservationEvent'
+          maxItems: 500
+      required:
+      - events
+      additionalProperties: false
+    PointBatch:
+      type: object
+      properties:
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservationPoint'
+          maxItems: 2000
+      required:
+      - points
+      additionalProperties: false

@@ -10,9 +10,10 @@ milestones (3–4) can proceed in parallel once lane 0's contracts are agreed, p
 
 ## Current status and priority
 
-Documentation only; all milestones and CI/CD tasks below are **not started**. Next: Lane 0
-contracts/fixtures and runnable manual skeletons, with Lane G establishing CI alongside them.
-No dates are assumed; complete each demo gate before marking its milestone done.
+Stage 0 contracts, fixtures and runnable skeletons are implemented, with scoped CI workflows.
+See [the stage 0 handoff](STAGE-0-HANDOFF.md) for checks and limitations, including outstanding
+physical-device smoke verification. Milestones 1–4 are not started. Next: Lane A/C manual persistence
+and report queue work, with Lane G extending infrastructure. Stub routes do not complete milestone 2.
 
 ## Milestones
 
@@ -30,8 +31,8 @@ Per [decision 001](decisions/001-mvp-delivery-workflow.md): CI is the routine ga
 local suite per push.
 
 1. **First CI task (docs-only, Lane G):** add relative-link and changed-file whitespace checks.
-   This workflow is planned, not installed; check the PR diff rather than an empty checkout diff.
-2. **At milestone 0:** add lane 0's contract/fixture validation as its own path-filtered job.
+   Implemented in the stage 0 workflow; it checks the commit/PR diff rather than an empty checkout diff.
+2. **At milestone 0:** contract/fixture validation and generated-type drift checks are implemented as path-filtered jobs.
 3. **As each lane lands code:** add that lane's job (lint/build/test), scoped to its paths plus any
    shared contract it depends on, auto-cancelling superseded runs on the same branch.
 4. **At milestone 2:** deploy the exact passing `main` commit, then check `/healthz` and the

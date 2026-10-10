@@ -1,0 +1,13 @@
+{
+  "points": [
+    {
+      "id": "3db38b9a-d8c5-4a23-9fa5-fd44f47d44d4",
+      "ts": "2026-10-10T01:23:45Z",
+      "lat": 33.7531,
+      "lon": -84.3853,
+      "speed_mps": 2,
+      "accuracy_m": 4,
+      "source": "unknown"
+    }
+  ]
+}

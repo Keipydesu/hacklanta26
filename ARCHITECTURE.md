@@ -2,7 +2,7 @@
 
 Campus scooter safety map, built manual-first. Riders report hazards like Waze. A separate automatic detection system can later publish hazards through a versioned HTTP API. The manual app must work with the entire automatic system switched off.
 
-This is the planned design, not an implemented API. It supersedes the original sensor-first mobile design. The monitoring web app remains out of scope.
+This is the target product design. Stage 0 now implements its contracts and nonpersistent skeletons, not production persistence, sensing or routing; see [the handoff](docs/STAGE-0-HANDOFF.md). It supersedes the original sensor-first mobile design. The monitoring web app remains out of scope.
 
 ## 1. System at a glance
 

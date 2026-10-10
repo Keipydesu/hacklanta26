@@ -1,0 +1,9 @@
+{
+  "name": "campus-contract-codegen",
+  "private": true,
+  "scripts": {
+    "generate": "openapi-typescript openapi.yaml -o ../mobile/src/api/schema.d.ts && openapi-typescript automatic.openapi.yaml -o ../automatic/collector/src/api/schema.d.ts && openapi-typescript openapi.yaml -o ../automatic/service/product-api.d.ts && npm run copy-fixtures",
+    "copy-fixtures": "cp fixtures/hazards.geojson ../mobile/src/fixtures/hazards.json && cp fixtures/route.json ../mobile/src/fixtures/route.json && cp fixtures/events.json fixtures/points.json ../automatic/collector/src/"
+  },
+  "devDependencies": { "openapi-typescript": "7.13.0" }
+}

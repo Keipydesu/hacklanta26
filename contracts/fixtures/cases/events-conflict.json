@@ -1,0 +1,18 @@
+{
+  "events": [
+    {
+      "id": "3a58734f-23eb-4cb8-bc21-9e7e4b8925ba",
+      "ride_id": "e50b27da-d972-430e-b5f8-9c6b20fd4151",
+      "type": "hard_brake",
+      "ts": "2026-10-10T01:23:45Z",
+      "lat": 33.7531,
+      "lon": -84.3853,
+      "accuracy_m": 4,
+      "speed_before_mps": 6,
+      "speed_after_mps": 2,
+      "peak_g": 0.9,
+      "duration_ms": 450,
+      "source": "simulated"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Campus Collector Stub",
+    "slug": "campus-collector",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "permissions": []
+    }
+  }
+}

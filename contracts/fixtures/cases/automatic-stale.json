@@ -1,0 +1,40 @@
+{
+  "revision": 1,
+  "kind": "braking",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -84.3854,
+          33.753
+        ],
+        [
+          -84.3852,
+          33.753
+        ],
+        [
+          -84.3852,
+          33.7532
+        ],
+        [
+          -84.3854,
+          33.7532
+        ],
+        [
+          -84.3854,
+          33.753
+        ]
+      ]
+    ]
+  },
+  "score": 0.72,
+  "event_count": 8,
+  "ride_count": 4,
+  "first_seen": "2026-10-10T01:00:00Z",
+  "last_seen": "2026-10-10T01:23:45Z",
+  "expires_at": "2026-10-11T01:23:45Z",
+  "status": "active",
+  "label": "DEMO: repeated hard braking",
+  "evidence_source": "simulated"
+}

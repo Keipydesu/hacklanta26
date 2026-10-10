@@ -1,0 +1,95 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -84.3854,
+              33.753
+            ],
+            [
+              -84.3852,
+              33.753
+            ],
+            [
+              -84.3852,
+              33.7532
+            ],
+            [
+              -84.3854,
+              33.7532
+            ],
+            [
+              -84.3854,
+              33.753
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "920740f0-0293-4495-b8e9-c1dccd5492be",
+        "source": "manual",
+        "kind": "pothole",
+        "label": "DEMO: pothole beside crossing",
+        "score": 0.5,
+        "status": "active",
+        "first_seen": "2026-10-10T01:23:45Z",
+        "last_seen": "2026-10-10T01:23:45Z",
+        "expires_at": "2026-10-11T01:23:45Z",
+        "event_count": 0,
+        "ride_count": 0,
+        "report_count": 1,
+        "evidence_source": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -84.3854,
+              33.753
+            ],
+            [
+              -84.3852,
+              33.753
+            ],
+            [
+              -84.3852,
+              33.7532
+            ],
+            [
+              -84.3854,
+              33.7532
+            ],
+            [
+              -84.3854,
+              33.753
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "d8271740-8fe9-4e23-818e-f78d28e0ed96",
+        "source": "automatic",
+        "kind": "braking",
+        "label": "DEMO: repeated hard braking",
+        "score": 0.72,
+        "status": "active",
+        "first_seen": "2026-10-10T01:23:45Z",
+        "last_seen": "2026-10-10T01:23:45Z",
+        "expires_at": "2026-10-11T01:23:45Z",
+        "event_count": 8,
+        "ride_count": 4,
+        "report_count": 0,
+        "evidence_source": "simulated"
+      }
+    }
+  ]
+}

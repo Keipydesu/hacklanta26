@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "strict": true,
+    "skipLibCheck": true,
+    "rootDir": "src/api",
+    "outDir": ".test-dist",
+    "types": []
+  },
+  "include": ["src/api/hazardRefresh.ts"]
+}
