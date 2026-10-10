@@ -25,7 +25,8 @@ FEATURE_COLUMNS = '''id, source, kind, label, score, status, first_seen, last_se
 class PostgresStore:
     def __init__(self, url, pool_size=10):
         self.pool = AsyncConnectionPool(url, min_size=1, max_size=pool_size, open=False,
-                                        kwargs={'row_factory': dict_row}, timeout=5)
+                                        kwargs={'row_factory': dict_row}, timeout=5,
+                                        check=AsyncConnectionPool.check_connection)
 
     async def open(self):
         await self.pool.open(wait=True, timeout=10)
@@ -96,11 +97,11 @@ class PostgresStore:
                 '''UPDATE hazards SET kind = %s, geometry = ST_SetSRID(ST_GeomFromWKB(%s), 4326), label = %s,
                        score = %s, status = %s, first_seen = %s, last_seen = %s, expires_at = %s, event_count = %s,
                        ride_count = %s, evidence_source = %s, revision = %s, publication = %s,
-                       expiry_notified_for = NULL
+                       expiry_notified_for = CASE WHEN expires_at IS DISTINCT FROM %s THEN NULL ELSE expiry_notified_for END
                    WHERE id = %s''',
                 (body.kind, geometry.wkb, body.label, body.score, body.status, body.first_seen, body.last_seen,
                  body.expires_at, body.event_count, body.ride_count, body.evidence_source, body.revision,
-                 Jsonb(payload), row['id']))
+                 Jsonb(payload), body.expires_at, row['id']))
             return Result(str(row['id']), False, 200)
 
     async def list_active(self, bounds, now):

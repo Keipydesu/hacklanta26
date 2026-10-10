@@ -23,7 +23,7 @@ def validate(name, body):
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv('AUTOMATION_PUBLISH_KEY', 'test-only-key')
-    with TestClient(create_app()) as client:
+    with TestClient(create_app('')) as client:
         yield client
 
 def fresh():
@@ -139,7 +139,7 @@ def test_expiry_scan_preserves_publication_refreshed_during_notification(monkeyp
     monkeypatch.setenv('AUTOMATION_PUBLISH_KEY', 'test-only-key')
 
     async def scenario():
-        app = create_app()
+        app = create_app('')
         started, resume, scanned, connected, disconnect = (asyncio.Event() for _ in range(5))
         second_id = None
 

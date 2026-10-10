@@ -13,7 +13,10 @@ import secrets
 from starlette.concurrency import run_in_threadpool
 from uuid import UUID, uuid4
 
+import psycopg
+import psycopg_pool
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect, Depends
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pyproj import Transformer
 from shapely.geometry import Point, mapping, shape, box
@@ -115,6 +118,18 @@ def create_app(database_url=None):
                 await store.close()
 
     app = FastAPI(title='Campus product stub', lifespan=lifespan)
+
+    @app.exception_handler(psycopg.DataError)
+    @app.exception_handler(UnicodeEncodeError)
+    async def unstorable_text(request, exc):
+        # e.g. NUL characters or lone surrogates in text: a client defect, so don't let a queued retry loop on a 500
+        return JSONResponse({'detail': 'Text contains characters that cannot be stored'}, status_code=422)
+
+    @app.exception_handler(psycopg.OperationalError)
+    @app.exception_handler(psycopg_pool.PoolTimeout)
+    async def storage_down(request, exc):
+        log.error('product database unavailable: %r', exc)
+        return JSONResponse({'detail': 'Product database unavailable'}, status_code=503)
     # Serve the agreed artifact; tests validate model/response parity against it.
     app.openapi = lambda: spec
     app.state.hazards = hazards

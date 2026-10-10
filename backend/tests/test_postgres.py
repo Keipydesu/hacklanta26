@@ -1,5 +1,6 @@
 """DB-backed behavior. Needs a disposable PostGIS database: TEST_DATABASE_URL=postgresql://... (tables are dropped)."""
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 import os
 from uuid import uuid4
@@ -144,7 +145,7 @@ def test_publication_identity_survives_restart_and_expiry():
 
 def test_expiry_scan_is_repeat_safe_and_reactivation_survives():
     _, auto = fresh()
-    soon = datetime.now(timezone.utc) + timedelta(seconds=1)
+    soon = datetime.now(timezone.utc) + timedelta(seconds=30)  # far enough that the app's own loop can't expire it mid-test
     short = dict(auto, first_seen=datetime.now(timezone.utc).isoformat(), last_seen=datetime.now(timezone.utc).isoformat(),
                  expires_at=soon.isoformat())
     async def scenario(client, app):
@@ -177,3 +178,17 @@ def test_health_is_503_when_database_is_down():
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
                 return (await client.get('/healthz')).status_code
     assert asyncio.run(go()) == 503
+
+def test_unstorable_text_is_422_not_500_and_unchanged_expiry_keeps_notification_state():
+    manual, auto = fresh()
+    async def scenario(client, app):
+        assert (await client.post('/v1/reports', json=dict(manual, description='a\u0000b'))).status_code == 422
+        raw = json.dumps(dict(manual, id=str(uuid4()), description='XX')).replace('XX', '\\ud800')  # JSON escape of a lone surrogate
+        assert (await client.post('/v1/reports', content=raw, headers={'Content-Type': 'application/json'})).status_code == 422
+        past = datetime.now(timezone.utc) - timedelta(days=1)
+        stale = dict(auto, first_seen=past.isoformat(), last_seen=past.isoformat(), expires_at=past.isoformat())
+        await client.put(PUB, json=stale, headers=AUTH)
+        assert len(await app.state.store.scan_expirations(datetime.now(timezone.utc))) <= 1
+        assert (await client.put(PUB, json=dict(stale, revision=2, label='renamed'), headers=AUTH)).status_code == 200
+        assert await app.state.store.scan_expirations(datetime.now(timezone.utc)) == []  # same expires_at: not re-announced
+    run(scenario)

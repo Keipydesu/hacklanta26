@@ -4,10 +4,12 @@ Run standalone with `python -m app.db.migrate` (reads DATABASE_URL) or via the A
 """
 from pathlib import Path
 import sys
+import time
 
 import psycopg
 
 MIGRATIONS = Path(__file__).resolve().parent / 'migrations'
+LOCK_WAIT_S = 60
 LOCK_KEY = 7_262_026_001  # arbitrary constant shared by every product schema writer
 
 def pending(conn):
@@ -19,7 +21,11 @@ def migrate(url):
     """Apply pending migrations, each in its own transaction. Returns the versions applied."""
     done = []
     with psycopg.connect(url, autocommit=True) as conn:
-        conn.execute('SELECT pg_advisory_lock(%s)', (LOCK_KEY,))
+        deadline = time.monotonic() + LOCK_WAIT_S
+        while not conn.execute('SELECT pg_try_advisory_lock(%s)', (LOCK_KEY,)).fetchone()[0]:
+            if time.monotonic() > deadline:
+                raise TimeoutError('another process holds the product schema migration lock')
+            time.sleep(0.5)
         try:
             for path in pending(conn):
                 with conn.transaction():
