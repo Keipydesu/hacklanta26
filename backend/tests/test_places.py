@@ -88,6 +88,26 @@ def test_search_can_be_disabled(monkeypatch):
     with TestClient(create_app('')) as client:
         assert client.get('/v1/places', params={'q': 'Georgia State'}).status_code == 503
 
+@pytest.mark.parametrize('features', [None, 'junk', 42, {}])
+def test_malformed_collection_is_unavailable_and_retry_reaches_provider(client, features):
+    fake = FakePhoton(lambda r: httpx.Response(200, json={'features': features}))
+    use(client, fake)
+    assert client.get('/v1/places', params={'q': 'Georgia State'}).status_code == 503
+    fake.respond = lambda r: httpx.Response(200, json=PHOTON)
+    recovered = client.get('/v1/places', params={'q': 'Georgia State'})
+    assert recovered.status_code == 200
+    assert recovered.json()['places'][0]['name'] == 'Georgia State University'
+    assert len(fake.requests) == 2, 'malformed responses must not poison the cache'
+
+def test_valid_empty_collection_remains_a_cacheable_no_matches_response(client):
+    fake = FakePhoton(lambda r: httpx.Response(200, json={'features': []}))
+    use(client, fake)
+    for _ in range(2):
+        response = client.get('/v1/places', params={'q': 'No matching place'})
+        assert response.status_code == 200
+        assert response.json() == {'places': []}
+    assert len(fake.requests) == 1
+
 def test_cache_expires():
     clock = [0.0]
     fake = FakePhoton()

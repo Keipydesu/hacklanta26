@@ -160,7 +160,9 @@ refreshes on live hints, accepted feedback, foreground return and every five sec
 Removal disables new answers but retains the details and receipt; a failed lookup shows a stale
 notice, and local expiry still disables new answers.
 
-While the app is open with location permission, coming within 40 m of a hazard opens its panel
+The nearby watcher checks existing permission without prompting on launch or foreground return.
+Opening Trip or using Report's location action can request permission; granting it immediately
+rechecks the watcher. While the app is open with location permission, coming within 40 m of a hazard opens its panel
 once per session, wherever the map is panned. The app looks up hazards for the ~500 m grid block
 around the rider, separately from the map, so the server sees only that coarse block. This uses
 foreground location only. Precise positions are never recorded, uploaded or sent with answers, and
@@ -197,7 +199,9 @@ See [font setup](assets/fonts/README.md) and [dependency review](docs/FONT-DEPEN
 ## Required report location (issue #23)
 
 Run with the live API URL above and open Report; the location request starts automatically. New reports require a
-fresh fix; existing queued reports resume without acquiring one. Route endpoint controls are
+fresh fix; existing queued reports resume without acquiring one. A successful save refreshes the
+next draft location only while Report is still open and foregrounded. Both Report and Trip grants
+activate nearby prompts immediately; browsing only checks existing permission. Route endpoint controls are
 unchanged. No API changes or dependencies were added; fixture submissions remain disabled.
 
 Verified locally after review fixes: TypeScript typecheck, 79 Node tests (including location gating, stale results,

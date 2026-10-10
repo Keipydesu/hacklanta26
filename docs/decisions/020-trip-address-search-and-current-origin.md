@@ -19,8 +19,9 @@ no key (`PHOTON_URL`, default `https://photon.komoot.io`; empty disables search 
 - Answers are cached for 10 minutes.
 - Provider errors return 503, and the app offers retry or a map point.
 
-The app never calls Photon directly, so rider IPs and queries stay with our API and the provider
-can be replaced. Route requests are unchanged: they still send `origin` and `destination` lat/lon.
+The app never calls Photon directly. Our API forwards the query text and rounded ranking point
+to Photon; the provider sees the server's IP, not the rider's IP. The provider can be replaced.
+Route requests are unchanged: they still send `origin` and `destination` lat/lon.
 
 **Provider.** Photon's public instance is free and allows fair use. It may throttle heavy use and
 has no availability guarantee, which suits the demo. A deployment that needs reliability should
@@ -35,11 +36,17 @@ attribution control already credits the basemap.
 
 **Origin.** A new trip's From field is Current location. Opening Trip, through Where to? or the
 Trip tab, resolves it with one foreground fix (`locateOnce`); permission is requested only in this
-trip context, never for browsing. There is no watching or background location. A late fix never
+trip context, never for browsing. The trip origin uses no watching or background location. A late fix never
 replaces an origin the rider chose meanwhile. If location is denied or unavailable, the From field
 says so and offers "Try again" and "Search for a start". The app never substitutes a fixture
 point or the map centre as the rider's position. The map centre only biases search ranking when
 no origin is known.
+
+**Nearby feedback integration (decision 013).** Its foreground watcher only checks existing
+permission; it never opens the permission prompt on launch or foreground return. Trip planning or
+Report's explicit location action requests permission through `locateOnce`. A successful grant
+immediately rechecks the nearby watcher, without waiting for the one-shot GPS fix or an app restart.
+Backgrounding removes the watch and invalidates pending permission checks, subscriptions and fixes.
 
 **Flow.** Typing in a field clears its resolved point until a result is chosen. Late search
 answers are discarded. Choosing a result dismisses the keyboard, and once both endpoints are valid

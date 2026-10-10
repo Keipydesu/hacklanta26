@@ -11,7 +11,8 @@ import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
-import { locateOnce, locatePosition } from './src/location/foreground';
+import { locateOnce, locatePosition, requestForegroundPermission } from './src/location/foreground';
+import { createForegroundWatch } from './src/location/foregroundWatch';
 import { createReportLocation, ReportLocationState } from './src/reports/location';
 import { CATEGORIES, categoryLabel, hazardTitle } from './src/reports/categories';
 import { canSubmit, locationAction, shouldLocateOnEnter, showSubmit } from './src/reports/reportFlow';
@@ -48,6 +49,7 @@ function CampusApp() {
   const [safeFrame, setSafeFrame] = useState({ y: 0, height: 0 });
   const bottomInset = Math.max(0, pageHeight - safeFrame.y - safeFrame.height);
   function openScreen(next: 'map' | 'report' | 'route') {
+    screenRef.current = next;
     setScreen(next); setExpanded(false);
     if (next !== 'route') { setPicking(null); setEditing(null); }
     if (next === 'report' && shouldLocateOnEnter(reportLocationRef.current.status)) void reportLocator.request();
@@ -64,7 +66,7 @@ function CampusApp() {
   const [reportLocation, setReportLocation] = useState<ReportLocationState>({ status: 'idle' });
   const reportLocationRef = useRef<ReportLocationState>({ status: 'idle' });
   const [reportLocator] = useState(() => createReportLocation({
-    requestPermission: async () => (await Location.requestForegroundPermissionsAsync()).granted,
+    requestPermission: () => requestForegroundPermission(Location, () => setPermissionRevision(value => value + 1)),
     locate: () => locatePosition(Location, Location.Accuracy.Balanced),
     enabled: !fixtureMode,
     setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>),
@@ -80,12 +82,15 @@ function CampusApp() {
     return () => { sub.remove(); reportLocator.clear(); };
   }, []);
   const [hazards, setHazards] = useState<HazardCollection['features']>([]);
+  const [permissionRevision, setPermissionRevision] = useState(0);
+  const locateForAction = () => locateOnce(Location, Location.Accuracy.Balanced,
+    () => setPermissionRevision(value => value + 1));
   // Route endpoints and their comparison live apart from the report form and the hazard feed.
   const [routeState, setRouteState] = useState<RouteState>({ origin: null, destination: null, status: 'idle', result: null, error: null, outdated: false });
   const [comparison] = useState(() => createRouteComparison({ load: getRoutes, onChange: setRouteState }));
   const [tripState, setTripState] = useState<TripState>({ origin: { kind: 'current', status: 'idle', point: null }, destination: { kind: 'none' } });
   const [trip] = useState(() => createTrip({
-    locate: () => locateOnce(Location, Location.Accuracy.Balanced),
+    locate: locateForAction,
     setOrigin: comparison.setOrigin, setDestination: comparison.setDestination, onChange: setTripState,
   }));
   const [editing, setEditing] = useState<Which | null>(null);
@@ -185,7 +190,8 @@ function CampusApp() {
         await queue.enqueue(reportLocator.freeze({ kind }, Crypto.randomUUID()));
         reportLocator.clear();
         setKind(null);
-        void reportLocator.request();
+        // Persistence may finish after navigation or backgrounding; read the live context.
+        if (screenRef.current === 'report' && AppState.currentState === 'active') void reportLocator.request();
         void queue.drain();
       } catch (e) { setError(`Report was not saved: ${String(e)}`); }
       finally { setSubmitting(false); }
@@ -208,26 +214,19 @@ function CampusApp() {
   useEffect(() => { if (!selected) nearby.evaluate(); }, [selected]);
   useEffect(() => {
     if (fixtureMode) return;
-    let subscription: { remove(): void } | null = null;
-    let generation = 0;
-    async function start() {
-      const mine = ++generation;
-      try {
-        const { granted } = await Location.requestForegroundPermissionsAsync();
-        if (!granted || mine !== generation) return;
-        const watching = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
-          ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }));
-        if (mine !== generation) watching.remove(); else subscription = watching;
-      } catch {}
-    }
-    function stop() { generation++; subscription?.remove(); subscription = null; }
-    void start();
-    const appState = AppState.addEventListener('change', state => {
-      if (state === 'active') { void nearby.setActive(true); if (!subscription) void start(); }
-      else { void nearby.setActive(false); stop(); }
+    const watcher = createForegroundWatch<Location.LocationObject>({
+      permission: () => Location.getForegroundPermissionsAsync(),
+      watch: onPosition => Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 }, onPosition),
+      onPosition: ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }),
+      onActive: active => { void nearby.setActive(active); },
     });
-    return () => { void nearby.setActive(false); stop(); appState.remove(); };
-  }, []);
+    void watcher.setActive(AppState.currentState === 'active');
+    const appState = AppState.addEventListener('change', state => {
+      void watcher.setActive(state === 'active');
+    });
+    return () => { void watcher.setActive(false); appState.remove(); };
+  }, [permissionRevision]);
   function onSelectHazard(id: string) {
     const hazard = visible.find(h => h.properties.id === id);
     if (hazard) void selection.select(hazard);

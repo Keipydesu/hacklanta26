@@ -33,6 +33,8 @@ The rules live in `mobile/src/reports/reportFlow.ts` and are covered by Node tes
 
 - Physical-device checks of the automatic permission prompt, Settings return and foreground
   return are still required.
-- The merged nearby hazard prompt (decision 013) still asks for location at app launch. Whether
-  it should instead wait for permission granted in a trip or report context is an open operator
-  decision.
+- Nearby hazard prompts reuse permission granted by Report or Trip, following decision 020;
+  opening the map never requests permission. Report grants trigger the nearby watcher recheck
+  immediately, before the position lookup completes.
+- A post-save location refresh runs only if Report is still open and the app is active when
+  persistence completes. Otherwise the next Report entry/foreground return acquires the fix.

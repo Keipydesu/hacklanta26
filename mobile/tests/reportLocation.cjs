@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createReportLocation, REPORT_LOCATION_MAX_AGE_MS, REPORT_LOCATION_TIMEOUT_MS } = require('../.test-dist/reports/location.js');
 const { createReportQueue } = require('../.test-dist/reports/queue.js');
+const { requestForegroundPermission } = require('../.test-dist/location/foreground.js');
 const draft = { kind: 'pothole', description: 'Uneven surface' };
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 function harness(locate = async () => ({ ok: true, lat: 33.7531, lon: -84.3853 }), options = {}) {
@@ -183,4 +184,23 @@ test('clear during permission prevents lookup and successful refresh cancels old
   h.advance(30_000);
   assert.equal(h.state().status, 'ready'); assert.equal(h.timers.size, 1);
   h.controller.clear(); assert.equal(h.timers.size, 0);
+});
+
+test('Report grant signals nearby permission recheck before a pending position completes', async () => {
+  let completeFix, rechecks = 0;
+  const h = harness(() => new Promise(resolve => { completeFix = resolve; }), {
+    requestPermission: () => requestForegroundPermission({ requestForegroundPermissionsAsync: async () => ({ granted: true }) },
+      () => { rechecks++; }),
+  });
+  const pending = h.controller.request();
+  await flush();
+  assert.equal(rechecks, 1);
+  assert.equal(h.state().status, 'locating');
+  completeFix({ ok: true, lat: 1, lon: 2 });
+  await pending;
+  assert.equal(h.state().status, 'ready');
+  const denied = await requestForegroundPermission({ requestForegroundPermissionsAsync: async () => ({ granted: false }) },
+    () => { rechecks++; });
+  assert.equal(denied, false);
+  assert.equal(rechecks, 1, 'denial does not activate nearby prompts');
 });

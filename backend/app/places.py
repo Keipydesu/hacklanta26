@@ -1,7 +1,7 @@
 """Address and place search for trip endpoints, proxied to Photon (OSM-based, no key).
 
-The app only talks to this API, so rider IPs and queries are not sent to the provider directly and the
-provider can be swapped. Results are limited to the metro-Atlanta area that Valhalla routes over.
+The app only talks to this API. Photon receives the query and rounded ranking point from the
+server, not the rider's IP. Results are limited to the metro-Atlanta area that Valhalla routes over.
 Decision 020 records the provider choice, limits and privacy notes.
 """
 from collections import OrderedDict
@@ -37,8 +37,10 @@ def parse_photon(payload) -> list[Place]:
         features = payload['features']
     except (TypeError, KeyError) as error:
         raise PlacesUnavailable('Malformed place search response') from error
+    if not isinstance(features, list):
+        raise PlacesUnavailable('Malformed place search response')
     places, seen = [], set()
-    for feature in features if isinstance(features, list) else []:
+    for feature in features:
         if not isinstance(feature, dict) or not isinstance(feature.get('properties', {}), dict):
             continue
         props = feature.get('properties') or {}

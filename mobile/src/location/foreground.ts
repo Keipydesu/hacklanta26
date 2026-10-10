@@ -5,10 +5,16 @@ export interface LocationApi {
   requestForegroundPermissionsAsync(): Promise<{ granted: boolean }>;
   getCurrentPositionAsync(options: { accuracy: number }): Promise<{ timestamp?: number; coords: { latitude: number; longitude: number } }>;
 }
+export async function requestForegroundPermission(api: Pick<LocationApi, 'requestForegroundPermissionsAsync'>, onPermissionGranted?: () => void): Promise<boolean> {
+  const { granted } = await api.requestForegroundPermissionsAsync();
+  if (granted) onPermissionGranted?.();
+  return granted;
+}
+
 /** One-shot lookup, called only after the user asks or opens a trip (decision 020). Never starts continuous updates. */
-export async function locateOnce(api: LocationApi, balancedAccuracy: number): Promise<LocateResult> {
+export async function locateOnce(api: LocationApi, balancedAccuracy: number, onPermissionGranted?: () => void): Promise<LocateResult> {
   try {
-    if (!(await api.requestForegroundPermissionsAsync()).granted) return { ok: false, reason: 'denied' };
+    if (!(await requestForegroundPermission(api, onPermissionGranted))) return { ok: false, reason: 'denied' };
     return await locatePosition(api, balancedAccuracy);
   } catch { return { ok: false, reason: 'unavailable' }; }
 }
