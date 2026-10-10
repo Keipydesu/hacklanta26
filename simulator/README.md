@@ -105,7 +105,14 @@ against in-memory HTTP stand-ins in `tests/fakes.py`) and 4 Node tests. The repl
 passes against Lane B's real detector (one hard brake and one bump from the synthetic ride); on a
 checkout with only the stage 0 detector skeleton it expects no events.
 
-**Not verified:** no scenario has been run against the real product API, the real observation
-service or Lane D's worker, and no real recording exists. The stand-ins implement only the
-contract behaviour the scenarios check and prove nothing about the real services. Deferred:
-`closure-diversion`/abandonment, the combined hosted rehearsal (F5) and real-ride tuning.
+Also run against the real services, in CI's `stack` job on a branch combining every open lane
+(product API on PostGIS, Lane D's worker, Compose): `manual-report`, `manual-expired`,
+`publication-lifecycle`, `demo-seed` (three simulated events from two rides came back as one
+published `braking` hazard, score 0.6, evidence `simulated`) and `demo-seed-negative`. That job
+repeats on every infrastructure change once this directory is on the branch.
+
+**Not verified:** `braking-spot`, `bump-spot` and `two-clusters` against the real worker; route
+checks against a real routing engine (CI has no tiles, so routes were the fixed example); `trim`
+and `replay` on a real recording, because none exists. The stand-ins in `tests/fakes.py` implement
+only the contract behaviour the scenarios check and prove nothing about the real services.
+Deferred: `closure-diversion`/abandonment, the combined hosted rehearsal (F5) and real-ride tuning.
