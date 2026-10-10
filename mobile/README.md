@@ -43,6 +43,8 @@ scripts run that step first. Nothing loads from a CDN at runtime.
 - **Bridge:** app-to-page messages and their validation live in `src/map/protocol.ts`, and the
   overlay is built by `src/map/overlay.ts`. The page script is `map-web/page.js`. All three are
   covered by `tests/map.cjs` in Node. Dependency review: [MAPLIBRE-REVIEW.md](MAPLIBRE-REVIEW.md).
+  Repeated world copies normalize pin longitudes and shift viewport bounds together into WGS84.
+  Dateline-crossing views still clip at ±180 because the API does not support crossing bounds.
 
 With no `EXPO_PUBLIC_API_URL`, the app opens in visibly labeled offline fixture preview mode.
 Map source/evidence labels and expiry are shown; timestamps shift once per app session. Report

@@ -31,19 +31,26 @@ export type FromWeb =
 
 const clamp = (value: number, limit: number) => Math.min(limit, Math.max(-limit, value));
 const finite = (...values: unknown[]) => values.every(v => typeof v === 'number' && Number.isFinite(v));
-const isPosition = (value: unknown): value is LngLat =>
-  Array.isArray(value) && value.length === 2 && finite(value[0], value[1]) && Math.abs(value[0]) <= 180 && Math.abs(value[1]) <= 90;
+// MapLibre world copies use unwrapped longitudes. Keep canonical coordinates exact.
+const wrapLongitude = (lon: number) => Math.abs(lon) <= 180 ? lon : ((lon + 180) % 360 + 360) % 360 - 180;
+const normalizePosition = (value: unknown): LngLat | null =>
+  Array.isArray(value) && value.length === 2 && finite(value[0], value[1]) && Math.abs(value[1]) <= 90
+    ? [wrapLongitude(value[0]), value[1]] : null;
 
 /**
  * Normalize MapLibre's getBounds() into the WGS84 box the API accepts. A view spanning the whole
- * world (or wrapping past it) becomes -180..180; otherwise each edge is clamped. Antimeridian
+ * world becomes -180..180; otherwise shift both edges together into the center's world copy.
+ * Never wrap edges independently, which could reverse their order. Antimeridian
  * crossing is unsupported by the API (decision 002), so a wrapped edge is cut at ±180.
  */
 export function normalizeBounds(raw: Bounds): Bounds | null {
   if (!finite(raw.west, raw.south, raw.east, raw.north)) return null;
+  if (raw.west >= raw.east) return null;
   const wide = raw.east - raw.west >= 360;
-  const west = wide ? -180 : clamp(raw.west, 180);
-  const east = wide ? 180 : clamp(raw.east, 180);
+  const midpoint = raw.west + (raw.east - raw.west) / 2;
+  const offset = wide ? 0 : midpoint - wrapLongitude(midpoint);
+  const west = wide ? -180 : clamp(raw.west - offset, 180);
+  const east = wide ? 180 : clamp(raw.east - offset, 180);
   const south = clamp(raw.south, 90), north = clamp(raw.north, 90);
   if (!(west < east && south < north)) return null;
   return { west, south, east, north };
@@ -63,9 +70,14 @@ export function parseFromWeb(data: string): FromWeb | null {
   if (!message || typeof message !== 'object') return null;
   switch (message.type) {
     case 'ready': return { type: 'ready' };
-    case 'press': return isPosition(message.position) ? { type: 'press', position: message.position } : null;
-    case 'drag':
-      return typeof message.id === 'string' && isPosition(message.position) ? { type: 'drag', id: message.id, position: message.position } : null;
+    case 'press': {
+      const position = normalizePosition(message.position);
+      return position ? { type: 'press', position } : null;
+    }
+    case 'drag': {
+      const position = normalizePosition(message.position);
+      return typeof message.id === 'string' && position ? { type: 'drag', id: message.id, position } : null;
+    }
     case 'bounds': {
       const b = message.bounds;
       if (!b || !finite(b.west, b.south, b.east, b.north)) return null;

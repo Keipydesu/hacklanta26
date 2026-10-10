@@ -22,7 +22,35 @@ test('bounds are clamped to WGS84 and a world-wrapping view becomes the whole wo
 test('degenerate or non-finite bounds are rejected rather than sent to the API', () => {
   assert.equal(normalizeBounds({ west: NaN, south: 0, east: 1, north: 1 }), null);
   assert.equal(normalizeBounds({ west: 1, south: 0, east: 1, north: 1 }), null);
-  assert.equal(normalizeBounds({ west: 190, south: 0, east: 200, north: 1 }), null);
+  assert.equal(normalizeBounds({ west: 200, south: 0, east: 190, north: 1 }), null);
+});
+
+test('repeated world copies retain Atlanta viewport bounds and pin coordinates', () => {
+  for (const turns of [-3, -2, -1, 0, 1, 2, 3]) {
+    const shift = turns * 360;
+    const bounds = normalizeBounds({ west: -84.4 + shift, south: 33.7, east: -84.3 + shift, north: 33.8 });
+    assert.ok(bounds);
+    assert.ok(Math.abs(bounds.west + 84.4) < 1e-9);
+    assert.ok(Math.abs(bounds.east + 84.3) < 1e-9);
+    assert.equal(bounds.south, 33.7);
+    assert.equal(bounds.north, 33.8);
+    for (const type of ['press', 'drag']) {
+      const message = parseFromWeb(JSON.stringify({ type, id: 'pin', position: [-84.3853 + shift, 33.7531] }));
+      assert.equal(message?.type, type);
+      assert.ok(Math.abs(message.position[0] + 84.3853) < 1e-9);
+      assert.equal(message.position[1], 33.7531);
+      if (type === 'drag') assert.equal(message.id, 'pin');
+    }
+  }
+});
+
+test('shifted dateline views still clip at the canonical seam without reversing bounds', () => {
+  for (const shift of [-720, -360, 0, 360, 720]) {
+    assert.deepEqual(normalizeBounds({ west: 170 + shift, east: 185 + shift, south: 0, north: 1 }),
+      { west: 170, east: 180, south: 0, north: 1 });
+    assert.deepEqual(normalizeBounds({ west: -185 + shift, east: -170 + shift, south: 0, north: 1 }),
+      { west: -180, east: -170, south: 0, north: 1 });
+  }
 });
 
 // ---- messages --------------------------------------------------------------------------------
@@ -33,7 +61,7 @@ test('web messages are validated; malformed or out-of-range input is ignored', (
   assert.deepEqual(parseFromWeb('{"type":"drag","id":"pin","position":[-84.38,33.75]}'), { type: 'drag', id: 'pin', position: [-84.38, 33.75] });
   assert.deepEqual(parseFromWeb('{"type":"bounds","bounds":{"west":-200,"south":33,"east":-84,"north":34}}'),
     { type: 'bounds', bounds: { west: -180, south: 33, east: -84, north: 34 } });
-  for (const bad of ['not json', 'null', '[]', '{"type":"press","position":[200,0]}', '{"type":"press","position":["1","2"]}',
+  for (const bad of ['not json', 'null', '[]', '{"type":"press","position":[0,91]}', '{"type":"press","position":[null,0]}', '{"type":"press","position":[1e999,0]}', '{"type":"press","position":["1","2"]}',
     '{"type":"drag","position":[0,0]}', '{"type":"bounds","bounds":{"west":0}}', '{"type":"basemap","status":"maybe"}', '{"type":"other"}']) {
     assert.equal(parseFromWeb(bad), null, bad);
   }
