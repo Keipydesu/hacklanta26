@@ -76,3 +76,21 @@ test('reset cancels pending work and ignores a late answer', async () => {
   await settle();
   assert.deepEqual(h.search.state(), { query: '', status: 'idle', places: [] });
 });
+
+test('typing new text immediately removes the previous suggestions so none can be chosen', async () => {
+  const h = harness();
+  h.search.type('Old place'); h.fire();
+  h.calls[0].resolve([place('Old result')]);
+  await settle();
+  assert.equal(h.search.state().places.length, 1);
+  h.search.type('New place');
+  assert.deepEqual(h.search.state(), { query: 'New place', status: 'loading', places: [] });
+  h.fire();
+  h.calls[1].reject(new Error('offline'));
+  await settle();
+  const retried = h.search.retry();
+  assert.deepEqual(h.search.state().places, [], 'retry does not resurrect old suggestions either');
+  h.calls[2].resolve([place('New result')]);
+  await retried;
+  assert.deepEqual(h.search.state().places.map(p => p.name), ['New result']);
+});

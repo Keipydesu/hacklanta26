@@ -99,3 +99,12 @@ def test_cache_expires():
     clock[0] = 601
     asyncio.run(search.search('Georgia State'))
     assert len(fake.requests) == 2
+
+@pytest.mark.parametrize('properties', ['bad', ['list'], 7, True])
+def test_malformed_provider_features_are_skipped_not_a_500(client, properties):
+    junk = {'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [-84.38, 33.75]}, 'properties': properties}
+    good = feature('Georgia State University', city='Atlanta')
+    use(client, FakePhoton(lambda r: httpx.Response(200, json={'features': [junk, 'not a feature', good]})))
+    response = client.get('/v1/places', params={'q': 'Georgia State'})
+    assert response.status_code == 200
+    assert [p['name'] for p in response.json()['places']] == ['Georgia State University']

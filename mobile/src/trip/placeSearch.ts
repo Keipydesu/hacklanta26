@@ -23,7 +23,7 @@ export function createPlaceSearch(deps: SearchDeps) {
   async function run() {
     const mine = ++latest;
     const query = state.query.trim();
-    set({ ...state, status: 'loading', error: undefined });
+    set({ query: state.query, status: 'loading', places: [] });
     try {
       const places = await deps.search(query);
       if (mine !== latest) return;
@@ -43,7 +43,7 @@ export function createPlaceSearch(deps: SearchDeps) {
       const trimmed = query.trim();
       if (!trimmed) return set({ query, status: 'idle', places: [] });
       if (trimmed.length < MIN_QUERY) return set({ query, status: 'short', places: [] });
-      set({ query, status: 'loading', places: state.places });
+      set({ query, status: 'loading', places: [] });
       timer = deps.schedule(() => { timer = undefined; void run(); }, DEBOUNCE_MS);
     },
     retry(): Promise<void> {

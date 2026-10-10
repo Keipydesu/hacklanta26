@@ -39,10 +39,12 @@ def parse_photon(payload) -> list[Place]:
         raise PlacesUnavailable('Malformed place search response') from error
     places, seen = [], set()
     for feature in features if isinstance(features, list) else []:
+        if not isinstance(feature, dict) or not isinstance(feature.get('properties', {}), dict):
+            continue
+        props = feature.get('properties') or {}
         try:
-            props = feature.get('properties') or {}
             lon, lat = (float(v) for v in feature['geometry']['coordinates'][:2])
-        except (AttributeError, KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError):
             continue
         if not _inside(lon, lat):
             continue
