@@ -1,4 +1,4 @@
-# 012. Silver and cyan-blue accents across light and dark appearance
+# 014. Silver and cyan-blue accents across light and dark appearance
 
 - Status: Accepted
 - Date: 2026-10-10
@@ -23,4 +23,4 @@ the map workstream's responsibility.
 ## Supersedes
 
 The initial forest-green/pale-lime visual treatment in the UI concept and mobile guide.
-Decisions 010 and 011's trip-first, map-first and visual-first principles remain unchanged.
+Decisions 012 and 013's trip-first, map-first and visual-first principles remain unchanged.

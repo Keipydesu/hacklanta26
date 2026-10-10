@@ -1,8 +1,8 @@
-# 013. Textured metallic silver controls
+# 015. Textured metallic silver controls
 
 - Status: Accepted
 - Date: 2026-10-10
-- Supersedes: Decision 012's flat-silver treatment only.
+- Supersedes: Decision 014's flat-silver treatment only.
 
 The operator supplied a metal-grain reference and requested visible texture. Bundle that
 unaltered reference as `mobile/assets/silver-texture.png`; render it at 22% opacity over

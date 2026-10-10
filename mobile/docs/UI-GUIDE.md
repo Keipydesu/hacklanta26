@@ -9,7 +9,7 @@ desktop density and legal-workbench layout do not apply to this app.
 The map fills the working screen. A compact header and bottom task panel support it.
 The default panel occupies at most 36% of available height; details may expand to 65%
 only by user action. Keep the map touchable around overlays. Provider attribution must
-remain above the panel. The OSM migration owns the renderer; these controls surround it.
+remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Expand Map details to switch Positron/Dark Matter without resetting the camera.
 
 The resting home has one primary action: Where to? No marketing headline or explanatory
 paragraph. Route summaries show time, distance and reported-hazard count together.
@@ -33,7 +33,7 @@ in expanded details; fixture warnings, failures and delivery states remain expli
 ## Light and dark color roles
 
 Source: [selected Coolors palette](https://coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63).
-See [decision 012](../../docs/decisions/012-silver-cyan-mobile-palette.md).
+See [decision 014](../../docs/decisions/014-silver-cyan-mobile-palette.md).
 
 | Color | Role |
 | --- | --- |
@@ -45,7 +45,7 @@ See [decision 012](../../docs/decisions/012-silver-cyan-mobile-palette.md).
 
 Device appearance selects light or dark UI. Silver secondary buttons and unselected hazard categories use the operator-supplied metal
 grain at 22% opacity over silver, with charcoal labels in both appearances. Keep the map,
-text, cyan selections and blue primary actions untextured. See [decision 013](../../docs/decisions/013-metallic-silver-texture.md). Selected controls retain accessible selected state and short labels.
+text, cyan selections and blue primary actions untextured. See [decision 015](../../docs/decisions/015-metallic-silver-texture.md). Selected controls retain accessible selected state and short labels.
 White on cyan is 5.74:1; white on blue 9.22:1; charcoal on white 12.27:1; silver on charcoal
 8.69:1. These are computed solid-color text pairs, not a full accessibility certification.
 Error foregrounds remain red exceptions (`#a00020` light / `#ffb4ab` dark). Existing hazard

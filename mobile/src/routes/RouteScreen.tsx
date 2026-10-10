@@ -8,11 +8,11 @@ export type Target = 'origin' | 'destination';
 export const routeColors = (theme: Theme) => ({ shortest: theme.routeShortest, safest: theme.routeLowerRisk });
 const where = (p: Point | null) => (p ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : 'not set');
 
-function RouteCard({ line, expanded }: { line: RouteLine; expanded: boolean }) {
+function RouteCard({ line, expanded, colors }: { line: RouteLine; expanded: boolean; colors: { shortest: string; safest: string } }) {
   const theme = useTheme();
   const styles = createStyles(theme);
   return <View style={styles.card} accessible accessibilityLabel={`${line.label}: ${line.duration}, ${line.distance}, ${line.hazardCount} reported hazards, ${line.risk}`}>
-    <View style={styles.legend}><View style={[styles.swatch, { backgroundColor: line.kind === 'shortest' ? theme.routeShortest : theme.routeLowerRisk }]} /><Text style={styles.label}>{line.label}</Text></View>
+    <View style={styles.legend}><View style={[styles.swatch, { backgroundColor: colors[line.kind] }]} /><Text style={styles.label}>{line.label}</Text></View>
     <Text style={styles.metrics}>{line.duration}</Text>
     <Text style={styles.fine}>{line.distance} · {line.hazardCount} reports</Text>
     {expanded && <Text style={styles.fine}>{line.risk}</Text>}
@@ -20,7 +20,7 @@ function RouteCard({ line, expanded }: { line: RouteLine; expanded: boolean }) {
 }
 
 export function RouteScreen(props: {
-  state: RouteState; target: Target; offlinePreview: boolean; expanded: boolean;
+  colors: { shortest: string; safest: string }; state: RouteState; target: Target; offlinePreview: boolean; expanded: boolean;
   onTarget(target: Target): void; onUseLocation(): void; onCompare(): void;
   onSwap(): void; onClear(): void;
 }) {
@@ -57,8 +57,8 @@ export function RouteScreen(props: {
     {presented && <>
       {presented.illustrative && <Text style={styles.notice}>Example routes · do not follow your pins</Text>}
       <View style={styles.row}>
-        <RouteCard line={presented.shortest} expanded={expanded} />
-        {presented.lowerRisk && <RouteCard line={presented.lowerRisk} expanded={expanded} />}
+        <RouteCard colors={props.colors} line={presented.shortest} expanded={expanded} />
+        {presented.lowerRisk && <RouteCard colors={props.colors} line={presented.lowerRisk} expanded={expanded} />}
       </View>
       {!presented.lowerRisk && <Text style={styles.fine}>No distinct lower-risk alternative</Text>}
       {expanded && <>

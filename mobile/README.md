@@ -10,7 +10,7 @@ Controls follow system light/dark appearance with silver and cyan-blue accents.
 The shared icon and control system is described in the [mobile UI guide](docs/UI-GUIDE.md).
 
 Run `npm start --prefix mobile` for the labeled fixture preview, or set
-`EXPO_PUBLIC_API_URL` for live flows. The existing renderer remains for the separate OSM work.
+`EXPO_PUBLIC_API_URL` for live flows. The rebased concept uses main's MapLibre/OpenFreeMap renderer. Expand Map details to switch light/dark basemaps; attribution stays above the task panel.
 Report pins and optional descriptions remain pending #23/#24. This is route comparison, not
 turn-by-turn navigation; no text search, rental integration or separate bicycle costing is added.
 
