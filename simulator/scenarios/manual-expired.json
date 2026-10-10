@@ -1,0 +1,15 @@
+{
+  "name": "manual-expired",
+  "kind": "manual",
+  "version": 1,
+  "description": "A report observed 25 hours ago: accepted and retryable, but never in the active feed.",
+  "prerequisites": "Product API only.",
+  "report": {
+    "kind": "obstruction",
+    "lat": 33.7536,
+    "lon": -84.3861,
+    "age_minutes": 1500,
+    "description": "DEMO: stale queued report"
+  },
+  "expect_active": false
+}
