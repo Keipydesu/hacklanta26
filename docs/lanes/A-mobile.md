@@ -9,6 +9,8 @@ automatic process is stopped. Follow [the architecture](../../ARCHITECTURE.md),
 **Owns:** `mobile/`. Consume only the product HTTP/live contract and local generated types/fixtures.
 No imports from `automatic/`, sensor libraries, motion permissions, continuous location, ride
 start/stop or recording belong in this release. Publication credentials never enter the app.
+`EXPO_PUBLIC_API_URL` must point only to the product API, never the observation/automatic service,
+including when Lane G supplies multiple service URLs for the hosted rehearsal.
 
 Stage 0 is merged through [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) and already has Expo SDK 55, React Native Maps, a pin form, source/evidence/expiry display,
 in-session retry and illustrative routes. It polls every five seconds and has viewport freshness
