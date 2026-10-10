@@ -116,10 +116,11 @@ expected 401 probes. This scenario bypasses detection deliberately.
   recent closed corridor 2/day and diverted corridor 15/day. Expect under 30% and over 130%
   respectively, with diversion within two H3 rings. Agree H3 resolution and UTC day boundaries
   with D before generation; do not invent them as a public contract here.
-- `demo_seed`: two simulated events under explicit service demo mode. This is an ingestion/visible
-  hazard demo; two fresh events score roughly 0.4 and decay can move below the routing cutoff.
-  Use at least three fresh simulated events for a route-exclusion demonstration. Never silently
-  lower production thresholds or claim demo-mode output validates real detection.
+- `demo_seed`: at least three fresh simulated events from at least two distinct rides within
+  12 m, using the same clustering thresholds as D. Three fresh events score near 0.6 before
+  decay and can demonstrate route exclusion. A two-event variant is a negative control: it
+  ingests successfully but must not publish a cluster. No service demo flag implicitly lowers
+  the agreed count/ride thresholds or proves real detection.
 
 Synthetic observation coordinates represent already-trimmed data; do not trim them again.
 Scenario YAML records seed, relative timestamps, ride counts, evidence source, expected kinds,
