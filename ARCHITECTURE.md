@@ -165,6 +165,15 @@ Request: `{ "origin": {"lat":33.7531,"lon":-84.3853}, "destination": {"lat":33.7
 
 Response: `{ "routes": [...], "safest_available": true }`. Each route has `kind` (`shortest | safest`), GeoJSON LineString `geometry`, `distance_m`, `duration_s`, `risk_score`, and `hazard_ids`. UI copy always says “lower-risk.” Offline/example route geometry is never shown as directions for selected endpoints (decision 024). If hazard exclusion leaves no route, return the shortest under both kinds with `safest_available: false`. An optional `alternatives` array carries up to two other roads (`kind: alternative`), scored the same way ([decision 026](docs/decisions/026-route-alternatives.md)). Return 503 if routing itself is unavailable; reporting and map reads continue working.
 
+### Optional AI assistance
+
+[Decision 031](docs/decisions/031-vultr-ai-assistance.md) adds GET `/v1/ai/status`, POST
+`/v1/ai/analyze-photo` (bounded JPEG → draft suggestion) and POST `/v1/ai/explain-route`
+(numeric displayed comparison → grounded explanation). Vultr runs only on explicit rider actions.
+AI never publishes a report, determines location, alters routing or becomes a health dependency.
+Review/apply/edit/Submit preserves manual source and durable retry identity. Backend strips JPEG
+header metadata; route prompts omit coordinates and report text. See [AI runbook](backend/AI.md).
+
 ## 6. Automatic subsystem contracts
 
 The automation service has a separate base URL. It owns event ingestion, observation storage, clustering, and its publisher. The product API never imports or calls its risk worker.
@@ -221,6 +230,8 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 | Variable | Used by | Purpose |
 |---|---|---|
 | `DATABASE_URL` | product API | Product database only |
+| `VULTR_INFERENCE_API_KEY` | product API | Server-only Vultr Inference credential; blank disables optional AI |
+| `VULTR_INFERENCE_MODEL` | product API | Vision/structured-output model; default qwen3.8-27b |
 | `VALHALLA_URL` | product API | Routing server |
 | `PHOTON_URL` | product API | Place search provider for `/v1/places`; defaults to the public Photon instance, empty disables search |
 | `EXPO_PUBLIC_API_URL` | mobile | Shared product API URL |

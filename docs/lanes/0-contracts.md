@@ -28,3 +28,9 @@ canonical HTTP boundary; generated consumer types are checked in. Contracts vali
 `uv sync --project contracts` then
 `uv run --project contracts python contracts/scripts/validate.py` from the repository root.
 Runnable skeleton commands and handoff status are recorded in component READMEs as they land.
+
+## Optional Vultr AI extension
+
+[Decision 031](../decisions/031-vultr-ai-assistance.md) coordinates optional photo-assisted drafts
+and grounded route explanations across A/C/0/G. The manual MVP remains independent of inference.
+See [configuration, contracts, dependency review and verification](../../backend/AI.md).

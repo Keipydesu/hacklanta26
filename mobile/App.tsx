@@ -22,7 +22,8 @@ import { canSubmit, locationAction, shouldLocateOnEnter, showSubmit } from './sr
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
-import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, searchPlaces, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { apiUrl, fixtureMode, getHazards, getHealth, getAIStatus, getRoutes, searchPlaces, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { PhotoReport } from './src/ai/PhotoReport';
 import { createFeedback, FeedbackState } from './src/feedback/feedback';
 import { HazardPanel } from './src/feedback/HazardPanel';
 import { createNearbyWatcher } from './src/feedback/nearby';
@@ -147,6 +148,9 @@ function CampusApp() {
   }
   const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind'] | null>(null);
+  const [description, setDescription] = useState('');
+  const [draftRevision, setDraftRevision] = useState(0);
+  const [aiAvailable, setAIAvailable] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [error, setError] = useState('');
   const [hazardError, setHazardError] = useState('');
@@ -205,7 +209,10 @@ function CampusApp() {
     if (fixtureMode) return;
     void queue.load().then(() => { if (queue.loadError()) setError(queue.loadError()!); return queue.drain(); });
     // Only used to say honestly whether the server keeps reports; never blocks the app.
-    const probe = () => getHealth().then(setServer).catch(() => undefined);
+    const probe = () => {
+      void getAIStatus().then(status => setAIAvailable(status.available)).catch(() => setAIAvailable(false));
+      return getHealth().then(setServer).catch(() => undefined);
+    };
     void probe();
     const sub = AppState.addEventListener('change', state => { if (state === 'active') { setNow(Date.now()); void refresh(); void queue.drain(); void probe(); } });
     return () => sub.remove();
@@ -228,9 +235,10 @@ function CampusApp() {
       setSubmitting(true); setError('');
       try {
         if (fixtureMode || kind === null) return;
-        await queue.enqueue(reportLocator.freeze({ kind }, Crypto.randomUUID()));
+        await queue.enqueue(reportLocator.freeze({ kind, description }, Crypto.randomUUID()));
         reportLocator.clear();
         setKind(null);
+        setDescription(''); setDraftRevision(value => value + 1);
         // Persistence may finish after navigation or backgrounding; read the live context.
         if (screenRef.current === 'report' && AppState.currentState === 'active') void reportLocator.request();
         void queue.drain();
@@ -366,6 +374,8 @@ function CampusApp() {
         </>}
       </>}
       {screen === 'report' && <>
+        {aiAvailable && <PhotoReport key={draftRevision} disabled={fixtureMode || submitting}
+          onApply={result => { if (result.kind) { setKind(result.kind); setDescription(result.description); } }} />}
         {reportLocation.status === 'locating' && <Text accessibilityRole="alert" style={styles.caption}>Getting your current location…</Text>}
         {reportLocation.status === 'denied' && <Text accessibilityRole="alert" style={styles.error}>Location permission is required to report a hazard. Enable it in Settings, then retry.</Text>}
         {reportLocation.status === 'unavailable' && <Text accessibilityRole="alert" style={styles.error}>Current location is unavailable. Check location services and retry; location is required to submit.</Text>}
@@ -374,11 +384,16 @@ function CampusApp() {
           disabled={fixtureMode || submitting} onPress={() => void reportLocator.request()} />}
         {reportLocation.status === 'denied' && <Button title="Open location settings" onPress={() => void Linking.openSettings().catch(() => setError('Open device Settings to enable location permission.'))} />}
         <View style={styles.categories} accessibilityRole="radiogroup" accessibilityLabel="Hazard category">{CATEGORIES.map(({ kind: k, label, hint }) => <Pressable key={k}
-          accessibilityRole="radio" accessibilityLabel={`${label}. ${hint}`} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
+          accessibilityRole="radio" accessibilityLabel={`${label}. ${hint}`} disabled={submitting}
+          accessibilityState={{ selected: k === kind, disabled: submitting }} onPress={() => setKind(k)}
           style={[styles.category, k === kind && styles.categorySelected]}>
           {k !== kind && <SilverTexture />}
           <Icon name={k} color={k === kind ? theme.inverse : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{label}</Text>
         </Pressable>)}</View>
+
+        {kind && <TextInput accessibilityLabel="Hazard description" placeholder="Add details (optional)"
+          placeholderTextColor={theme.muted} style={styles.input} value={description} maxLength={280}
+          editable={!submitting} onChangeText={setDescription} />}
 
         {showSubmit(kind) && <Button primary title={submitting ? 'Saving…' : 'Submit'}
           disabled={!canSubmit({ kind, locationReady: reportLocator.ready(), fixtureMode, submitting })} onPress={() => void send()} />}
@@ -402,7 +417,7 @@ function CampusApp() {
         {watchStatus === 'denied' && <Button title="Open location settings" onPress={() => void Linking.openSettings().catch(() => setError('Open device Settings to enable location permission.'))} />}
         <Text style={styles.caption}>Live while the app is open · route does not reroute automatically</Text>
       </View>}
-      {screen === 'route' && <RouteScreen colors={ROUTE_COLORS} expanded={expanded} state={routeState} offlinePreview={fixtureMode}
+      {screen === 'route' && <RouteScreen colors={ROUTE_COLORS} expanded={expanded} state={routeState} offlinePreview={fixtureMode} aiAvailable={aiAvailable}
         fields={tripFields}
         canSwap={trip.canSwap()} onCompare={() => void comparison.request()}
         onSwap={() => trip.swap()} onClear={() => { void trip.clear(); editEndpoint('destination'); }} />}

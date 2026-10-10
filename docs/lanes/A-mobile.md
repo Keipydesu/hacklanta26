@@ -229,3 +229,9 @@ background tracking/recording, motion detection, dashboard and cosmetic polish b
 UI sheet refinement (decision 030): two magnetic drag positions replace disclosure chevrons.
 Map taps collapse except during endpoint picking. No destination means closing search returns
 home; a compact selected trip hides From. Preserve draft/queue and endpoint state across collapse.
+
+## Optional Vultr AI extension
+
+[Decision 031](../decisions/031-vultr-ai-assistance.md) coordinates optional photo-assisted drafts
+and grounded route explanations across A/C/0/G. The manual MVP remains independent of inference.
+See [configuration, contracts, dependency review and verification](../../backend/AI.md).

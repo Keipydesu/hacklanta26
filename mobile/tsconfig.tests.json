@@ -10,6 +10,7 @@
   },
   "include": [
     "src/ui/sheetSnap.ts",
+    "src/ai/latest.ts",
     "src/api/hazardRefresh.ts",
     "src/api/live.ts",
     "src/feedback/feedback.ts",

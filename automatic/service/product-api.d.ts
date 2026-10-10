@@ -123,6 +123,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Configured capability only, not upstream health. AI is optional. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/analyze-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Analyze a JPEG up to 3 MB through Vultr. No storage or publication; review before submission. */
+        post: operations["analyze_photo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/explain-route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description AI chooses emphasis; the server renders numeric comparison facts. No location or geometry forwarded. */
+        post: operations["explain_route"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -302,6 +353,54 @@ export interface components {
                 /** Format: uuid */
                 hazard_id: string;
             };
+        };
+        /** AIStatus */
+        AIStatus: {
+            /** Available */
+            available: boolean;
+        };
+        /** PhotoAnalysisRequest */
+        PhotoAnalysisRequest: {
+            /** Image Base64 */
+            image_base64: string;
+        };
+        /** PhotoAnalysis */
+        PhotoAnalysis: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "suggested" | "unclear" | "no_hazard";
+            /** Kind */
+            kind: ("pothole" | "obstruction" | "closure" | "other") | null;
+            /** Description */
+            description: string;
+        };
+        /** AIRouteSummary */
+        AIRouteSummary: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "shortest" | "safest";
+            /** Distance M */
+            distance_m: number;
+            /** Duration S */
+            duration_s: number;
+            /** Hazard Count */
+            hazard_count: number;
+        };
+        /** RouteExplanationRequest */
+        RouteExplanationRequest: {
+            /** Routes */
+            routes: components["schemas"]["AIRouteSummary"][];
+            /** Safest Available */
+            safest_available: boolean;
+        };
+        /** RouteExplanation */
+        RouteExplanation: {
+            /** Explanation */
+            explanation: string;
         };
     };
     responses: never;
@@ -629,6 +728,146 @@ export interface operations {
                 };
             };
             /** @description Routing unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIStatus"];
+                };
+            };
+        };
+    };
+    analyze_photo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhotoAnalysisRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoAnalysis"];
+                };
+            };
+            /** @description Payload too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description AI busy; retry after 60 seconds */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description AI unconfigured or unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    explain_route: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RouteExplanationRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteExplanation"];
+                };
+            };
+            /** @description Payload too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description AI busy; retry after 60 seconds */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description AI unconfigured or unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -222,3 +222,9 @@ which real-device checks A ran, tested Valhalla version/campus pairs, configurat
 remaining stubs. Physical-device and HTTPS gates cannot be replaced by fixture tests. Defer soft-cost
 OSMnx routing, cross-source merging (hazard feedback follows decision 013), raw event APIs and horizontal scaling until the manual
 release works. No contracts or implementation are changed by this planning PR.
+
+## Optional Vultr AI extension
+
+[Decision 031](../decisions/031-vultr-ai-assistance.md) coordinates optional photo-assisted drafts
+and grounded route explanations across A/C/0/G. The manual MVP remains independent of inference.
+See [configuration, contracts, dependency review and verification](../../backend/AI.md).
