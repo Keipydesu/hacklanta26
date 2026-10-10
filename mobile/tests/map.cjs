@@ -169,7 +169,9 @@ function fakeMapLibre() {
     getBounds() { return { getWest: () => -84.4, getSouth: () => 33.7, getEast: () => -84.3, getNorth: () => 33.8 }; }
   }
   class Marker extends Emitter {
-    constructor(options) { super(); this.options = options; this.removed = false; made.markers.push(this); }
+    constructor(options) { super(); this.options = options; this.removed = false; made.markers.push(this);
+      this.element = { listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; } }; }
+    getElement() { return this.element; }
     setLngLat(p) { this.position = Array.isArray(p) ? p : [p.lng, p.lat]; return this; }
     getLngLat() { return { lng: this.position[0], lat: this.position[1] }; }
     addTo() { return this; }
@@ -374,4 +376,35 @@ test('WebView navigation: only the page loads in place; outside http(s) opens in
     'https://user:pw@campus-map.invalid/', 'https://user@openfreemap.org/', 'not a url', '']) {
     assert.equal(navigationDecision(url, origin), 'block', url);
   }
+});
+
+test('tapping a hazard pin selects that hazard instead of opening a popup', () => {
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay: { ...overlay, markers: [
+    { id: 'hazard-h1', position: [-84.38, 33.75], color: '#d64532', title: 'Community report', select: 'h1' },
+    overlay.markers[0],
+  ] } });
+  const [hazardMarker, pinMarker] = page.made.markers;
+  let stopped = false;
+  hazardMarker.element.listeners.click({ stopPropagation: () => { stopped = true; } });
+  assert.deepEqual(page.posted.at(-1), { type: 'select', id: 'h1' });
+  assert.equal(stopped, true, 'the tap does not also reach the map as a press');
+  assert.equal(hazardMarker.popup, undefined, 'hazard pins open the native panel, not a popup');
+  assert.ok(pinMarker.popup, 'other pins keep their popup');
+  assert.equal(pinMarker.element.listeners.click, undefined);
+});
+
+test('select messages are validated', () => {
+  assert.deepEqual(parseFromWeb('{"type":"select","id":"h1"}'), { type: 'select', id: 'h1' });
+  for (const bad of ['{"type":"select"}', '{"type":"select","id":""}', '{"type":"select","id":7}', JSON.stringify({ type: 'select', id: 'x'.repeat(65) })]) {
+    assert.equal(parseFromWeb(bad), null, bad);
+  }
+});
+
+test('hazard pins carry their hazard id and the selected one is highlighted', () => {
+  const overlayResult = buildOverlay({ ...base, selectedHazardId: 'a1' });
+  assert.deepEqual(overlayResult.markers.map(m => [m.id, m.select, m.color]), [
+    ['hazard-m1', 'm1', MARKER_COLORS.hazard],
+    ['hazard-a1', 'a1', MARKER_COLORS.selected],
+  ]);
 });

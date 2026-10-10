@@ -46,6 +46,12 @@ export const submitReport = (body: Report) => {
   if (fixtureMode) throw new Error('Connect EXPO_PUBLIC_API_URL to submit reports.');
   return request<components['schemas']['ReportReceipt']>('/v1/reports', body);
 };
+export type HazardFeedback = components['schemas']['HazardFeedback'];
+export type FeedbackReceipt = components['schemas']['FeedbackReceipt'];
+export const submitFeedback = (hazardId: string, body: HazardFeedback) => {
+  if (fixtureMode) throw new Error('Connect EXPO_PUBLIC_API_URL to answer hazard checks.');
+  return request<FeedbackReceipt>(`/v1/hazards/${encodeURIComponent(hazardId)}/feedback`, body);
+};
 export type Coordinate = components['schemas']['Coordinate'];
 /**
  * Routes for the selected pair. `illustrative` is true for the offline preview and when the server

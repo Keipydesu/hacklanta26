@@ -58,6 +58,20 @@ python3 contracts/scripts/smoke_product.py
 This creates a demo manual report and exercises automatic publication over HTTP. It does not
 require the observation service, collector, or detector.
 
+## Hazard feedback
+
+`POST /v1/hazards/{hazard_id}/feedback` takes `{id, response}`, where `response` is `still_there`
+or `gone`. It works in both memory and PostGIS modes, and migration `002_hazard_feedback` adds the
+`hazard_feedback` table and `hazards.hidden_at_revision`. The policy is the pure function in
+`app/feedback.py`:
+- **Manual hazards:** "Still there" extends expiry to now + 24 h, and two consecutive "gone"
+  answers resolve the hazard.
+- **Automatic hazards:** two consecutive "gone" answers at the current revision hide the hazard
+  until the publisher's next newer revision. The publication itself is never edited.
+
+Retries with the same UUID return 200 with `duplicate: true`. Unknown, resolved, expired and hidden
+hazards return 404. See [decision 013](../docs/decisions/013-hazard-feedback.md).
+
 ## Routing failure and refresh semantics
 
 Only Valhalla's recorded no-path code 442 permits a no-alternative fallback; a baseline no-path
