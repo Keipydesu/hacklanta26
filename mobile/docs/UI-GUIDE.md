@@ -37,7 +37,8 @@ See [decision 014](../../docs/decisions/014-silver-cyan-mobile-palette.md).
 
 | Color | Role |
 | --- | --- |
-| `#353535` charcoal | Light-mode text; dark-mode surfaces |
+| `#353535` charcoal | Light-mode text and text on metallic controls |
+| `#101114` near-black | Dark-mode panels and background, per operator refinement |
 | `#3c6e71` teal/cyan | Selected controls and lower-risk route accent |
 | `#ffffff` white | Light surfaces; selected/primary and dark-mode foreground |
 | `#d9d9d9` metallic silver | Light-mode dividers, metallic controls and dark-mode secondary foreground |
