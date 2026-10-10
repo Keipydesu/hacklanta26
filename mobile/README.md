@@ -40,11 +40,16 @@ transient failures (bounded exponential backoff), app foregrounding and relaunch
 appear as blue pins labeled "not yet accepted" and never as server hazards. A definitive rejection
 (409/422) is shown for dismissal and correction; exhausted retries keep the original ID for an
 explicit "Retry original report" because the server outcome is unknown. Unreadable saved data is
-copied to `report-queue.unreadable` instead of being discarded. Accepted reports refresh every 5 s.
-Queue logic lives in `src/reports/queue.ts` and is tested in Node (`tests/reportQueue.cjs`).
+copied to `report-queue.unreadable` instead of being discarded. Queue logic lives in `src/reports/queue.ts` and is tested in Node (`tests/reportQueue.cjs`).
 
-Dependency: `@react-native-async-storage/async-storage` 2.2.0 (exact; the SDK 55 bundled version).
+Live updates: the app connects to `ws(s)://<API>/v1/live`, debounces `hazards.changed` hints into a
+visible-bounds refetch, refetches on every (re)connect, and reconnects with capped backoff. While
+the socket is down (or the backend does not serve it yet) it falls back to 5 s polling. Foregrounding
+refreshes the feed, re-evaluates expiry and resumes the queue; a failed refresh keeps the last results
+labeled stale. "Use my location" requests foreground permission only when tapped and reads one fix
+(no continuous or background updates); denial leaves pin placement working.
 
-Lane A still owns foreground-location convenience, reconnecting live
-updates, destination selection and device polish. Routes remain stubs until Lane C supplies
+Dependencies (exact): `@react-native-async-storage/async-storage` 2.2.0 and `expo-location` 55.1.14.
+
+Lane A still owns destination selection and device polish. Routes remain stubs until Lane C supplies
 Valhalla. A routing failure does not disable the map or report form.

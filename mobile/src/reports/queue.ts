@@ -1,3 +1,4 @@
+import { jitteredBackoffMs } from '../retry/backoff';
 import type { components } from '../api/schema';
 
 export type Report = components['schemas']['ManualReport'];
@@ -50,7 +51,7 @@ const retryAfterMs = (error: unknown) => {
   const seconds = (error as { retryAfterSeconds?: number } | null)?.retryAfterSeconds;
   return typeof seconds === 'number' && seconds >= 0 ? seconds * 1000 : undefined;
 };
-export const backoffMs = (attempts: number, random: number) => Math.min(60_000, 1000 * 2 ** (attempts - 1)) * (0.5 + random / 2);
+export const backoffMs = (attempts: number, random: number) => jitteredBackoffMs(attempts - 1, random, 60_000);
 
 export function createReportQueue(deps: QueueDeps) {
   let items: Submission[] = [];

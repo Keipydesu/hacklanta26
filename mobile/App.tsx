@@ -3,6 +3,9 @@ import { AppState, SafeAreaView, ScrollView, View, Text, Button, TextInput, Styl
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
+import { connectLive, liveUrl } from './src/api/live';
+import { locateOnce } from './src/location/foreground';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
@@ -46,12 +49,21 @@ export default function App() {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
   }, []);
-  // Polling is intentionally simple in the skeleton. Lane A adds reconnecting live updates.
+  // Live hints drive refetches; polling is only the fallback while the socket is down.
+  const [liveConnected, setLiveConnected] = useState(false);
   useEffect(() => {
     if (!apiUrl) return;
+    return connectLive({
+      url: liveUrl(apiUrl), createSocket: url => new WebSocket(url) as any,
+      onChange: () => void refresh(), onStatus: setLiveConnected,
+      setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: h => clearTimeout(h as any), random: Math.random,
+    });
+  }, []);
+  useEffect(() => {
+    if (!apiUrl || liveConnected) return;
     const tick = setInterval(() => void refresh(), 5000);
     return () => clearInterval(tick);
-  }, [region]);
+  }, [region, liveConnected]);
   // The queue persists each frozen report before any network I/O and resends the same body until resolved.
   const [queue] = useState(() => createReportQueue({
     storage: AsyncStorage,
@@ -64,7 +76,7 @@ export default function App() {
   useEffect(() => {
     if (fixtureMode) return;
     void queue.load().then(() => { if (queue.loadError()) setError(queue.loadError()!); return queue.drain(); });
-    const sub = AppState.addEventListener('change', state => { if (state === 'active') { void refresh(); void queue.drain(); } });
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') { setNow(Date.now()); void refresh(); void queue.drain(); } });
     return () => sub.remove();
   }, []);
   // Wake when the earliest backoff expires; submissions also change on every drain.
@@ -76,6 +88,11 @@ export default function App() {
   }, [submissions]);
   const [submitting, setSubmitting] = useState(false);
   const [guardSubmit] = useState(createSubmitGuard);
+  async function useMyLocation() {
+    const result = await locateOnce(Location, Location.Accuracy.Balanced);
+    if (result.ok) { setPin({ latitude: result.lat, longitude: result.lon }); setError(''); }
+    else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the pin instead.' : 'Could not get your location. Tap the map to place the pin instead.');
+  }
   function send() {
     return guardSubmit(async () => {
       setSubmitting(true); setError('');
@@ -119,6 +136,7 @@ export default function App() {
         <Text style={styles.heading}>Place a pin to report a hazard</Text>
         <Text>Tap the map or drag the pin. No location permission needed.</Text>
         <Text>{pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}</Text>
+        <Button title="Use my location (optional)" onPress={() => void useMyLocation()} />
         <View style={styles.tabs}>{(['pothole','obstruction','closure','other'] as const).map(k => <Button key={k} title={k === kind ? `✓ ${k}` : k} onPress={() => setKind(k)} />)}</View>
         <TextInput style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholder="Description (optional)" />
         <Text>Reports are saved on this phone and retried with the same ID until the server answers. Pending reports are not yet accepted hazards.</Text>
@@ -140,7 +158,7 @@ export default function App() {
         {routes && !routes.safest_available && <Text>No lower-risk alternative available.</Text>}
       </>}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-      {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazardError}</Text>}
+      {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazards.length ? 'Offline or stale: showing the last successful results. ' : ''}{hazardError}</Text>}
     </ScrollView>
   </SafeAreaView>;
 }
