@@ -10,11 +10,12 @@
     "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~55.0.0",
+    "expo-crypto": "~55.0.8",
     "react": "19.2.0",
     "react-native": "0.83.10",
-    "react-native-maps": "1.27.2",
-    "expo-crypto": "~55.0.8"
+    "react-native-maps": "1.27.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",

@@ -33,11 +33,18 @@ Use your computer's LAN address on a phone (not the phone's localhost). The phon
 must share a reachable network; use HTTPS for hosted services. The backend listens on `0.0.0.0`.
 Never put a publication key in this app or any Expo public variable.
 
-Tap Report, place/drag a pin, choose a kind and submit. No location permission is needed. A failed
-submission retains its original UUID, timestamp and body for explicit retry within that session.
-Editing requires New draft. Draft, sending, submitted and failed are displayed; a persistent queued
-state is not implemented. Closing the app loses unsent work. Accepted reports refresh every 5 s.
+Tap Report, place/drag a pin, choose a kind and submit. No location permission is needed. Submit
+freezes the report (UUID, observation time, body) and saves it to AsyncStorage before any network
+call. It is then shown as queued/sending/submitted/failed and resent with the identical body after
+transient failures (bounded exponential backoff), app foregrounding and relaunch. Pending reports
+appear as blue pins labeled "not yet accepted" and never as server hazards. A definitive rejection
+(409/422) is shown for dismissal and correction; exhausted retries keep the original ID for an
+explicit "Retry original report" because the server outcome is unknown. Unreadable saved data is
+copied to `report-queue.unreadable` instead of being discarded. Accepted reports refresh every 5 s.
+Queue logic lives in `src/reports/queue.ts` and is tested in Node (`tests/reportQueue.cjs`).
 
-Lane A still owns persistent offline queuing, foreground-location convenience, reconnecting live
+Dependency: `@react-native-async-storage/async-storage` 2.2.0 (exact; the SDK 55 bundled version).
+
+Lane A still owns foreground-location convenience, reconnecting live
 updates, destination selection and device polish. Routes remain stubs until Lane C supplies
 Valhalla. A routing failure does not disable the map or report form.
