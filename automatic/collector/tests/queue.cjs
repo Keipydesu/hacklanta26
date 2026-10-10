@@ -57,6 +57,68 @@ test('storage failure means nothing is queued', async () => {
   assert.equal(h.queue.snapshot().length, 0);
 });
 
+test('a pending storage write keeps the new batch out of drain', async () => {
+  const saved = memoryStorage();
+  let startWrite, finishWrite;
+  const writing = new Promise(resolve => { startWrite = resolve; });
+  const gate = new Promise(resolve => { finishWrite = resolve; });
+  const storage = { ...saved, setItem: async (key, value) => { startWrite(); await gate; await saved.setItem(key, value); } };
+  const h = harness({ storage });
+  await h.queue.load();
+  const enqueue = h.queue.enqueueEvents([event(1)]);
+  await writing;
+  await h.queue.drain();
+  assert.deepEqual(h.sent, []);
+  assert.deepEqual(h.queue.snapshot(), []);
+  finishWrite();
+  await enqueue;
+  await h.queue.drain();
+  assert.equal(h.sent.length, 1);
+});
+
+test('a rejected pending write never exposes a batch to drain', async () => {
+  const saved = memoryStorage();
+  let startWrite, failWrite;
+  const writing = new Promise(resolve => { startWrite = resolve; });
+  const gate = new Promise((_, reject) => { failWrite = reject; });
+  const storage = { ...saved, setItem: async () => { startWrite(); await gate; } };
+  const h = harness({ storage });
+  await h.queue.load();
+  const enqueue = h.queue.enqueueEvents([event(1)]);
+  await writing;
+  await h.queue.drain();
+  assert.deepEqual(h.sent, []);
+  failWrite(new Error('disk full'));
+  await assert.rejects(enqueue, /disk full/);
+  await h.queue.drain();
+  assert.deepEqual(h.queue.snapshot(), []);
+  assert.deepEqual(h.sent, []);
+});
+
+test('a send finishing during enqueue cannot overwrite the newly saved batch', async () => {
+  const saved = memoryStorage();
+  let startSecondWrite, finishSecondWrite, writes = 0;
+  const writing = new Promise(resolve => { startSecondWrite = resolve; });
+  const gate = new Promise(resolve => { finishSecondWrite = resolve; });
+  const storage = { ...saved, setItem: async (key, value) => {
+    if (++writes === 2) { startSecondWrite(); await gate; }
+    await saved.setItem(key, value);
+  } };
+  const h = harness({ storage });
+  await h.queue.load();
+  await h.queue.enqueueEvents([event(1)]);
+  const enqueue = h.queue.enqueueEvents([event(2)]);
+  await writing;
+  const draining = h.queue.drain();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.sent.length, 1);
+  finishSecondWrite();
+  await Promise.all([enqueue, draining]);
+  const savedItems = JSON.parse(saved.data.get(STORAGE_KEY)).items;
+  assert.deepEqual(savedItems.map(batch => batch.id), h.queue.snapshot().map(batch => batch.id));
+  assert.equal(savedItems.length, 1);
+});
+
 test('restart after an unknown outcome resends the identical bytes', async () => {
   const storage = memoryStorage();
   const first = harness({ storage });

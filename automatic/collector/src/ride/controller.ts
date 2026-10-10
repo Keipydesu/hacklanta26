@@ -165,7 +165,7 @@ export function createRideController(deps: ControllerDeps) {
     const released = privacy.pushFix(fix, point);
     readyPoints.push(...released.points);
     readyEvents.push(...released.events);
-    detector.pushLocation(fix);
+    if (released.accepted) detector.pushLocation(fix);
     emit();
   }
 

@@ -67,8 +67,8 @@ export class PrivacyBuffer<P, E> {
    * for the start zone) and `hi` (stepped total plus displacement from the last step, used for
    * the end zone). Erring low at the start and high at the end only ever trims more.
    */
-  pushFix(fix: TrimFix, point?: P): Released<P, E> {
-    const none: Released<P, E> = { points: [], events: [] };
+  pushFix(fix: TrimFix, point?: P): Released<P, E> & { accepted: boolean } {
+    const none = { points: [] as P[], events: [] as E[], accepted: false };
     if (!Number.isFinite(fix.t_ms) || !Number.isFinite(fix.lat) || !Number.isFinite(fix.lon)) return none;
     if (fix.accuracy_m === null || !Number.isFinite(fix.accuracy_m) || fix.accuracy_m > this.maxAccuracyM) return none;
     if (this.last) {
@@ -92,7 +92,7 @@ export class PrivacyBuffer<P, E> {
       if (lo <= this.trimM) this.dropped.points++;
       else this.heldPoints.push({ hi, payload: point });
     }
-    return this.release();
+    return { ...this.release(), accepted: true };
   }
 
   /**

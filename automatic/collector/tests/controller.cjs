@@ -31,14 +31,14 @@ function harness({ motion = true, motionPermission = true, locationPermission = 
   h.recorder = recorder ? createRecorder({ write: async (dir, name, contents) => { h.files.push({ dir, name, contents }); } }) : undefined;
   h.controller = createRideController({ platform: h.platform, queue: h.queue, recorder: h.recorder, onChange: s => h.snapshots.push(s) });
   /** Deliver sensors for `ms`: motion at 50 Hz, GPS at 1 Hz, from callbacks describing the ride. */
-  h.run = async (ms, { horizontalG = () => 0, verticalG = () => 0, speed = () => 0, gps = true, offset = 0 } = {}) => {
+  h.run = async (ms, { horizontalG = () => 0, verticalG = () => 0, speed = () => 0, gps = true, offset = 0, location = (_, position) => latlon(position) } = {}) => {
     h.position ??= 0;
     for (let t = 0; t < ms; t += 20) {
       h.now += 20;
       const elapsed = offset + t;
       h.position += speed(elapsed) * 0.02;
       if (gps && h.locationCb && t % 1000 === 0) {
-        h.locationCb({ timestamp: h.now, coords: { ...latlon(h.position), accuracy: 5, speed: speed(elapsed) } });
+        h.locationCb({ timestamp: h.now, coords: { ...location(elapsed, h.position), accuracy: 5, speed: speed(elapsed) } });
       }
       if (h.motionCb) h.motionCb(flat(horizontalG(elapsed) * G, 0, verticalG(elapsed) * G));
       if (t % FLUSH_INTERVAL_MS === 0) { for (const timer of h.timers.values()) timer.fn(); await settle(); }
@@ -159,6 +159,22 @@ test('a short device ride uploads nothing', async () => {
   await settle();
   assert.deepEqual(h.sent, []);
   assert.equal(h.storage.data.size, 0);
+});
+
+test('a rejected GPS jump cannot place an uploaded event at the private start', async () => {
+  const h = harness();
+  await h.controller.startRide({ mode: 'device', consent: true });
+  await h.run(80_000, {
+    speed: () => 6,
+    verticalG: jerk(30_000, 30_060, 1.5),
+    location: (elapsed, position) => latlon(elapsed === 30_000 ? 0 : position),
+  });
+  await h.controller.stopRide();
+  await settle();
+  const events = h.events();
+  assert.equal(events.length, 1);
+  const distance = haversineM(north(0), events[0]);
+  assert.ok(distance > 100 && distance < h.position - 100, `event ${distance.toFixed(1)} m from the start`);
 });
 
 test('double start is refused; stopping twice is harmless and releases everything', async () => {

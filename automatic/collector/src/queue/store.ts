@@ -72,6 +72,7 @@ export function createUploadQueue(deps: QueueDeps) {
   /** False until saved data has been read (or is known absent): never overwrite what we could not read. */
   let loaded = false;
   let writes: Promise<void> = Promise.resolve();
+  let adds: Promise<void> = Promise.resolve();
   let draining: Promise<void> | undefined;
   let again = false;
 
@@ -82,9 +83,12 @@ export function createUploadQueue(deps: QueueDeps) {
   });
   const emit = () => deps.onChange?.(stats());
   // A send in flight has an unknown outcome after a restart, so it is stored as queued.
-  const serialize = () => JSON.stringify({ version: VERSION, totals, items: items.map(b => (b.state === 'sending' ? { ...b, state: 'queued' } : b)) });
-  function persist(): Promise<void> {
-    const write = writes.then(() => deps.storage.setItem(STORAGE_KEY, serialize()));
+  const serialize = (extra: readonly Batch[] = []) => JSON.stringify({ version: VERSION, totals, items: [...items, ...extra].map(b => (b.state === 'sending' ? { ...b, state: 'queued' } : b)) });
+  function persist(extra: readonly Batch[] = []): Promise<void> {
+    const write = writes.then(async () => {
+      await deps.storage.setItem(STORAGE_KEY, serialize(extra));
+      if (extra.length) items = [...items, ...extra];
+    });
     writes = write.catch(() => undefined);
     return write;
   }
@@ -108,14 +112,16 @@ export function createUploadQueue(deps: QueueDeps) {
   }
 
   /** Persist new batches before any send. If storage fails nothing is queued and this throws. */
-  async function add(batches: Batch[]): Promise<void> {
-    if (!batches.length) return;
-    if (!loaded) await load(); // throws if storage is still unreadable: nothing is queued, the ride stops with a clear message
-    if (pending() + batches.reduce((n, b) => n + b.count, 0) > MAX_PENDING_OBSERVATIONS) throw new QueueFullError();
-    const before = items;
-    items = [...items, ...batches];
-    try { await persist(); } catch (e) { items = before; throw e; }
-    emit();
+  function add(batches: Batch[]): Promise<void> {
+    if (!batches.length) return Promise.resolve();
+    const operation = adds.then(async () => {
+      if (!loaded) await load(); // throws if storage is still unreadable: nothing is queued, the ride stops with a clear message
+      if (pending() + batches.reduce((n, b) => n + b.count, 0) > MAX_PENDING_OBSERVATIONS) throw new QueueFullError();
+      await persist(batches);
+      emit();
+    });
+    adds = operation.catch(() => undefined);
+    return operation;
   }
   const batch = (kind: Batch['kind'], payload: string, count: number, rideId?: string): Batch =>
     ({ id: deps.uuid(), kind, rideId, payload, count, state: 'queued', attempts: 0, nextAttemptAt: deps.now(), retryable: true });
