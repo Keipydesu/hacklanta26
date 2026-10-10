@@ -5,7 +5,7 @@ from uuid import UUID
 import httpx
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
-from .main import CONTRACTS
+from .config import CONTRACTS
 
 @cache
 def validator():

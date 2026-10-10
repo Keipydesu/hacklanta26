@@ -59,6 +59,15 @@ jobs:
     needs: changes
     if: needs.changes.outputs.service == 'true'
     runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env: {POSTGRES_USER: observations, POSTGRES_PASSWORD: ci-only, POSTGRES_DB: observations}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U observations -d observations" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_AUTOMATION_DATABASE_URL: postgresql://observations:ci-only@localhost:5432/observations
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

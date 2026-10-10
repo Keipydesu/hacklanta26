@@ -35,7 +35,8 @@ introduces them. Keep records short and update affected plans to match.
 ## Current state
 
 Stage 0 contracts, fixtures and independently runnable skeletons now exist. The product API persists to PostGIS when `DATABASE_URL` is set (memory otherwise); the
-observation API uses nonpersistent memory; mobile/collector export native bundles; the detector is
+observation API persists to its private PostGIS database and runs a hazard worker/outbox when
+`AUTOMATION_DATABASE_URL` is set (memory stub otherwise); mobile/collector export native bundles; the detector is
 an explicit no-op. Real persistence, offline queues, sensors, routing and deployment remain later
 milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
 
@@ -49,7 +50,7 @@ milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md)
 | Routing | Valhalla pedestrian costing (scooter pace/step penalty) when `VALHALLA_URL` is set; fixed fixture otherwise |
 | Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
 | Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
-| Automatic service | Independent FastAPI memory ingestion + HTTP publication client; no worker/outbox |
+| Automatic service | Independent FastAPI; durable PostGIS ingestion, serialized hazard worker and publication outbox when `AUTOMATION_DATABASE_URL` is set (memory stub otherwise) |
 | Hosting | Compose manual stack with opt-in `routing` / `https` / `automation` profiles and Vultr deploy/rollback scripts (`infra/`); Vultr path not yet run on a real host |
 
 ## Commands
