@@ -52,6 +52,7 @@ def decode_polyline6(encoded):
     return points
 
 def parse_trip(payload):
+    """The main trip only; see parse_alternates for the others."""
     try:
         trip = payload['trip']
         coordinates = []
@@ -67,6 +68,13 @@ def parse_trip(payload):
         raise Unavailable(f'invalid Valhalla response: {error}') from error
     return Candidate(coordinates, distance_m, duration_s)
 
+def parse_alternates(payload):
+    """Valhalla lists other routes as {"alternates": [{"trip": ...}, ...]}; absent means none."""
+    alternates = payload.get('alternates', [])
+    if not isinstance(alternates, list):
+        raise Unavailable('invalid Valhalla response: alternates is not a list')
+    return [parse_trip(item) for item in alternates]
+
 class ValhallaClient:
     def __init__(self, base_url, http: httpx.AsyncClient | None = None):
         self.base_url = base_url.rstrip('/')
@@ -77,10 +85,16 @@ class ValhallaClient:
 
     async def route(self, origin, destination, exclusions=()):
         """origin/destination: objects with lat/lon. exclusions: exterior rings in [lon, lat] order."""
+        return (await self.routes(origin, destination, exclusions))[0]
+
+    async def routes(self, origin, destination, exclusions=(), alternates=0):
+        """The best route followed by up to `alternates` other routes Valhalla found."""
         body = {'locations': [{'lat': origin.lat, 'lon': origin.lon}, {'lat': destination.lat, 'lon': destination.lon}],
                 'costing': 'pedestrian', 'costing_options': COSTING, 'units': 'kilometers'}
         if exclusions:
             body['exclude_polygons'] = [list(ring) for ring in exclusions]
+        if alternates:
+            body['alternates'] = alternates
         try:
             response = await self.http.post(f'{self.base_url}/route', json=body)
         except httpx.HTTPError as error:
@@ -99,6 +113,9 @@ class ValhallaClient:
         if response.status_code != 200:
             raise Unavailable(f'Valhalla returned HTTP {response.status_code}')
         try:
-            return parse_trip(response.json())
+            payload = response.json()
         except ValueError as error:
             raise Unavailable('Valhalla returned non-JSON') from error
+        if not isinstance(payload, dict):
+            raise Unavailable('invalid Valhalla response: not an object')
+        return [parse_trip(payload), *parse_alternates(payload)]
