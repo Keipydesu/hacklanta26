@@ -62,13 +62,13 @@ versions during implementation. No detector or observation client is needed.
 
 ## Required report location
 
-[Decision 013](../decisions/013-required-report-location.md) supersedes permission-free report pin placement.
+[Decision 021](../decisions/021-required-report-location.md) supersedes permission-free report pin placement.
 Only a device fix acquired for the current draft enables submission. A fix expires after 60 seconds;
 refreshing revokes the old fix immediately. Saving or backgrounding with no lookup in flight clears
 it; switching tabs preserves a fresh fix. Permission-dialog background events preserve the pending
 lookup. A 20-second position deadline starts after permission is granted; late results cannot
 replace a retry. Expiry publishes a refresh prompt immediately and is rechecked before saving.
-The observation timestamp is the device fix time. See [decision 014](../decisions/014-report-location-lifecycle.md).
+The observation timestamp is the device fix time. See [decision 022](../decisions/022-report-location-lifecycle.md).
 No map tap/drag sets a report point. Route endpoint selection remains unchanged. Queue retries
 never request location or replace the original body, including reports saved before this change.
 
@@ -156,7 +156,7 @@ refresh is used. Local queued reports do not influence routing until accepted se
 ## Implementation slices and acceptance
 
 1. **A1 — Extract feature seams and durable reporting (milestone 1).** Build on stage-0 screens,
-   require current device location for new reports per decision 013, add queue model/storage/controller and explicit five states.
+   require current device location for new reports per decision 021, add queue model/storage/controller and explicit five states.
    Exit: kill/relaunch after queueing or an unknown send outcome, then retry with exactly the same
    ID/body and obtain one server report. Use a fake transport for development without C persistence.
 2. **A2 — Live map and location convenience (milestone 1).** Add current-bounds refresh integration,

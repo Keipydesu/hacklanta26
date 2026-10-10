@@ -1,4 +1,4 @@
-# 013. Require device location for new hazard reports
+# 021. Require device location for new hazard reports
 
 - Status: Accepted
 - Date: 2026-10-10

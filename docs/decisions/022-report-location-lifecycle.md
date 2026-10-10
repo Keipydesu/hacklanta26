@@ -1,8 +1,8 @@
-# 014. Report location expiry and permission lifecycle
+# 022. Report location expiry and permission lifecycle
 
 - Status: Accepted
 - Date: 2026-10-10
-- Supersedes: Draft clearing and lookup timeout details in [required report location](013-required-report-location.md).
+- Supersedes: Draft clearing and lookup timeout details in [required report location](021-required-report-location.md).
 
 PR #31 review identified first-use permission and expiry failures. The report controller owns a
 60-second fix-expiry timer and publishes an explicit expired state. Saving rechecks freshness even

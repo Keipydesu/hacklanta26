@@ -196,7 +196,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 
 ## 8. Privacy and source labeling
 
-- The manual app requires a one-shot foreground device location for each new report, requested by an explicit user action. Denied or unavailable location blocks new reports with retry/settings guidance; there is no manual report-pin fallback. Submission sends that point and report, not a ride trace. Saved submissions retain their original coordinates on retry. Route endpoint pins remain available independently. See [decision 013](docs/decisions/013-required-report-location.md).
+- The manual app requires a one-shot foreground device location for each new report, requested by an explicit user action. Denied or unavailable location blocks new reports with retry/settings guidance; there is no manual report-pin fallback. Submission sends that point and report, not a ride trace. Saved submissions retain their original coordinates on retry. Route endpoint pins remain available independently. See [decision 021](docs/decisions/021-required-report-location.md).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.
