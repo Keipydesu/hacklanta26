@@ -9,6 +9,8 @@ from datetime import timedelta
 
 import h3
 
+from .evidence import evidence_source
+
 RESOLUTION = 10
 BASELINE_DAYS = range(2, 14)
 RECENT_DAYS = range(0, 2)
@@ -76,11 +78,10 @@ def candidates(days, sources, now):
     flagged, stats = find_abandoned_cells(days)
     found = []
     for group in sorted(group_cells(flagged), key=lambda g: min(g)):
-        origin = {s for cell in group for s in sources[cell]}
+        origin = evidence_source(s for cell in group for s in sources[cell])
         rides = set().union(*(r for cell in group for k, r in days[cell].items() if k in BASELINE_DAYS))
         for geometry in polygons(group):
             found.append({'kind': 'abandoned', 'geometry': geometry, 'score': SCORE, 'event_count': 0,
                           'ride_count': len(rides), 'first_seen': now - timedelta(hours=48), 'last_seen': now,
-                          'label': LABEL, 'evidence_source': origin.pop() if len(origin) == 1 else 'mixed'})
-            origin = {s for cell in group for s in sources[cell]}
+                          'label': LABEL, 'evidence_source': origin})
     return found, flagged, stats

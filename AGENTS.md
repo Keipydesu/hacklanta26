@@ -49,7 +49,7 @@ milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md)
 | Routing | Fixed fixture; planned Valhalla pedestrian costing with scooter pace/step penalty |
 | Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
 | Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
-| Automatic service | Independent FastAPI memory ingestion + HTTP publication client; no worker/outbox |
+| Automatic service | Independent FastAPI; durable PostGIS ingestion, serialized hazard worker and publication outbox when `AUTOMATION_DATABASE_URL` is set (memory stub otherwise) |
 | Hosting | Local Compose verified; Vultr deployment remains planned |
 
 ## Commands

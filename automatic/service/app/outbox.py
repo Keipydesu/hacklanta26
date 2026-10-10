@@ -42,7 +42,9 @@ async def deliver_due(pool, client: httpx.AsyncClient, url, key, now, limit=10):
     for job in await claim_due(pool, now, limit):
         try:
             receipt = await send(client, url, key, job['external_id'], job['body'])
-            if receipt.get('revision') != job['revision']:
+            if not isinstance(receipt, dict) or 'hazard_id' not in receipt or 'revision' not in receipt:
+                raise TypeError('malformed receipt')  # server misbehaving: retry, don't block
+            if receipt['revision'] != job['revision']:
                 raise ValueError(f"receipt revision {receipt.get('revision')} != {job['revision']}")
             async with pool.connection() as conn:
                 known = await (await conn.execute('SELECT product_hazard_id FROM derived_hazards WHERE external_id = %s',
@@ -63,6 +65,9 @@ async def deliver_due(pool, client: httpx.AsyncClient, url, key, now, limit=10):
         except ValueError as error:
             await mark(pool, job, 'blocked', str(error))
             counts['blocked'] += 1
+        except Exception as error:  # e.g. a 200 with a malformed receipt: never leave the claim hanging until its lease expires
+            await mark(pool, job, 'pending', f'bad receipt: {type(error).__name__}', now + timedelta(seconds=backoff(job['attempts'])))
+            counts['retry'] += 1
         else:
             await mark(pool, job, 'delivered', product_id=receipt['hazard_id'])
             counts['delivered'] += 1
@@ -84,3 +89,31 @@ async def stats(pool, now):
                FROM outbox''')).fetchone()
     age = (now - row['oldest']).total_seconds() if row['oldest'] else 0
     return {'pending': row['pending'], 'blocked': row['blocked'], 'oldest_pending_age_s': age}
+
+async def rebase(pool, external_id, first_revision):
+    """Operator action for a 409 caused by the product holding a higher revision (e.g. restored backup).
+
+    Renumbers this hazard's undelivered outbox rows (blocked first, in order) to start at first_revision,
+    which the operator must set above the product's latest revision, then re-queues them. Delivered rows
+    and their history are untouched. Returns the number of rows renumbered.
+    """
+    async with pool.connection() as conn, conn.transaction():
+        rows = await (await conn.execute(
+            "SELECT revision FROM outbox WHERE external_id = %s AND state <> 'delivered' ORDER BY revision", (external_id,))).fetchall()
+        if not rows:
+            return 0
+        delivered = await (await conn.execute(
+            "SELECT coalesce(max(revision), 0) AS top FROM outbox WHERE external_id = %s AND state = 'delivered'", (external_id,))).fetchone()
+        if first_revision <= delivered['top']:
+            raise ValueError(f"first_revision must exceed the last delivered revision {delivered['top']}")
+        shift = first_revision - rows[0]['revision']
+        for row in reversed(rows):  # highest first so renumbering never collides with an existing row
+            new = row['revision'] + shift
+            await conn.execute(
+                "UPDATE outbox SET revision = %s, body = jsonb_set(body, '{revision}', to_jsonb(%s::int)), "
+                "state = 'pending', due_at = now(), last_error = NULL, lease_until = NULL "
+                "WHERE external_id = %s AND revision = %s", (new, new, external_id, row['revision']))
+        await conn.execute(
+            "UPDATE derived_hazards SET revision = %s, public_body = jsonb_set(public_body, '{revision}', to_jsonb(%s::int)) "
+            "WHERE external_id = %s", (rows[-1]['revision'] + shift, rows[-1]['revision'] + shift, external_id))
+        return len(rows)

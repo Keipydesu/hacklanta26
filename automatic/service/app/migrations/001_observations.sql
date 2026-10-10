@@ -21,6 +21,7 @@ CREATE TABLE points (
     payload jsonb NOT NULL
 );
 CREATE INDEX points_ride_ts_idx ON points (ride_id, ts);
+CREATE INDEX points_ts_idx ON points (ts);  -- abandonment scans the last 14 days
 
 -- Durable recompute marker: ingestion bumps dirty_seq in the same transaction as the observations.
 CREATE TABLE worker_state (

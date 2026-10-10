@@ -41,15 +41,21 @@ def create_app(database_url=None):
                     row = await (await conn.execute('SELECT dirty_seq > evaluated_seq AS dirty FROM worker_state')).fetchone()
                 periodic = asyncio.get_running_loop().time() - last_periodic >= PERIODIC_S
                 if row['dirty'] or periodic:
-                    await worker.evaluate(pool, now)
-                    last_periodic = asyncio.get_running_loop().time()
+                    # Traffic-wide abandonment scan only on the periodic tick; brake/bump clusters on every dirty pass.
+                    await worker.evaluate(pool, now, include_abandonment=periodic)
+                    if periodic:
+                        last_periodic = asyncio.get_running_loop().time()
                     state['last_evaluated'] = now
-                if product_url and publish_key:
-                    await outbox.deliver_due(pool, client, product_url.rstrip('/'), publish_key, now)
                 state['last_error'] = None
             except Exception as error:  # a bad tick must not kill the worker; ingestion and retries continue
                 state['last_error'] = type(error).__name__
-                log.exception('worker tick failed')
+                log.exception('evaluation failed')
+            try:  # delivery is independent: an evaluation failure must not stall queued publications
+                if product_url and publish_key:
+                    await outbox.deliver_due(pool, client, product_url.rstrip('/'), publish_key, now)
+            except Exception as error:
+                state['last_error'] = type(error).__name__
+                log.exception('outbox delivery failed')
 
     @asynccontextmanager
     async def lifespan(app):

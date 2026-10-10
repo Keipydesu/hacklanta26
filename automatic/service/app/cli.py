@@ -1,4 +1,4 @@
-"""Operator commands: `python -m app.cli status|blocked|release <external_id>` (reads AUTOMATION_DATABASE_URL)."""
+"""Operator commands: `python -m app.cli status|blocked|release <id>|rebase <id> <first_revision>` (reads AUTOMATION_DATABASE_URL)."""
 import asyncio
 from datetime import datetime, timezone
 import os
@@ -18,6 +18,8 @@ async def main(argv):
                     print(row['external_id'], row['revision'], row['last_error'])
         elif argv[:1] == ['release'] and len(argv) == 2:
             print('released', await outbox.release_blocked(pool, argv[1]))
+        elif argv[:1] == ['rebase'] and len(argv) == 3:
+            print('renumbered', await outbox.rebase(pool, argv[1], int(argv[2])))
         else:
             sys.exit(__doc__)
     finally:

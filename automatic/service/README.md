@@ -21,7 +21,8 @@ separate publications; no convex hulls. Latest per-cell rates are kept in the pr
 Resolution and window boundaries are internal tuning to agree with Lane F's closure scenario.
 
 **Operator**: `AUTOMATION_DATABASE_URL=... uv run --project automatic/service python -m app.cli status|blocked|release <id>`
-(run from `automatic/service`). **Acceptance probe** (live processes, HTTP only):
+(run from `automatic/service`). `rebase` is for a 409 where the product holds a higher revision than ours (e.g. restored backup): it renumbers the
+undelivered rows above the revision the operator supplies and re-queues them. **Acceptance probe** (live processes, HTTP only):
 `PRODUCT_API_URL=... OBSERVATION_API_URL=... python3 automatic/tests/acceptance_probe.py` posts a manual report and
 simulated brakes, waits for the automatic hazard, and checks the manual hazard is unchanged.
 

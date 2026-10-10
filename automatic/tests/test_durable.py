@@ -146,7 +146,7 @@ def test_restart_evaluates_committed_but_unevaluated_work():
     assert sql('SELECT dirty_seq > evaluated_seq FROM worker_state') == [(True,)]  # lost wake: nothing evaluated yet
     assert evaluate() == 1
 
-def test_second_evaluator_is_excluded_by_advisory_lock():
+def test_second_evaluator_is_excluded_by_advisory_lock_xact_variant_removed():
     seed(cluster())
     async def scenario(pool):
         async with pool.connection() as holder, holder.transaction():
@@ -169,7 +169,7 @@ class Product:
             raise httpx.ReadTimeout('slow')
         if status != 200:
             return httpx.Response(status, json={'detail': 'x'})
-        return httpx.Response(200, json={'hazard_id': str(uuid4()) if False else '00000000-0000-4000-8000-000000000001', 'revision': body['revision'], 'duplicate': False})
+        return httpx.Response(200, json={'hazard_id': '00000000-0000-4000-8000-000000000001', 'revision': body['revision'], 'duplicate': False})
 
 def deliver(product, now=NOW, limit=10):
     return with_pool(lambda pool: outbox.deliver_due(pool, product.client, 'http://product.test', 'secret-key', now, limit))
@@ -381,3 +381,67 @@ def test_touching_cells_group_and_separate_components_stay_separate_polygons():
     for group in groups:
         for polygon in abandonment.polygons(group):
             assert polygon['type'] == 'Polygon' and polygon['coordinates'][0][0] == polygon['coordinates'][0][-1]
+
+# ---- review fixes ----------------------------------------------------------------------------
+
+def test_abandoned_hazard_is_not_republished_as_time_advances():
+    post_points(traffic(BUSY, 6, range(2, 14)) + traffic(NEIGHBOR, 5, range(2, 14)) + traffic(NEIGHBOR, 9, range(0, 2)))
+    assert evaluate() == 1
+    assert evaluate(NOW + timedelta(minutes=1)) == 0 and evaluate(NOW + timedelta(minutes=2)) == 0   # window slides, evidence doesn't
+    assert sql('SELECT count(*) FROM outbox') == [(1,)]
+
+def test_dirty_only_pass_skips_abandonment_without_resolving_it():
+    post_points(traffic(BUSY, 6, range(2, 14)) + traffic(NEIGHBOR, 5, range(2, 14)) + traffic(NEIGHBOR, 9, range(0, 2)))
+    assert evaluate() == 1
+    assert with_pool(lambda pool: worker.evaluate(pool, NOW + timedelta(seconds=5), include_abandonment=False)) == 0
+    assert sql("SELECT status FROM derived_hazards WHERE kind = 'abandoned'") == [('active',)]
+
+def test_malformed_candidate_is_skipped_not_fatal(monkeypatch):
+    seed(cluster())
+    seed(cluster(dlat=0.01, type='bump'))
+    real = worker.public_body
+    def corrupt(cand, revision, now, status='active'):
+        body = real(cand, revision, now, status)
+        if cand['kind'] == 'braking':
+            body['score'] = 5          # product rejects score > 1
+        return body
+    monkeypatch.setattr(worker, 'public_body', corrupt)
+    assert evaluate() == 1             # only the valid bump hazard was enqueued
+    assert sql('SELECT count(*) FROM outbox') == [(1,)]
+
+def test_malformed_receipt_retries_instead_of_stranding_claimed_rows():
+    seed(cluster())
+    evaluate()
+    class Garbage(Product):
+        def handle(self, request):
+            return httpx.Response(200, json={'oops': True})
+    assert deliver(Garbage())['retry'] == 1
+    assert states() == [(1, 'pending', 1)]
+
+def test_rebase_renumbers_blocked_rows_above_the_products_revision_and_resumes():
+    first = cluster()
+    seed(first)
+    evaluate()
+    seed([event(6, ride=first[0]['ride_id'])])
+    evaluate()
+    assert deliver(Product(409))['blocked'] == 1                         # product says our revision 1 is stale
+    external_id = sql('SELECT external_id FROM outbox LIMIT 1')[0][0]
+    assert with_pool(lambda pool: outbox.rebase(pool, external_id, 8)) == 2
+    assert states() == [(8, 'pending', 1), (9, 'pending', 0)]
+    assert sql("SELECT (body->>'revision')::int FROM outbox ORDER BY revision") == [(8,), (9,)]
+    assert sql('SELECT revision FROM derived_hazards') == [(9,)]
+    product = Product()
+    assert deliver(product, NOW + timedelta(hours=1))['delivered'] == 1 and deliver(product, NOW + timedelta(hours=1))['delivered'] == 1
+    assert [c[1] for c in product.calls] == [8, 9]
+
+def test_evaluator_holds_session_lock_before_its_snapshot():
+    seed(cluster())
+    async def scenario(pool):
+        async with pool.connection() as holder:
+            await holder.set_autocommit(True)
+            await holder.execute('SELECT pg_advisory_lock(%s)', (worker.LOCK_KEY,))
+            blocked = await worker.evaluate(pool, NOW)
+            await holder.execute('SELECT pg_advisory_unlock(%s)', (worker.LOCK_KEY,))
+            await holder.set_autocommit(False)
+        return blocked, await worker.evaluate(pool, NOW)
+    assert with_pool(scenario) == (None, 1)
