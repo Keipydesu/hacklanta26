@@ -79,3 +79,7 @@ pull request (`npm ci`, typecheck, tests, iOS and Android bundle export). No phy
 run this slice. Still open: the hosted two-phone rehearsal (A4) with real routing over HTTPS, and
 confirming automatic hazards render unchanged (A5). This is a comparison, not turn-by-turn
 navigation.
+
+HTTP deadlines cover response headers and JSON body consumption, including route comparisons.
+A stalled body aborts after 15 seconds so a pending report can retry with its original identity.
+The client regression test exercises a stalled body, timeout cleanup, retry, and route stub labeling.
