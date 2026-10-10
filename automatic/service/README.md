@@ -12,6 +12,19 @@ An independent FastAPI service with no product imports or product DB credentials
   `/healthz` reports worker state and outbox backlog (pending, blocked, oldest age).
 - **Unset**: the stage 0 nonpersistent in-memory stub (no worker).
 
+**Abandonment** (`app/abandonment.py`): H3 res-10 cells from `points` (rides/day in rolling 24 h windows:
+recent = last 48 h, baseline = days 2-13, zero days counted). A cell with baseline >= 5 rides/day whose
+recent rate is < 30% of baseline, with a neighbor within 2 rings that gained > 130% (zero-baseline or
+unseen neighbors are never evidence), is flagged; touching flagged cells become one Polygon
+(`kind: abandoned`, score 0.7, `event_count` 0, `ride_count` = baseline rides). Disconnected parts are
+separate publications; no convex hulls. Latest per-cell rates are kept in the private `cells` table.
+Resolution and window boundaries are internal tuning to agree with Lane F's closure scenario.
+
+**Operator**: `AUTOMATION_DATABASE_URL=... uv run --project automatic/service python -m app.cli status|blocked|release <id>`
+(run from `automatic/service`). **Acceptance probe** (live processes, HTTP only):
+`PRODUCT_API_URL=... OBSERVATION_API_URL=... python3 automatic/tests/acceptance_probe.py` posts a manual report and
+simulated brakes, waits for the automatic hazard, and checks the manual hazard is unchanged.
+
 Run exactly one process. Tunables live at the top of `app/worker.py` (`MIN_SCORE`, `SCORE_DELTA`,
 `REFRESH_MARGIN`, `MATCH_DISTANCE_M`). The product API can be completely stopped (observations keep
 landing; the outbox retries) and this service can be stopped without affecting manual reporting.

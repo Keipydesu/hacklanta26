@@ -12,6 +12,7 @@ dependencies = [
     "rfc3339-validator>=0.1.4,<1",
     "psycopg[binary]==3.3.3",
     "psycopg-pool==3.3.0",
+    "h3==4.4.2",
 ]
 [dependency-groups]
 dev = ["pytest>=8,<10"]

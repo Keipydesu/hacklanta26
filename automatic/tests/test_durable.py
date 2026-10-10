@@ -22,7 +22,7 @@ NOW = datetime.now(timezone.utc).replace(microsecond=0)
 @pytest.fixture(autouse=True)
 def clean():
     with psycopg.connect(URL, autocommit=True) as conn:
-        conn.execute('DROP TABLE IF EXISTS outbox, derived_hazards, worker_state, points, events, schema_migrations CASCADE')
+        conn.execute('DROP TABLE IF EXISTS cells, outbox, derived_hazards, worker_state, points, events, schema_migrations CASCADE')
     db.migrate(URL)
 
 def event(n=0, ride=None, ts=None, type='hard_brake', dlat=0.0, dlon=0.0, source='simulated'):
@@ -243,3 +243,141 @@ def test_product_outage_does_not_stop_ingestion_and_health_reports_backlog():
         health = (await client.get('/healthz')).json()
         assert health['outbox']['pending'] == 1 and health['outbox']['blocked'] == 0
     run_app(scenario)
+
+# ---- identity lifecycle, late ingest, duplicate acks ---------------------------------------
+
+def line(start, count, ride_ids, ts, step=2e-5, **kw):
+    return [event(0, ride=ride_ids[n % len(ride_ids)], ts=ts, dlat=start + n * step, **kw) for n in range(count)]
+
+def test_split_keeps_one_identity_and_creates_a_new_one_for_the_other_child():
+    rides = [uuid4(), uuid4()]
+    fresh_ts = NOW - timedelta(hours=1)
+    seed(line(0, 4, rides, fresh_ts) + line(3.0e-4, 4, rides, fresh_ts)                  # A and B
+         + line(1.2e-4, 3, rides, NOW - timedelta(days=29, hours=22), step=6e-5))        # bridge, about to age out
+    assert evaluate() == 1
+    [(parent, _, _, _)] = outbox_rows()
+    assert evaluate(NOW + timedelta(hours=5)) == 2                                        # bridge now older than 30 days
+    rows = outbox_rows()
+    children = {r[0] for r in rows if r[1] == 1 and r[0] != parent} | {parent}
+    assert len(children) == 2 and parent in children
+    assert sorted((str(r[0]) == str(parent), r[1]) for r in rows) == [(False, 1), (True, 1), (True, 2)]
+    assert sql("SELECT count(*) FROM derived_hazards WHERE status = 'active'") == [(2,)]
+
+def test_merge_keeps_one_predecessor_and_resolves_the_other():
+    rides = [uuid4(), uuid4()]
+    old = NOW - timedelta(days=3)
+    seed(line(0, 4, rides, old) + line(3.0e-4, 4, rides, old))
+    assert evaluate(NOW - timedelta(hours=2)) == 2
+    seed(line(1.2e-4, 3, rides, NOW - timedelta(hours=1), step=6e-5))                      # bridge arrives later
+    assert evaluate(NOW) == 2                                                               # merged update + one resolution
+    assert sorted(r[2] for r in outbox_rows() if r[1] == 2) == ['active', 'resolved']
+    assert sql("SELECT count(*) FROM derived_hazards WHERE status = 'active'") == [(1,)]
+    assert sql("SELECT count(DISTINCT external_id) FROM outbox") == [(2,)]                  # survivor is an original ID
+
+def test_late_ingest_during_an_evaluation_stays_dirty_for_the_next_pass(monkeypatch):
+    seed(cluster())
+    real = worker.cluster_events
+    state = {'done': False}
+    async def ingest_midway(conn, event_type, now):
+        if not state['done']:
+            state['done'] = True
+            await asyncio.to_thread(seed, [event(4)])         # commits on another connection after our snapshot began
+        return await real(conn, event_type, now)
+    monkeypatch.setattr(worker, 'cluster_events', ingest_midway)
+    evaluate()
+    # The evaluation cleared only the work it could see; the newer ingest is still pending.
+    assert sql('SELECT dirty_seq > evaluated_seq FROM worker_state') == [(True,)]
+    assert sql("SELECT body->>'event_count' FROM outbox") == [('4',)]   # snapshot isolation: the late event is not in this pass
+    monkeypatch.setattr(worker, 'cluster_events', real)
+    assert evaluate() == 1
+    assert sql('SELECT dirty_seq = evaluated_seq FROM worker_state') == [(True,)]
+
+def test_duplicate_success_after_lost_ack_is_accepted_and_does_not_double_deliver():
+    seed(cluster())
+    evaluate()
+    class Duplicate(Product):
+        def handle(self, request):
+            body = json.loads(request.content)
+            self.calls.append((None, body['revision'], {}))
+            return httpx.Response(200, json={'hazard_id': '00000000-0000-4000-8000-000000000001', 'revision': body['revision'], 'duplicate': True})
+    product = Duplicate()
+    assert deliver(product)['delivered'] == 1 and states() == [(1, 'delivered', 1)]
+    assert deliver(product) == {'delivered': 0, 'retry': 0, 'blocked': 0} and len(product.calls) == 1
+
+def test_receipt_with_changed_public_id_blocks_instead_of_overwriting():
+    first = cluster()
+    seed(first)
+    evaluate()
+    assert deliver(Product())['delivered'] == 1
+    seed([event(6, ride=first[0]['ride_id'])])
+    evaluate()
+    class Moved(Product):
+        def handle(self, request):
+            body = json.loads(request.content)
+            return httpx.Response(200, json={'hazard_id': '00000000-0000-4000-8000-0000000000ff', 'revision': body['revision'], 'duplicate': False})
+    assert deliver(Moved())['blocked'] == 1
+
+# ---- abandonment -----------------------------------------------------------------------------
+
+import h3
+from app import abandonment
+
+POINT = json.loads((ROOT/'fixtures/points.json').read_text())['points'][0]
+BUSY, NEIGHBOR = (33.7531, -84.3853), (33.7541, -84.3853)   # ~110 m apart
+
+def traffic(place, per_day, days, now=NOW, source='device'):
+    """One point per ride, per day (day k = [now-(k+1)*24h, now-k*24h))."""
+    out = []
+    for k in days:
+        for _ in range(per_day):
+            ts = now - timedelta(days=k, hours=12)
+            out.append((str(uuid4()), dict(POINT, id=str(uuid4()), ts=ts.isoformat(), lat=place[0], lon=place[1], source=source)))
+    return out
+
+def post_points(rows):
+    async def go(client, app):
+        responses = await asyncio.gather(*(client.post(f'/v1/rides/{ride}/points', json={'points': [point]}) for ride, point in rows))
+        assert {r.status_code for r in responses} == {200}
+    run_app(go)
+
+def test_helper_geometry_cells_are_close_enough_for_the_scenario():
+    a, b = h3.latlng_to_cell(*BUSY, abandonment.RESOLUTION), h3.latlng_to_cell(*NEIGHBOR, abandonment.RESOLUTION)
+    assert 0 < h3.grid_distance(a, b) <= abandonment.NEIGHBOR_RINGS
+
+def test_closure_scenario_flags_busy_cell_with_rising_neighbor_and_publishes_polygon():
+    rows = traffic(BUSY, 6, range(2, 14)) + traffic(NEIGHBOR, 5, range(2, 14)) + traffic(NEIGHBOR, 9, range(0, 2))
+    post_points(rows)
+    assert evaluate() == 1
+    body = sql("SELECT body FROM outbox")[0][0]
+    assert body['kind'] == 'abandoned' and body['score'] == 0.7 and body['event_count'] == 0
+    assert body['status'] == 'active' and body['evidence_source'] == 'device' and body['ride_count'] == 72
+    ring = body['geometry']['coordinates'][0]
+    assert body['geometry']['type'] == 'Polygon' and ring[0] == ring[-1] and -85 < ring[0][0] < -84 and 33 < ring[0][1] < 34  # lon first
+    assert sql("SELECT count(*) FROM cells WHERE flagged") == [(1,)]
+    assert evaluate() == 0                                     # stable at the same evidence
+    # Traffic returns to the busy cell: the hazard resolves with a complete higher revision.
+    post_points(traffic(BUSY, 6, range(0, 2)))
+    assert evaluate() == 1
+    assert sql("SELECT body->>'status', revision FROM outbox ORDER BY revision DESC LIMIT 1")[0] == ('resolved', 2)
+
+def test_no_flag_without_history_or_without_a_gaining_neighbor_or_with_zero_baseline_neighbor():
+    now = NOW
+    busy = traffic(BUSY, 6, range(2, 14))
+    days, sources = abandonment.aggregate_traffic([(r, datetime.fromisoformat(p['ts']), p['lat'], p['lon'], p['source']) for r, p in busy], now)
+    assert abandonment.find_abandoned_cells(days)[0] == set()                   # dropped, but nobody gained: not evidence
+    fresh_neighbor = traffic(NEIGHBOR, 9, range(0, 2))                          # zero baseline: ratio undefined, skipped
+    days, _ = abandonment.aggregate_traffic([(r, datetime.fromisoformat(p['ts']), p['lat'], p['lon'], p['source']) for r, p in busy + fresh_neighbor], now)
+    assert abandonment.find_abandoned_cells(days)[0] == set()
+    low = traffic(BUSY, 4, range(2, 14)) + traffic(NEIGHBOR, 5, range(2, 14)) + traffic(NEIGHBOR, 9, range(0, 2))
+    days, _ = abandonment.aggregate_traffic([(r, datetime.fromisoformat(p['ts']), p['lat'], p['lon'], p['source']) for r, p in low], now)
+    assert abandonment.find_abandoned_cells(days)[0] == set()                   # baseline under 5 rides/day
+
+def test_touching_cells_group_and_separate_components_stay_separate_polygons():
+    a = h3.latlng_to_cell(*BUSY, abandonment.RESOLUTION)
+    near = sorted(h3.grid_ring(a, 1))[0]
+    far = h3.latlng_to_cell(33.7600, -84.3700, abandonment.RESOLUTION)
+    groups = abandonment.group_cells({a, near, far})
+    assert sorted(len(g) for g in groups) == [1, 2]
+    for group in groups:
+        for polygon in abandonment.polygons(group):
+            assert polygon['type'] == 'Polygon' and polygon['coordinates'][0][0] == polygon['coordinates'][0][-1]
