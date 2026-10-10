@@ -25,7 +25,7 @@ import yaml
 from .db.migrate import migrate
 from .db.store import Conflict, PostgresStore
 from .routing import planner
-from .routing.valhalla import NoPath, Rejected, Unavailable, ValhallaClient
+from .routing.valhalla import NoPath, Unavailable, ValhallaClient
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
                       HazardCollection, RouteRequest, RouteResponse)
 
@@ -231,6 +231,8 @@ def create_app(database_url=None):
                 and h['properties']['expires_at'] > now and shape(h['geometry']).intersects(area)]
 
     async def load_hazards(bounds):
+        # Each full-envelope refresh uses one evaluation time; the planner replaces
+        # the previous snapshot and scores both candidates against this complete set.
         now = datetime.now(timezone.utc)
         features = await store.list_active(bounds, now) if store else memory_active(bounds, now)
         return [planner.hazard_from_feature(f) for f in features]
@@ -243,7 +245,7 @@ def create_app(database_url=None):
         try:
             # Hazards are loaded (and the DB connection released) before/between Valhalla calls.
             return await planner.plan(valhalla, body.origin, body.destination, load_hazards)
-        except (NoPath, Rejected):
+        except NoPath:
             raise HTTPException(422, 'No walkable route between those points')
         except Unavailable:
             log.exception('routing unavailable')

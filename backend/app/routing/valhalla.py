@@ -10,6 +10,7 @@ Evidence (same engine, three GSU trips, 16 km/h each): pedestrian vs bicycle len
 better elsewhere, so pedestrian stays. Re-run on the deployed engine before launch.
 """
 from dataclasses import dataclass
+import math
 
 import httpx
 
@@ -21,9 +22,6 @@ class NoPath(Exception):
 
 class Unavailable(Exception):
     """Outage, timeout, malformed response: nothing the rider can fix."""
-
-class Rejected(Unavailable):
-    """Valhalla answered 400 for a reason other than no-path (bad/unroutable location, limits)."""
 
 @dataclass
 class Candidate:
@@ -63,7 +61,7 @@ def parse_trip(payload):
         distance_m = float(trip['summary']['length']) * 1000
         duration_s = float(trip['summary']['time'])
         if len(coordinates) < 2 or not all(abs(c[0]) <= 180 and abs(c[1]) <= 90 for c in coordinates) \
-                or not (distance_m >= 0 and duration_s >= 0) or distance_m == float('inf'):
+                or not all(math.isfinite(value) and value >= 0 for value in (distance_m, duration_s)):
             raise ValueError('implausible route')
     except (KeyError, TypeError, ValueError, IndexError) as error:
         raise Unavailable(f'invalid Valhalla response: {error}') from error
@@ -89,12 +87,15 @@ class ValhallaClient:
             raise Unavailable(f'Valhalla unreachable: {error!r}') from error
         if response.status_code == 400:
             try:
-                code = response.json().get('error_code')
+                error = response.json()
+                code = error.get('error_code') if isinstance(error, dict) else None
             except ValueError:
                 code = None
-            if code == NO_PATH_CODE:
+            if type(code) is int and code == NO_PATH_CODE:
                 raise NoPath()
-            raise Rejected(f'Valhalla rejected the request ({code}): {response.text[:200]}')
+            # Unknown/malformed request errors can reflect adapter or engine configuration;
+            # never tell the rider that changing pins will fix them.
+            raise Unavailable(f'Valhalla rejected the request ({code}): {response.text[:200]}')
         if response.status_code != 200:
             raise Unavailable(f'Valhalla returned HTTP {response.status_code}')
         try:

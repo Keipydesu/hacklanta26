@@ -32,7 +32,9 @@ Supports manual reporting immediately and accepts automatic hazards through HTTP
     - Shortest: request with no exclusions.
     - Safest: use active, unexpired hazards from both manual and automatic sources, excluding those with score at least 0.4.
     - Leave out any hazard that contains the origin or destination, or no route can exist.
-    - If Valhalla answers the safest request with HTTP 400 (no path), return the shortest route under both kinds with `safest_available: false`.
+    - If Valhalla answers the safest request with HTTP 400 and integer error code 442 (no path), return the shortest route under both kinds with `safest_available: false`.
+    - Other upstream errors, malformed payloads and nonfinite metrics return 503; baseline no-path returns 422.
+    - When widening the search, replace the entire union-envelope hazard snapshot at a fresh evaluation time; score both routes against the last complete snapshot (see [decision 006](../decisions/006-routing-errors-and-refreshed-hazard-snapshots.md)).
     - For each route, intersect its line with the hazard polygons (shapely) to fill `hazard_ids`, and set `risk_score = 1 - product(1 - score)` over those hazards.
 3. **Costing choice.** Spend the first half hour comparing `pedestrian` and `bicycle` costing on three real campus trips. The starting choice is `pedestrian` with scooter speed and a heavy stairs penalty, because campus walkways are mapped as footways and bicycle costing only uses ways with bicycle access. Record the decision in a comment at the top of `valhalla.py`.
 4. **Tests.**

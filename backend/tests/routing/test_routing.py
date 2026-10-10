@@ -221,7 +221,7 @@ def test_exclusions_follow_the_baseline_route_not_the_straight_line():
     assert square(-84.3853, 33.7580) in [[list(map(float, p)) for p in r] for r in rings] or len(rings) == 20
     assert any(abs(r[0][0] - (-84.3853)) < 1e-3 and r[0][1] > 33.757 for r in rings)  # the on-path hazard made the cut
 
-def test_unroutable_baseline_is_422_and_rejected_exclusion_degrades(monkeypatch):
+def test_only_no_path_is_rider_error_and_engine_rejections_are_503(monkeypatch):
     from fastapi.testclient import TestClient
     monkeypatch.setenv('VALHALLA_URL', 'http://valhalla.test')
     request = {'origin': {'lat': ORIGIN.lat, 'lon': ORIGIN.lon}, 'destination': {'lat': DEST.lat, 'lon': DEST.lon}}
@@ -230,8 +230,8 @@ def test_unroutable_baseline_is_422_and_rejected_exclusion_degrades(monkeypatch)
         app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(400, json=load('no-path.json')['body'])))
         assert client.post('/v1/route', json=request).status_code == 422
         app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(400, json=load('bad-request.json')['body'])))
-        assert client.post('/v1/route', json=request).status_code == 422
-        # baseline works but the exclusion request is rejected (e.g. limits): keep the shortest route, safest_available=false
+        assert client.post('/v1/route', json=request).status_code == 503
+        # A malformed exclusion request is an engine/adapter failure, not proof of no alternative.
         def handler(r):
             body = json.loads(r.content)
             if 'exclude_polygons' in body:
@@ -241,4 +241,53 @@ def test_unroutable_baseline_is_422_and_rejected_exclusion_degrades(monkeypatch)
         mid = [(RING[0][0] + RING[2][0]) / 2, (RING[0][1] + RING[2][1]) / 2]
         client.post('/v1/reports', json=dict(fresh()[0], lat=mid[1], lon=mid[0]))
         result = client.post('/v1/route', json=request)
-        assert result.status_code == 200 and result.json()['safest_available'] is False
+        assert result.status_code == 503
+
+
+@pytest.mark.parametrize('error_body', [[], None, 'bad request', {}, {'error_code': '442'}, {'error_code': 999}])
+def test_malformed_or_unknown_engine_errors_are_503(monkeypatch, error_body):
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv('VALHALLA_URL', 'http://valhalla.test')
+    app = create_app('')
+    app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda r: httpx.Response(400, content=json.dumps(error_body))))
+    with TestClient(app, raise_server_exceptions=False) as client:
+        result = client.post('/v1/route', json={'origin': ORIGIN.model_dump(), 'destination': DEST.model_dump()})
+        assert result.status_code == 503
+
+
+@pytest.mark.parametrize('field,value', [('length', 'Infinity'), ('time', 'Infinity'), ('time', 'NaN')])
+def test_nonfinite_engine_metrics_are_503(monkeypatch, field, value):
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv('VALHALLA_URL', 'http://valhalla.test')
+    payload = load('baseline-a.json')
+    payload['trip']['summary'][field] = value
+    app = create_app('')
+    app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=payload)))
+    with TestClient(app, raise_server_exceptions=False) as client:
+        result = client.post('/v1/route', json={'origin': ORIGIN.model_dump(), 'destination': DEST.model_dump()})
+        assert result.status_code == 503
+
+
+@pytest.mark.parametrize('widen_baseline', [False, True])
+def test_full_area_reload_removes_hazards_missing_from_latest_snapshot(widen_baseline):
+    straight = candidate([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    detour = candidate([(ORIGIN.lon, ORIGIN.lat), (ORIGIN.lon - 0.01, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    blocker = hazard('removed', 0.9, square((ORIGIN.lon + DEST.lon) / 2, (ORIGIN.lat + DEST.lat) / 2))
+    loads, requests = [], []
+    async def loader(bounds):
+        loads.append(bounds)
+        # The second query covers the whole enlarged envelope. The old hazard has
+        # resolved/expired/moved out, while a newly published low-score hazard exists.
+        return [blocker] if len(loads) == 1 else [hazard('new', 0.2, RING)]
+    class Engine:
+        async def route(self, origin, destination, exclusions=()):
+            requests.append(exclusions)
+            return detour if widen_baseline or exclusions else straight
+    result = asyncio.run(planner.plan(Engine(), ORIGIN, DEST, loader))
+    assert len(loads) == 2
+    assert planner.covers(loads[1], loads[0])
+    assert len(requests) == (1 if widen_baseline else 2), 'removed blocker must not trigger another exclusion call'
+    for route in result['routes']:
+        assert 'removed' not in route['hazard_ids']
+        assert route['risk_score'] <= 0.2

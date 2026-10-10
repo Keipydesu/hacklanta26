@@ -56,3 +56,14 @@ python3 contracts/scripts/smoke_product.py
 
 This creates a demo manual report and exercises automatic publication over HTTP. It does not
 require the observation service, collector, or detector.
+
+## Routing failure and refresh semantics
+
+Only Valhalla's recorded no-path code 442 permits a no-alternative fallback; a baseline no-path
+returns 422. Other engine errors, malformed error JSON, and nonfinite route metrics return 503.
+A widened search replaces the complete hazard snapshot at the time of that query, removing
+resolved, expired, or moved-out hazards. Both candidates use the final snapshot for risk scoring.
+See [decision 006](../docs/decisions/006-routing-errors-and-refreshed-hazard-snapshots.md).
+
+Regression checks: `uv run --project backend pytest -c backend/pyproject.toml backend/tests/routing -q`.
+These replay recorded responses and lifecycle changes without a live routing engine.
