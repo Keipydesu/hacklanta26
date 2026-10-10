@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Campus Collector Stub",
+    "name": "Campus Collector",
     "slug": "campus-collector",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -9,6 +9,22 @@
     },
     "android": {
       "permissions": []
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Campus Collector reads your location only while you run an opt-in ride with the app open. The first and last 100 m of every ride are discarded before anything is uploaded.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Campus Collector reads motion sensors only while you run an opt-in ride, to detect hard braking and bumps on this phone."
+        }
+      ]
+    ]
   }
 }
