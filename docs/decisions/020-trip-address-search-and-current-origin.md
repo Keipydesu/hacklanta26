@@ -19,8 +19,9 @@ no key (`PHOTON_URL`, default `https://photon.komoot.io`; empty disables search 
 - Answers are cached for 10 minutes.
 - Provider errors return 503, and the app offers retry or a map point.
 
-The app never calls Photon directly, so rider IPs and queries stay with our API and the provider
-can be replaced. Route requests are unchanged: they still send `origin` and `destination` lat/lon.
+The app never calls Photon directly. Our API forwards the query text and rounded ranking point
+to Photon; the provider sees the server's IP, not the rider's IP. The provider can be replaced.
+Route requests are unchanged: they still send `origin` and `destination` lat/lon.
 
 **Provider.** Photon's public instance is free and allows fair use. It may throttle heavy use and
 has no availability guarantee, which suits the demo. A deployment that needs reliability should
