@@ -1,0 +1,65 @@
+{
+  "name": "two-clusters",
+  "kind": "observations",
+  "version": 1,
+  "description": "Two hard-brake clusters about 40 m apart, each meeting the thresholds on its own. Expect two separate hazards.",
+  "prerequisites": "Observation API. To see a published hazard: Lane D's worker and the product API. Thresholds are the worker's own (12 m, 3 events, 2 rides); this scenario does not lower them.",
+  "evidence_source": "simulated",
+  "points_per_ride": 12,
+  "clusters": [
+    {
+      "key": "north",
+      "type": "hard_brake",
+      "center": {
+        "lat": 33.7552,
+        "lon": -84.387
+      },
+      "events": 4,
+      "rides": 2,
+      "radius_m": 3,
+      "age_minutes": [
+        0,
+        20
+      ]
+    },
+    {
+      "key": "south",
+      "type": "hard_brake",
+      "center": {
+        "lat": 33.75484,
+        "lon": -84.387
+      },
+      "events": 4,
+      "rides": 2,
+      "radius_m": 3,
+      "age_minutes": [
+        0,
+        20
+      ]
+    }
+  ],
+  "expect": {
+    "hazards": [
+      {
+        "kind": "braking",
+        "near": {
+          "lat": 33.7552,
+          "lon": -84.387
+        },
+        "within_m": 18,
+        "evidence_source": "simulated",
+        "min_score": 0.7
+      },
+      {
+        "kind": "braking",
+        "near": {
+          "lat": 33.75484,
+          "lon": -84.387
+        },
+        "within_m": 18,
+        "evidence_source": "simulated",
+        "min_score": 0.7
+      }
+    ]
+  }
+}

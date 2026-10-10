@@ -1,0 +1,15 @@
+{
+  "name": "manual-report",
+  "kind": "manual",
+  "version": 1,
+  "description": "One demo-labeled community report: create, read back, exact retry, conflicting reuse.",
+  "prerequisites": "Product API only. Run with every automatic process stopped.",
+  "report": {
+    "kind": "pothole",
+    "lat": 33.7531,
+    "lon": -84.3853,
+    "age_minutes": 0,
+    "description": "DEMO: pothole beside the crossing"
+  },
+  "expect_active": true
+}
