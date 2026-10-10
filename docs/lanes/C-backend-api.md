@@ -183,7 +183,7 @@ field or unsupported global routing promise is introduced by this plan.
 Campus bike-lane coverage (issue #29) is checked-in OSM data in `backend/bike_lanes/`, with evidence
 rules and a refresh procedure in [its README](../../backend/bike_lanes/README.md). Nothing consumes it yet;
 using it in route scoring is follow-up work that must not replace pedestrian costing implicitly
-([decision 010](../decisions/010-osm-bike-lane-coverage.md)).
+([decision 012](../decisions/012-osm-bike-lane-coverage.md)).
 
 ## Verification and delivery evidence
 

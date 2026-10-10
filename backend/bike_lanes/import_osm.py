@@ -49,11 +49,19 @@ SIDE_VALUES = {
 UNKNOWN = ('unknown', None)
 
 
+def unsided_oneway_facility(tags):
+    """A bare lane/track on a one-way road proves presence, but not which side."""
+    return (tags.get('oneway') in ('yes', '1', 'true', '-1')
+            and tags.get('cycleway') in ('lane', 'track'))
+
+
 def side(tags, name):
     """Most specific tag wins: cycleway:<side>, then cycleway:both, then cycleway."""
     for key in (f'cycleway:{name}', 'cycleway:both', 'cycleway'):
         if key in tags:
             value = tags[key]
+            if key == 'cycleway' and unsided_oneway_facility(tags):
+                return UNKNOWN
             # opposite_* values describe the contraflow (left) side of a one-way street only.
             if key == 'cycleway' and value.startswith('opposite') and name == 'right':
                 return UNKNOWN
@@ -72,6 +80,11 @@ def classify(tags):
     left, right = side(tags, 'left'), side(tags, 'right')
     statuses = {left[0], right[0]}
     overall = 'present' if 'present' in statuses else 'absent' if statuses == {'absent'} else 'unknown'
+    # Preserve road-level evidence only when a side actually falls back to the generic tag.
+    # Explicit side/both tags still take precedence over conflicting generic evidence.
+    if (unsided_oneway_facility(tags) and 'cycleway:both' not in tags
+            and any(f'cycleway:{name}' not in tags for name in ('left', 'right'))):
+        overall = 'present'
     return {
         'bike_lane': overall,
         'facility': None,
@@ -99,7 +112,12 @@ def fetch(text, attempts=4):
     for attempt in range(attempts):
         try:
             with urllib.request.urlopen(request, timeout=180) as response:
-                return json.load(response)
+                result = json.load(response)
+                # Overpass can return HTTP 200 with partial/empty elements after a runtime error.
+                # Fail before main writes either dataset; never publish partial coverage as complete.
+                if result.get('remark'):
+                    raise RuntimeError(f"Overpass returned an incomplete result: {result['remark']}")
+                return result
         except urllib.error.HTTPError as error:
             # The public server often answers 429/504 under load; back off and retry.
             if error.code not in (429, 502, 503, 504) or attempt == attempts - 1:

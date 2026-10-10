@@ -1,4 +1,4 @@
-# 010. Campus bike-lane coverage comes from OpenStreetMap
+# 012. Campus bike-lane coverage comes from OpenStreetMap
 
 - Status: Accepted
 - Date: 2026-10-10
@@ -11,7 +11,9 @@ OSM is the only source: the Valhalla graph is built from OSM, and the basemap is
 (#27), so the map, routing and bike-lane data can describe one snapshot (`--date`).
 
 Each segment is `present`, `absent` or `unknown`, per side and overall. A missing tag is `unknown`,
-never `absent`. Sharrows and shared-use paths count as `absent` (no dedicated lane), but keep
+never `absent`. Bare lane/track tags on one-way streets establish overall presence without
+inventing side-specific evidence; explicit side/both tags take precedence. Overpass error remarks
+abort refreshes before either dataset is written, including HTTP-200 partial responses. Sharrows and shared-use paths count as `absent` (no dedicated lane), but keep
 their own facility value. Evidence rules and coverage boxes are in
 [the bike-lane README](../../backend/bike_lanes/README.md).
 

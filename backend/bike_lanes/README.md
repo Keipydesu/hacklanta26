@@ -3,7 +3,7 @@
 Street segments around Georgia Tech and GSU with bike-lane status, from OpenStreetMap. This is
 infrastructure data, separate from hazard reports; it does not depend on the automatic service.
 Nothing reads it yet. Map styling and route scoring are follow-up work, and bike-lane presence is
-not a safety guarantee. See [decision 010](../../docs/decisions/010-osm-bike-lane-coverage.md).
+not a safety guarantee. See [decision 012](../../docs/decisions/012-osm-bike-lane-coverage.md).
 
 | File | Contents |
 |---|---|
@@ -20,7 +20,8 @@ python3 backend/bike_lanes/import_osm.py --date <extract timestamp>   # pinned s
 
 Pass `--date` with the timestamp of the OSM extract that Valhalla and the basemap were built from,
 so all three describe the same snapshot. The public Overpass server is often busy; the script
-retries 429/5xx responses with backoff. Review the diff, rerun
+retries 429/5xx responses with backoff. A JSON `remark` aborts the refresh before either file
+is written, even when HTTP status is 200; partial results are never accepted. Review the diff, rerun
 `uv run --project backend pytest -c backend/pyproject.toml backend/tests -q`, and update the
 spot-check below if facilities changed. Current files: OSM snapshot `2026-10-10T18:36:21Z`.
 
@@ -69,7 +70,9 @@ Per side, the most specific tag wins: `cycleway:left|right`, then `cycleway:both
 | any other value | unknown | the raw value |
 
 - `opposite*` on plain `cycleway` describes only the contraflow (left) side.
-- Segment `bike_lane` is `present` if either side is present, `absent` only if both sides are
+- On a one-way street (`oneway=yes|1|true|-1`), bare `cycleway=lane|track` establishes
+  segment-level presence but leaves unspecified sides `unknown`. Explicit side/both tags still win.
+- Segment `bike_lane` is `present` if either side is present or the unsided one-way rule applies, `absent` only if both sides are
   confirmed absent, otherwise `unknown`. A missing tag is never treated as absence.
 - `highway=cycleway` is `present` with facility `cycleway`. A designated or permitted shared path
   is `absent` with facility `shared_path`: bicycle infrastructure, but not a dedicated lane.
