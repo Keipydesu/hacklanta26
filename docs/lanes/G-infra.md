@@ -108,9 +108,9 @@ multiple scripts actually need them; no deployment framework is required for thi
 
 ## Valhalla preparation and Lane C handoff (G2)
 
-The architecture names `ghcr.io/valhalla/valhalla-scripted` and a Georgia OSM extract. Treat the old
-`latest` example as a discovery starting point: verify the maintained image, supported architecture,
-configuration flags and resource needs at implementation time, then pin the tested digest/tag.
+The architecture selects Valhalla but does not select an image or extract. Evaluate
+`ghcr.io/valhalla/valhalla-scripted` with a Georgia OSM extract as a Lane G proposal: verify the
+maintained image, supported architecture, configuration flags and resource needs at implementation time, then pin the tested digest/tag.
 Do not commit a guessed image version, cloud size or assumed build duration as verified guidance.
 
 `build_tiles.sh` should fetch the Georgia extract from
@@ -138,10 +138,10 @@ can serve those requests. A running container or open port alone does not pass t
    access. Confirm current provider availability/requirements before selecting a compute plan.
    Restrict inbound access to SSH and public 80/443; DB, Valhalla and internal app ports stay private.
    Obtain the operator's actual host, hostname and credentials before creating paid infrastructure.
-2. **TLS.** Use a controlled hostname with correct DNS and reachable ports. The architecture permits
-   an IP-based sslip.io hostname if no domain exists; verify current certificate eligibility and
-   reachability rather than promising issuance. Persist Caddy state, validate config before reload,
-   and test from a phone's external network, not only localhost.
+2. **TLS.** Use a controlled hostname with correct DNS and reachable ports. An IP-based sslip.io
+   hostname is a proposed fallback if no controlled domain exists, not an adopted architecture
+   decision; verify current certificate eligibility and reachability and record the selected
+   hostname before promising issuance. Persist Caddy state, validate config before reload, and test from a phone's external network, not only localhost.
 3. **Release selection.** Deploy an exact passing `main` commit. Do not deploy a planning/feature
    branch or assume stage 0 is production-ready. Store runtime secrets on the host with restricted
    permissions and transport them without printing; do not copy a developer's entire working tree
