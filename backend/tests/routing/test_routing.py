@@ -51,7 +51,7 @@ def test_decode_precision_units_and_endpoints():
     candidate = parse_trip(load('baseline-a.json'))
     first, last = candidate.coordinates[0], candidate.coordinates[-1]
     assert first == pytest.approx([-84.3853, 33.7531], abs=2e-4) and last == pytest.approx([-84.3880, 33.7560], abs=2e-4)
-    assert candidate.distance_m == pytest.approx(544) and candidate.duration_s == pytest.approx(142.675)
+    assert candidate.distance_m == pytest.approx(588) and candidate.duration_s == pytest.approx(144.314)
 
 def encode6(points):
     out, plat, plon = '', 0, 0
@@ -85,7 +85,7 @@ def test_hazard_on_baseline_is_avoided_by_safest_and_reported_on_shortest():
     assert recorded.requests[1]['exclude_polygons'] == [RING]  # [lon, lat] exterior ring
     assert shortest['hazard_ids'] == ['11111111-1111-1111-1111-111111111111'] and shortest['risk_score'] == pytest.approx(0.9)
     assert safest['geometry'] != shortest['geometry'] and safest['hazard_ids'] == [] and safest['risk_score'] == 0
-    assert safest['distance_m'] == pytest.approx(555) and result['safest_available']
+    assert safest['distance_m'] == pytest.approx(544) and result['safest_available']
 
 def test_below_threshold_hazard_is_scored_but_not_excluded():
     recorded = Recorded()

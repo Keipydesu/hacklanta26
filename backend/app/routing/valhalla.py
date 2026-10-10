@@ -2,12 +2,12 @@
 
 Costing decision (C4): start with `pedestrian` at scooter pace (16 km/h) plus a heavy step penalty.
 GSU walkways are mapped as footways, and `bicycle` costing only uses ways with bicycle access. Fixtures in
-tests/routing/fixtures come from the public valhalla1.openstreetmap.de instance, not the Vultr engine.
+tests/routing/fixtures were recorded on 2026-10-10 from a local ghcr.io/valhalla/valhalla:latest
+(3.9.1) built from an Overpass extract of bbox -84.40,33.74,-84.37,33.77 (see backend/README.md).
 
-Evidence (2026-10-10, public instance, three GSU trips, 16 km/h each): pedestrian vs bicycle length
-was 0.544 vs 1.476 km, 1.195 vs 1.176 km, 0.501 vs 0.506 km. Bicycle
-costing was 2.7x longer on trip a and no better elsewhere, so pedestrian stays. Re-run on the pinned Vultr
-engine before launch.
+Evidence (same engine, three GSU trips, 16 km/h each): pedestrian vs bicycle length was 0.588 vs
+1.459 km, 1.197 vs 1.180 km, 0.501 vs 0.506 km. Bicycle costing was ~2.5x longer on trip a and no
+better elsewhere, so pedestrian stays. Re-run on the deployed engine before launch.
 """
 from dataclasses import dataclass
 
