@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(not URL, reason='TEST_DATABASE_URL not set')
 def clean_db(monkeypatch):
     monkeypatch.setenv('AUTOMATION_PUBLISH_KEY', 'test-only-key')
     with psycopg.connect(URL, autocommit=True) as conn:
-        conn.execute('DROP TABLE IF EXISTS hazards, manual_reports, schema_migrations CASCADE')
+        conn.execute('DROP TABLE IF EXISTS hazard_feedback, hazards, manual_reports, schema_migrations CASCADE')
 
 def run(scenario):
     """Run `scenario(client, app)` against a fresh app lifecycle; call again to simulate a restart."""
@@ -39,14 +39,14 @@ def sql(query, *args):
         return conn.execute(query, args).fetchall()
 
 def test_fresh_migration_is_idempotent():
-    assert migrate(URL) == ['001_product_schema']
+    assert migrate(URL) == ['001_product_schema', '002_hazard_feedback']
     assert migrate(URL) == []
 
 def test_concurrent_starters_serialize_migrations():
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(4) as pool:
         results = list(pool.map(lambda _: migrate(URL), range(4)))
-    assert sorted(len(r) for r in results) == [0, 0, 0, 1]
+    assert sorted(len(r) for r in results) == [0, 0, 0, 2]
 
 def test_manual_report_survives_restart_and_retries():
     manual, _ = fresh()

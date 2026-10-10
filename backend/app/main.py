@@ -23,11 +23,12 @@ from shapely.geometry import Point, mapping, shape, box
 from shapely.ops import transform
 import yaml
 from .db.migrate import migrate
-from .db.store import Conflict, PostgresStore
+from .db.store import Conflict, NotFound, PostgresStore, Result
+from .feedback import HazardState, apply_feedback
 from .routing import planner
 from .routing.valhalla import NoPath, Unavailable, ValhallaClient
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
-                      HazardCollection, RouteRequest, RouteResponse)
+                      HazardCollection, HazardFeedback, FeedbackReceipt, RouteRequest, RouteResponse)
 
 CONTRACTS = Path(os.getenv('CONTRACTS_DIR', Path(__file__).resolve().parents[2] / 'contracts'))
 BEARER = HTTPBearer(auto_error=False)
@@ -59,7 +60,7 @@ def create_app(database_url=None):
     store = PostgresStore(url) if url else None
     valhalla_url = os.getenv('VALHALLA_URL')
     valhalla = ValhallaClient(valhalla_url) if valhalla_url else None
-    reports, publications, hazards = {}, {}, {}
+    reports, publications, hazards, feedback = {}, {}, {}, {}
     sockets = set()
     spec = yaml.safe_load((CONTRACTS/'openapi.yaml').read_text())
     route_fixture = json.loads((CONTRACTS/'fixtures/route.json').read_text())
@@ -229,6 +230,40 @@ def create_app(database_url=None):
         area = box(*bounds)
         return [h for h in hazards.values() if h['properties']['status'] == 'active'
                 and h['properties']['expires_at'] > now and shape(h['geometry']).intersects(area)]
+
+    @app.post('/v1/hazards/{hazard_id}/feedback', response_model=FeedbackReceipt, status_code=201)
+    async def submit_feedback(hazard_id: UUID, body: HazardFeedback, response: Response):
+        now = datetime.now(timezone.utc)
+        if store:
+            try:
+                result = await store.record_feedback(hazard_id, body, now)
+            except Conflict:
+                raise HTTPException(409, 'Feedback ID already used for a different hazard or answer')
+            except NotFound:
+                raise HTTPException(404, 'Hazard is unknown, resolved or expired')
+        else:
+            result = memory_feedback(str(hazard_id), body, now)
+        response.status_code = result.status
+        if result.changed:
+            await notify(result.hazard_id)
+        return {'feedback_id':str(body.id),'hazard_id':result.hazard_id,'duplicate':result.duplicate}
+
+    def memory_feedback(hazard_id, body, now):
+        key = str(body.id)
+        if key in feedback:
+            if feedback[key] != (hazard_id, body.response):
+                raise HTTPException(409, 'Feedback ID already used for a different hazard or answer')
+            return Result(hazard_id, True, 200, changed=False)
+        hazard = hazards.get(hazard_id)
+        props = hazard and hazard['properties']
+        if not props or props['status'] != 'active' or props['expires_at'] <= now:
+            raise HTTPException(404, 'Hazard is unknown, resolved or expired')
+        feedback[key] = (hazard_id, body.response)
+        responses = [answer for (target, answer) in feedback.values() if target == hazard_id]
+        change = apply_feedback(HazardState(props['source'], props['status'], props['last_seen'], props['expires_at']), responses, now)
+        if change:
+            props.update(status=change.status, last_seen=change.last_seen, expires_at=change.expires_at)
+        return Result(hazard_id, False, 201, changed=change is not None)
 
     async def load_hazards(bounds):
         # Each full-envelope refresh uses one evaluation time; the planner replaces

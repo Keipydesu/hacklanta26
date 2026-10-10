@@ -113,7 +113,7 @@ def test_request_schema_parity():
     module_spec = importlib.util.spec_from_file_location('parity', ROOT/'scripts/check_model_parity.py')
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
-    module.assert_request_parity(SPEC, {name:getattr(schemas,name) for name in ['ManualReport','AutomaticPublication','RouteRequest']})
+    module.assert_request_parity(SPEC, {name:getattr(schemas,name) for name in ['ManualReport','AutomaticPublication','RouteRequest','HazardFeedback']})
 
 def test_reports_anywhere_keep_feed_valid(client):
     for lat, lon in [(0, 120), (89.99, 0), (-45, -179.99999)]:
@@ -204,3 +204,39 @@ def test_expiry_scan_preserves_publication_refreshed_during_notification(monkeyp
                 await socket_task
 
     asyncio.run(scenario())
+
+def feedback_body(response='still_there'):
+    return dict(fixture('feedback.json'), id=str(uuid4()), response=response)
+
+def test_feedback_is_separate_idempotent_and_keeps_labels(client):
+    manual, automatic = fresh()
+    hazard_id = client.post('/v1/reports', json=manual).json()['hazard_id']
+    automatic_id = client.put(PUB, json=automatic, headers=AUTH).json()['hazard_id']
+    url = f'/v1/hazards/{hazard_id}/feedback'
+    body = feedback_body()
+    created = client.post(url, json=body)
+    assert created.status_code == 201
+    validate('FeedbackReceipt', created.json())
+    assert created.json() == {'feedback_id': body['id'], 'hazard_id': hazard_id, 'duplicate': False}
+    retry = client.post(url, json=body)
+    assert retry.status_code == 200 and retry.json() == dict(created.json(), duplicate=True)
+    assert client.post(url, json=dict(body, response='gone')).status_code == 409
+    assert client.post(f'/v1/hazards/{automatic_id}/feedback', json=body).status_code == 409
+    assert client.post(f'/v1/hazards/{uuid4()}/feedback', json=feedback_body()).status_code == 404
+    assert client.post(url, json=fixture('cases/feedback-invalid.json')).status_code == 422
+    expired_id = client.post('/v1/reports', json=fixture('cases/manual-expired.json')).json()['hazard_id']
+    assert client.post(f'/v1/hazards/{expired_id}/feedback', json=feedback_body()).status_code == 404
+    props = {f['properties']['id']: f['properties'] for f in client.get(FEED).json()['features']}
+    assert props[hazard_id]['source'] == 'manual' and props[hazard_id]['report_count'] == 1
+    assert props[automatic_id]['source'] == 'automatic' and props[automatic_id]['evidence_source'] == automatic['evidence_source']
+
+def test_feedback_on_automatic_hazard_never_alters_its_publication(client):
+    _, automatic = fresh()
+    automatic_id = client.put(PUB, json=automatic, headers=AUTH).json()['hazard_id']
+    before = next(f['properties'] for f in client.get(FEED).json()['features'] if f['properties']['id'] == automatic_id)
+    for response in ('gone', 'gone', 'gone', 'still_there'):
+        assert client.post(f'/v1/hazards/{automatic_id}/feedback', json=feedback_body(response)).status_code == 201
+    after = next(f['properties'] for f in client.get(FEED).json()['features'] if f['properties']['id'] == automatic_id)
+    assert after == before
+    update = client.put(PUB, json=dict(automatic, revision=2, label='Updated by publisher'), headers=AUTH)
+    assert update.status_code == 200 and update.json()['revision'] == 2

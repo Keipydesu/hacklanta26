@@ -67,6 +67,15 @@ class ReportReceipt(Model):
     hazard_id: UUID
     duplicate: bool
 
+class HazardFeedback(Model):
+    id: UUID
+    response: Literal['still_there', 'gone']
+
+class FeedbackReceipt(Model):
+    feedback_id: UUID
+    hazard_id: UUID
+    duplicate: bool
+
 class PublicationReceipt(Model):
     hazard_id: UUID
     revision: int

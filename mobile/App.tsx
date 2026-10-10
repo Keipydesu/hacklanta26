@@ -8,7 +8,9 @@ import { locateOnce } from './src/location/foreground';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
-import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { createFeedback, FeedbackState } from './src/feedback/feedback';
+import { FeedbackRow } from './src/feedback/FeedbackRow';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
 import { DARK_ROUTE_COLORS, ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
 import { MapLibreView } from './src/map/MapLibreView';
@@ -72,6 +74,11 @@ export default function App() {
     return () => clearInterval(tick);
   }, [region, liveConnected]);
   // The queue persists each frozen report before any network I/O and resends the same body until resolved.
+  // Hazard checks are separate from reports: sent at once, accepted only on the server's receipt.
+  const [feedbackStates, setFeedbackStates] = useState<Readonly<Record<string, FeedbackState>>>({});
+  const [feedback] = useState(() => createFeedback({
+    send: submitFeedback, uuid: Crypto.randomUUID, onChange: setFeedbackStates, onAccepted: () => void refresh(),
+  }));
   const [queue] = useState(() => createReportQueue({
     storage: AsyncStorage,
     send: submitReport,
@@ -154,6 +161,8 @@ export default function App() {
         {visible.map(h => <View key={h.properties.id} style={styles.card}>
           <Text style={styles.heading}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
           <Text>{h.properties.label}</Text><Text>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
+          <FeedbackRow kind={h.properties.kind} state={feedbackStates[h.properties.id]} disabled={fixtureMode}
+            onRespond={response => void feedback.respond(h.properties.id, response)} onRetry={() => void feedback.retry(h.properties.id)} />
         </View>)}
       </>}
       {screen === 'report' && <>
