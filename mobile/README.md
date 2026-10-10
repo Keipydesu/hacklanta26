@@ -6,6 +6,7 @@ The `lane/a-ui` concept uses a full map canvas with a compact header, an expanda
 panel and Map / Trip / Report controls. “Where to?” opens destination-pin placement;
 select Set start or expand details for foreground location. Expanding reveals additional
 controls and evidence; changing tasks collapses the panel while preserving trip/draft state.
+Controls follow system light/dark appearance with silver and cyan-blue accents.
 The shared icon and control system is described in the [mobile UI guide](docs/UI-GUIDE.md).
 
 Run `npm start --prefix mobile` for the labeled fixture preview, or set

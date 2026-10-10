@@ -1,16 +1,18 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ActionButton as Button } from '../ui/ActionButton';
-import { theme } from '../ui/theme';
+import { useTheme, type Theme } from '../ui/theme';
 import { canRequest, presentRoutes, type Point, type RouteLine, type RouteState } from './model';
 
 export type Target = 'origin' | 'destination';
-export const ROUTE_COLORS = { shortest: '#5f5f5f', safest: '#005f73' } as const;
+export const routeColors = (theme: Theme) => ({ shortest: theme.routeShortest, safest: theme.routeLowerRisk });
 const where = (p: Point | null) => (p ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : 'not set');
 
 function RouteCard({ line, expanded }: { line: RouteLine; expanded: boolean }) {
+  const theme = useTheme();
+  const styles = createStyles(theme);
   return <View style={styles.card} accessible accessibilityLabel={`${line.label}: ${line.duration}, ${line.distance}, ${line.hazardCount} reported hazards, ${line.risk}`}>
-    <View style={styles.legend}><View style={[styles.swatch, { backgroundColor: ROUTE_COLORS[line.kind] }]} /><Text style={styles.label}>{line.label}</Text></View>
+    <View style={styles.legend}><View style={[styles.swatch, { backgroundColor: line.kind === 'shortest' ? theme.routeShortest : theme.routeLowerRisk }]} /><Text style={styles.label}>{line.label}</Text></View>
     <Text style={styles.metrics}>{line.duration}</Text>
     <Text style={styles.fine}>{line.distance} · {line.hazardCount} reports</Text>
     {expanded && <Text style={styles.fine}>{line.risk}</Text>}
@@ -22,6 +24,8 @@ export function RouteScreen(props: {
   onTarget(target: Target): void; onUseLocation(): void; onCompare(): void;
   onSwap(): void; onClear(): void;
 }) {
+  const theme = useTheme();
+  const styles = createStyles(theme);
   const { state, target, expanded } = props;
   const presented = state.result ? presentRoutes(state.result) : null;
   const ready = canRequest(state);
@@ -65,7 +69,7 @@ export function RouteScreen(props: {
   </>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
   card: { flex: 1, minWidth: 120, padding: 10, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, marginVertical: 4 },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 5 },

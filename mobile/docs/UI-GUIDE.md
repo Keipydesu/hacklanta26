@@ -18,8 +18,8 @@ in expanded details; fixture warnings, failures and delivery states remain expli
 
 ## Shared primitives
 
-- `src/ui/theme.ts` owns mobile color roles and shared geometry. Preserve the app's green
-  identity; do not import the web reference's colors or theme.
+- `src/ui/theme.ts` owns the operator's silver/cyan-blue palette, light/dark roles and shared
+  geometry. Do not import the web reference's colors or theme.
 - `src/ui/Icon.tsx` owns the dependency-free native pictograms. Map means explore, pin means
   endpoint/trip, circled exclamation means report, chevrons mean expand/collapse, and a
   crosshair means foreground location. Hazard categories have their own labeled pictograms.
@@ -29,6 +29,27 @@ in expanded details; fixture warnings, failures and delivery states remain expli
   and expanded state. Decorative geometry is hidden from accessibility.
 - Ordinary controls have at least 48-point height. The disclosure target is 48 by 44 points.
   Do not copy the web guide's 24-point targets or 8–11px body typography.
+
+## Light and dark color roles
+
+Source: [selected Coolors palette](https://coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63).
+See [decision 012](../../docs/decisions/012-silver-cyan-mobile-palette.md).
+
+| Color | Role |
+| --- | --- |
+| `#353535` charcoal | Light-mode text; dark-mode surfaces |
+| `#3c6e71` teal/cyan | Selected controls and lower-risk route accent |
+| `#ffffff` white | Light surfaces; selected/primary and dark-mode foreground |
+| `#d9d9d9` metallic silver | Dividers, dark-mode outlines and secondary foreground |
+| `#284b63` deep blue | Primary action and light-mode notices |
+
+Device appearance selects light or dark UI. Silver is flat and restrained; no metallic texture
+or gradient is required. Selected controls retain accessible selected state and short labels.
+White on cyan is 5.74:1; white on blue 9.22:1; charcoal on white 12.27:1; silver on charcoal
+8.69:1. These are computed solid-color text pairs, not a full accessibility certification.
+Error foregrounds remain red exceptions (`#a00020` light / `#ffb4ab` dark). Existing hazard
+source colors stay separate from brand accents. Dark route lines use silver for the baseline
+and a silver casing behind cyan to preserve visibility; OSM styling remains separate work.
 
 ## State vocabulary
 

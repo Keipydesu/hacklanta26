@@ -1,11 +1,13 @@
 import React from 'react';
 import { View } from 'react-native';
-import { theme } from './theme';
+import { useTheme } from './theme';
 
 export type IconName = 'map' | 'route' | 'report' | 'pin' | 'expand' | 'collapse' | 'locate' | 'pothole' | 'obstruction' | 'closure' | 'other';
 
 /** One native, dependency-free icon dialect. Labels belong to the containing control. */
-export function Icon({ name, color = theme.ink }: { name: IconName; color?: string }) {
+export function Icon({ name, color: suppliedColor }: { name: IconName; color?: string }) {
+  const theme = useTheme();
+  const color = suppliedColor ?? theme.ink;
   const line = { position: 'absolute' as const, backgroundColor: color, borderRadius: 1 };
   const ring = { position: 'absolute' as const, borderColor: color, borderWidth: 2 };
   return <View accessible={false} importantForAccessibility="no-hide-descendants" style={{ width: 24, height: 24 }}>

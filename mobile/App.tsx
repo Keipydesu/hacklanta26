@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar, useColorScheme } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
 import { Icon } from './src/ui/Icon';
-import { theme } from './src/ui/theme';
+import { useTheme, type Theme } from './src/ui/theme';
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,7 +14,7 @@ import { createReportQueue, freezeReport, Submission } from './src/reports/queue
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
-import { ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
+import { routeColors, RouteScreen, Target } from './src/routes/RouteScreen';
 
 const center = { latitude: 33.7531, longitude: -84.3853, latitudeDelta: 0.012, longitudeDelta: 0.012 };
 const toPoint = ([longitude, latitude]: number[]) => ({ latitude, longitude });
@@ -26,6 +26,10 @@ const bounds = (r: Region) => {
     wide ? 180 : clamp(r.longitude+r.longitudeDelta/2, 180), clamp(r.latitude+r.latitudeDelta/2, 90)].join(',');
 };
 export default function App() {
+  const colorScheme = useColorScheme();
+  const theme = useTheme();
+  const styles = createStyles(theme);
+  const ROUTE_COLORS = routeColors(theme);
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
   const [expanded, setExpanded] = useState(false);
   const [dockHeight, setDockHeight] = useState(220);
@@ -134,8 +138,9 @@ export default function App() {
   const latestSubmission = submissions[submissions.length - 1];
   const pendingCount = submissions.filter(sub => sub.state !== 'submitted').length;
   return <SafeAreaView style={styles.page}>
+    <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
     <KeyboardAvoidingView style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <MapView style={styles.map} initialRegion={center} legalLabelInsets={{ top: 0, left: 8, right: 8, bottom: dockHeight + 8 }} onRegionChangeComplete={changeRegion}
+    <MapView userInterfaceStyle={colorScheme === 'dark' ? 'dark' : 'light'} style={styles.map} initialRegion={center} legalLabelInsets={{ top: 0, left: 8, right: 8, bottom: dockHeight + 8 }} onRegionChangeComplete={changeRegion}
       onPress={e => { if (screen === 'report') setPin(e.nativeEvent.coordinate); else if (screen === 'route') placeRouteEndpoint(e.nativeEvent.coordinate); }}>
       {visible.map(h => <Polygon key={h.properties.id} coordinates={h.geometry.coordinates[0].map(toPoint)}
         holes={h.geometry.coordinates.slice(1).map(r => r.map(toPoint))}
@@ -147,6 +152,7 @@ export default function App() {
         pinColor="blue" title="Pending report (not yet accepted)" description={sub.body.kind} />)}
       {screen === 'report' && <Marker coordinate={pin} draggable title="Report location"
         onDragEnd={e => setPin(e.nativeEvent.coordinate)} />}
+      {colorScheme === 'dark' && screen === 'route' && presented?.lowerRisk && <Polyline coordinates={presented.lowerRisk.coordinates.map(toPoint)} strokeWidth={10} strokeColor={theme.line} />}
       {screen === 'route' && presented?.lowerRisk && <Polyline coordinates={presented.lowerRisk.coordinates.map(toPoint)} strokeWidth={6} strokeColor={ROUTE_COLORS.safest} />}
       {screen === 'route' && presented && <Polyline coordinates={presented.shortest.coordinates.map(toPoint)} strokeWidth={4} strokeColor={ROUTE_COLORS.shortest} lineDashPattern={presented.lowerRisk ? [10, 8] : undefined} />}
       {screen === 'route' && routeState.origin && <Marker coordinate={{ latitude: routeState.origin.lat, longitude: routeState.origin.lon }} pinColor="green" draggable
@@ -190,9 +196,9 @@ export default function App() {
         <View style={styles.categories}>{(['pothole','obstruction','closure','other'] as const).map(k => <Pressable key={k}
           accessibilityRole="button" accessibilityLabel={k} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
           style={[styles.category, k === kind && styles.categorySelected]}>
-          <Icon name={k} /><Text style={styles.categoryLabel}>{k[0].toUpperCase() + k.slice(1)}</Text>
+          <Icon name={k} color={k === kind ? theme.inverse : theme.ink} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{k[0].toUpperCase() + k.slice(1)}</Text>
         </Pressable>)}</View>
-        {expanded && <TextInput accessibilityLabel="Optional report description" style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholder="Description (optional)" />}
+        {expanded && <TextInput accessibilityLabel="Optional report description" style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholderTextColor={theme.muted} placeholder="Description (optional)" />}
 
         <Button primary title={submitting ? 'Saving report…' : 'Submit report'} disabled={fixtureMode || submitting} onPress={() => void send()} />
         {!expanded && latestSubmission && <Text accessibilityLiveRegion="polite" style={latestSubmission.state === 'failed' ? styles.error : styles.caption}>
@@ -200,7 +206,7 @@ export default function App() {
         </Text>}
         {expanded && submissions.map(sub => <View key={sub.id} style={styles.card}>
           <Text style={styles.heading}>{sub.body.kind} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
-          <Text>Observed {new Date(sub.body.observed_at).toLocaleString()}{sub.attempts ? ` · attempts ${sub.attempts}` : ''}</Text>
+          <Text style={styles.caption}>Observed {new Date(sub.body.observed_at).toLocaleString()}{sub.attempts ? ` · attempts ${sub.attempts}` : ''}</Text>
           {!!sub.error && <Text style={styles.error}>{sub.error}{sub.retryable ? '' : '\nThe server rejected this report; dismiss it and submit a corrected one.'}</Text>}
           {sub.state === 'failed' && sub.retryable && <Button title="Retry original report" onPress={() => void queue.retry(sub.id)} />}
           {(sub.state === 'submitted' || (sub.state === 'failed' && !sub.retryable)) && <Button title="Dismiss" onPress={() => void queue.dismiss(sub.id)} />}
@@ -220,7 +226,7 @@ export default function App() {
     </KeyboardAvoidingView>
   </SafeAreaView>;
 }
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   page: { flex: 1, backgroundColor: theme.canvas }, canvas: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   overlay: { flex: 1, paddingTop: 8 },
@@ -242,12 +248,13 @@ const styles = StyleSheet.create({
   category: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64, paddingVertical: 8, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius },
   categorySelected: { backgroundColor: theme.selected, borderColor: theme.selectedEdge },
   categoryLabel: { fontSize: 11, color: theme.ink, textAlign: 'center' },
+  categoryLabelSelected: { color: theme.inverse },
   content: { flexShrink: 1 }, contentInner: { paddingBottom: 8 },
   caption: { fontSize: 12, lineHeight: 18, color: theme.muted },
   source: { color: theme.selectedEdge, fontSize: 12, fontWeight: '600' },
   card: { paddingVertical: 10, borderBottomWidth: 1, borderColor: theme.line },
   heading: { fontSize: 16, fontWeight: '600', color: theme.ink, marginVertical: 4 },
-  input: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius,
+  input: { color: theme.ink, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius,
     padding: 12, marginVertical: 8, minHeight: theme.touch },
   error: { color: theme.danger, marginVertical: 8 },
 });

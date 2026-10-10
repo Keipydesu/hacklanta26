@@ -1,19 +1,23 @@
 # UI concept screenshots
 
-Captured 2026-10-10 from the actual React Native app on iPhone 17 Pro / iOS 26.1 Simulator,
-Expo Go 57.0.9, SDK 57. The images show the map-first revision on `lane/a-ui`.
-They are unedited simulator captures, in offline fixture mode. The existing Apple map remains
-until the separate OSM migration lands; the route lines are explicitly illustrative.
+Captured 2026-10-10 from the actual React Native app on iPhone 17 / iOS 26.1 Simulator,
+Expo Go 57.0.9, SDK 57. These unedited captures show the silver/cyan palette in offline fixture mode.
+The existing Apple map remains until the separate OSM migration lands.
 
-| Map home | Trip setup |
+| Light Map | Dark Map |
 | --- | --- |
-| ![Map home](ui-explore.png) | ![Trip setup](ui-plan-trip.png) |
+| ![Light Map](ui-explore.png) | ![Dark Map](ui-map-dark.png) |
 
-| Route comparison | Report categories |
+| Light Report | Dark Report |
 | --- | --- |
-| ![Fixture route comparison](ui-comparison.png) | ![Report categories](ui-report.png) |
+| ![Light Report](ui-report.png) | ![Dark Report](ui-report-dark.png) |
 
-Checked by interaction: destination/start placement, comparison, task switching with trip
-preserved, expanded/collapsed details, clearing endpoints, and disabled reporting in demo mode.
-The screenshot session is not physical-device, Android, live-backend or complete accessibility
-validation. See the [mobile UI guide](../UI-GUIDE.md) for remaining checks.
+`ui-plan-trip.png` and `ui-comparison.png` retain the previous iPhone 17 Pro concept captures;
+their green controls predate the current palette and are retained only as interaction references.
+Route lines in those fixture screenshots are illustrative.
+
+Checked by interaction in the concept: destination/start placement, comparison, task switching
+with trip preserved, expanded/collapsed details, clearing endpoints, and disabled reporting in demo mode.
+The palette pass checked light/dark Map and Report surfaces. Updated route colors typecheck but
+still need a refreshed route screenshot. This is not physical-device, Android, live-backend or
+complete accessibility validation. See the [mobile UI guide](../UI-GUIDE.md) for remaining checks.

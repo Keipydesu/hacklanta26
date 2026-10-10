@@ -210,7 +210,9 @@ suitability or bicycle-specific travel times.
 Visual hypotheses: a quiet basemap, prominent paths and route geometry, large labeled controls,
 and an energetic accent for the main action. Reserve hazard colors and source/evidence badges
 for their meaning. Avoid filling the resting screen with warning colors or a long report feed.
-Exact palette, typography, icons and panel behavior remain open for visual exploration.
+The operator selected silver/cyan-blue accents with white and charcoal surfaces; see
+[decision 012](decisions/012-silver-cyan-mobile-palette.md). Typography and panel details remain
+open for refinement.
 
 | Surface | Proposed hierarchy | States the design must include |
 | --- | --- | --- |
