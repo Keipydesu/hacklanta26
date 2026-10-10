@@ -26,7 +26,8 @@ The effect is one pure function, `backend/app/feedback.py`:
   effect, because the publisher owns automatic expiry.
 - One answer never removes a hazard. An ignored or dismissed prompt is not an answer.
 - The store reads only the latest two answers, so each request costs the same however many
-  answers a hazard has.
+  answers a hazard has. Answers are ordered by an insert sequence assigned under the hazard's row
+  lock, so processing order decides which answer is latest, not a request's clock.
 
 Any change sends the existing `hazards.changed` live hint, so phones refetch.
 
@@ -34,9 +35,14 @@ Any change sends the existing `hazards.changed` live hint, so phones refetch.
 category, label and expiry with the two answers, and it never marks an answer received before
 the server's matching receipt. The panel keeps the hazard's details, so the acknowledgement stays
 visible after the hazard is removed. While the app is open with location permission, coming
-within 40 m of a hazard opens its panel, at most once per hazard per session. This uses
-foreground location only. It never runs in the background, never records or uploads a path, and
-never sends coordinates with an answer, so it is not ride tracking. The permission text says so.
+within 40 m of a hazard opens its panel, at most once per hazard per session. The prompt uses its
+own hazard lookup, not the map viewport, and re-checks the latest position whenever that lookup
+returns. The lookup asks `GET /v1/hazards` for the 3x3 block of ~500 m grid cells around the
+rider. It refreshes on entering a new cell, after 60 s, or on a live change. The server therefore
+learns only which block is checked, as when someone browses the map, never the exact position.
+This uses foreground location only. It never runs in the background, never records or uploads
+precise positions, and never sends coordinates with an answer, so it is not ride tracking. The
+permission text says so.
 Fixture mode shows the question with sending disabled.
 
 ## Limits

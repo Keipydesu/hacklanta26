@@ -11,7 +11,7 @@ import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createFeedback, FeedbackState } from './src/feedback/feedback';
 import { HazardPanel, PanelHazard } from './src/feedback/HazardPanel';
-import { createNearbyPrompter, Position } from './src/feedback/nearby';
+import { createNearbyWatcher } from './src/feedback/nearby';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
 import { DARK_ROUTE_COLORS, ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
 import { MapLibreView } from './src/map/MapLibreView';
@@ -65,7 +65,7 @@ export default function App() {
     if (!apiUrl) return;
     return connectLive({
       url: liveUrl(apiUrl), createSocket: url => new WebSocket(url) as any,
-      onChange: () => { void refresh(); comparison.hazardsChanged(); }, onStatus: setLiveConnected,
+      onChange: () => { void refresh(); comparison.hazardsChanged(); void nearby.invalidate(); }, onStatus: setLiveConnected,
       setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: h => clearTimeout(h as any), random: Math.random,
     });
   }, []);
@@ -144,26 +144,23 @@ export default function App() {
   useEffect(() => {
     if (selectedOnMap) setSelected(current => current && { ...current, ...selectedOnMap.properties });
   }, [selectedOnMap && JSON.stringify(selectedOnMap.properties)]);
-  const [nearby] = useState(() => createNearbyPrompter());
-  const nearbyContext = useRef({ visible, selected });
-  nearbyContext.current = { visible, selected };
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const [nearby] = useState(() => createNearbyWatcher({
+    load: getHazards, now: Date.now, busy: () => !!selectedRef.current,
+    onPrompt: hazard => setSelected({ ...hazard.properties }),
+  }));
+  useEffect(() => { if (!selected) nearby.evaluate(); }, [selected]);
   useEffect(() => {
     if (fixtureMode) return;
     let subscription: { remove(): void } | null = null;
     let generation = 0;
-    function onPosition(position: Position) {
-      const { visible, selected } = nearbyContext.current;
-      if (selected) return;
-      const id = nearby.next(position, visible.map(h => ({ id: h.properties.id, ring: h.geometry.coordinates[0] })));
-      const hazard = id && visible.find(h => h.properties.id === id);
-      if (hazard) setSelected({ ...hazard.properties });
-    }
     async function start() {
       const mine = ++generation;
       const { granted } = await Location.requestForegroundPermissionsAsync();
       if (!granted || mine !== generation) return;
       const watching = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
-        ({ coords }) => onPosition({ lat: coords.latitude, lon: coords.longitude }));
+        ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }));
       if (mine !== generation) watching.remove(); else subscription = watching;
     }
     function stop() { generation++; subscription?.remove(); subscription = null; }

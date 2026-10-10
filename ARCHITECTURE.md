@@ -198,7 +198,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 ## 8. Privacy and source labeling
 
 - The manual app asks for foreground location only when needed; a user can instead place a pin. Submission sends that selected point and report, not a ride trace.
-- While the app is open with location permission, the app compares the rider's position with visible hazards on the phone to ask "Is this hazard still there?" within 40 m. Nothing is tracked in the background, recorded or uploaded, and feedback carries no coordinates (decision 012).
+- While the app is open with location permission, the app compares the rider's position with nearby hazards on the phone to ask "Is this hazard still there?" within 40 m. It fetches hazards for the ~500 m grid block around the rider, so the server sees only that coarse block, as with map browsing. Nothing runs in the background, precise positions are never recorded or uploaded, and feedback carries no coordinates (decision 012).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.

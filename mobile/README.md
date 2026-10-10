@@ -121,9 +121,11 @@ received. Failed answers can be retried with the identical body. The app sends o
 hazard per session, separate from the report queue (`src/feedback/`).
 
 While the app is open with location permission, coming within 40 m of a hazard opens its panel
-once per session. This uses foreground location only; nothing is recorded, uploaded or sent with
-answers, and an ignored prompt is not an answer. Answers can't be sent in fixture mode. Server-side
-effects are in [decision 012](../docs/decisions/012-hazard-feedback.md).
+once per session, wherever the map is panned. The app looks up hazards for the ~500 m grid block
+around the rider, separately from the map, so the server sees only that coarse block. This uses
+foreground location only. Precise positions are never recorded, uploaded or sent with answers, and
+an ignored prompt is not an answer. Answers can't be sent in fixture mode. Server-side effects are
+in [decision 012](../docs/decisions/012-hazard-feedback.md).
 
 ## SDK 57 upgrade (2026-10-10)
 

@@ -132,7 +132,7 @@ class PostgresStore:
                 raise Conflict()
             recent = [row['response'] for row in await (await conn.execute(
                 '''SELECT response FROM hazard_feedback WHERE hazard_id = %s AND hazard_revision IS NOT DISTINCT FROM %s
-                   ORDER BY received_at DESC, id DESC LIMIT %s''', (hazard_id, hazard['revision'], RECENT_NEEDED))).fetchall()]
+                   ORDER BY seq DESC LIMIT %s''', (hazard_id, hazard['revision'], RECENT_NEEDED))).fetchall()]
             state = HazardState(hazard['source'], hazard['status'], hazard['last_seen'], hazard['expires_at'])
             change = apply_feedback(state, recent, now)
             if isinstance(change, Hide):

@@ -50,3 +50,76 @@ export function createNearbyPrompter(radiusM = NEARBY_RADIUS_M) {
     },
   };
 }
+
+export type NearbyFeature = {
+  geometry: { coordinates: number[][][] };
+  properties: { id: string; status: string; expires_at: string };
+};
+export type WatcherDeps<F extends NearbyFeature> = {
+  load(bbox: string): Promise<{ features: F[] }>;
+  now(): number;
+  busy(): boolean;
+  onPrompt(hazard: F): void;
+};
+/** Grid cell in degrees (~500 m). Lookups name a 3x3 block of cells, never the rider's exact position. */
+export const CELL_DEG = 0.005;
+export const REFETCH_MS = 60_000;
+
+export const cellOf = (p: Position) => `${Math.floor(p.lat / CELL_DEG)},${Math.floor(p.lon / CELL_DEG)}`;
+
+/** The rider's grid cell plus its neighbours as `minLon,minLat,maxLon,maxLat`, clamped to WGS84. */
+export function cellBbox(p: Position): string {
+  const clamp = (v: number, limit: number) => Math.min(limit, Math.max(-limit, v));
+  const south = Math.floor(p.lat / CELL_DEG) * CELL_DEG - CELL_DEG, west = Math.floor(p.lon / CELL_DEG) * CELL_DEG - CELL_DEG;
+  return [clamp(west, 180), clamp(south, 90), clamp(west + 3 * CELL_DEG, 180), clamp(south + 3 * CELL_DEG, 90)]
+    .map(v => Number(v.toFixed(6))).join(',');
+}
+
+/**
+ * Feeds the prompter from its own hazard lookup for the rider's ~500 m grid block, independent of the
+ * map viewport, and re-checks the latest position whenever that lookup returns. The server only
+ * learns which block was looked up, as when browsing the map.
+ */
+export function createNearbyWatcher<F extends NearbyFeature>(deps: WatcherDeps<F>, prompter = createNearbyPrompter()) {
+  let hazards: F[] = [];
+  let latest: Position | null = null;
+  let fetched: { at: number; cell: string } | null = null;
+  let loading = false;
+
+  function evaluate() {
+    if (!latest || deps.busy()) return;
+    const now = deps.now();
+    const live = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
+    const id = prompter.next(latest, live.map(h => ({ id: h.properties.id, ring: h.geometry.coordinates[0] ?? [] })));
+    const hazard = id ? live.find(h => h.properties.id === id) : undefined;
+    if (hazard) deps.onPrompt(hazard);
+  }
+
+  async function refetch(position: Position) {
+    loading = true;
+    fetched = { at: deps.now(), cell: cellOf(position) };
+    try {
+      hazards = (await deps.load(cellBbox(position))).features;
+    } catch {
+      fetched = null;
+    } finally {
+      loading = false;
+    }
+    evaluate();
+  }
+
+  const stale = (position: Position) => !fetched || deps.now() - fetched.at >= REFETCH_MS || fetched.cell !== cellOf(position);
+
+  return {
+    position(position: Position): Promise<void> {
+      latest = position;
+      evaluate();
+      return !loading && stale(position) ? refetch(position) : Promise.resolve();
+    },
+    invalidate(): Promise<void> {
+      fetched = null;
+      return latest && !loading ? refetch(latest) : Promise.resolve();
+    },
+    evaluate,
+  };
+}

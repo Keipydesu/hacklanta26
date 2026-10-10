@@ -3,7 +3,7 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 import os
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import psycopg
@@ -11,9 +11,9 @@ import pytest
 from shapely.geometry import Polygon
 
 from app.db.migrate import migrate
-from app.db.store import Conflict
+from app.db.store import Conflict, PostgresStore
 from app.main import create_app
-from app.schemas import ManualReport
+from app.schemas import HazardFeedback, ManualReport
 from test_boundary import AUTH, FEED, PUB, fixture, fresh, validate
 
 URL = os.getenv('TEST_DATABASE_URL')
@@ -299,3 +299,23 @@ def test_automatic_hazard_hidden_by_answers_until_newer_revision_in_the_database
         assert (await client.post(url, json=answer('gone'))).status_code == 201
         assert ids((await client.get(FEED)).json()) == [hazard_id]
     run(republish)
+
+def test_feedback_order_follows_processing_not_the_request_clock():
+    manual, _ = fresh()
+    hazard_id = run(lambda client, app: _report(client, manual))
+    async def scenario():
+        store = PostgresStore(URL)
+        await store.open()
+        try:
+            now = datetime.now(timezone.utc)
+            gone = await store.record_feedback(UUID(hazard_id), HazardFeedback(id=uuid4(), response='gone'), now)
+            still = await store.record_feedback(UUID(hazard_id), HazardFeedback(id=uuid4(), response='still_there'), now - timedelta(seconds=5))
+            again = await store.record_feedback(UUID(hazard_id), HazardFeedback(id=uuid4(), response='gone'), now - timedelta(seconds=10))
+            return gone.changed, still.changed, again.changed
+        finally:
+            await store.close()
+    assert asyncio.run(scenario()) == (False, True, False), 'the later-processed still_there extends and resets the gone count'
+    assert sql('SELECT status FROM hazards WHERE id = %s', hazard_id) == [('active',)]
+
+async def _report(client, manual):
+    return (await client.post('/v1/reports', json=manual)).json()['hazard_id']
