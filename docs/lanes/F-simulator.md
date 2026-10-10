@@ -1,49 +1,28 @@
-# Lane F: Simulator and seed data
+# Lane F: Independent fixtures and simulation
 
-Produces the data nobody has yet. Without it there is no baseline traffic, no abandonment signal, and no way to test without riding a scooter.
+Supports two demos: manual reporting first, automatic detection later.
 
-**Owns:** `simulator/`.
-**Uses:** the REST API only. No dependency on Valhalla or the database.
+**Owns:** `simulator/`. Uses HTTP only, with separate product and observation API base URLs.
 
 ## What to build
 
-1. **Campus routes** (`scenarios/routes.yaml`). Five or six hand-drawn polylines around GSU, each a list of `[lat, lon]` waypoints following real walkways. Trace them on a map by hand. Include two parallel routes between the same endpoints; the closure scenario needs them.
-2. **Ride synthesis** (`rides.py`). Given a route and a start time, produce one ride:
-   - Interpolate along the polyline at 1 Hz.
-   - Speed drawn around 4.5 m/s with some variation, slower near turns.
-   - GPS noise of about 4 m on each point, and a matching `accuracy_m`.
-   - A fresh random `ride_id`.
-   - Start times follow a class-change pattern: peaks near the top of each hour, 8 am to 6 pm, weekdays heavier.
-3. **Scenarios** (`scenarios/*.yaml`). Each file lists routes, ride counts, date ranges, event rules, and an `expect:` block that Lane D's tests read.
-   - `baseline`: 14 days of rides across all routes, with a 1% random background rate of hard brakes anywhere.
-   - `pothole`: at one fixed spot, half of all rides in the last 3 days produce a `hard_brake` within 5 m. `expect` gives the spot and "one braking hazard".
-   - `closure`: for the last 48 hours, rides on route R2 drop to 10% and the rest move to the parallel route R3. `expect` gives the closed stretch and "one abandoned hazard".
-   - `demo_seed`: two fresh `hard_brake` events from two different rides at the demo spot, so the judge's event is the third.
-4. **Generator CLI** (`generate.py`).
-   `python -m simulator.generate --api http://localhost:8000 --scenario baseline --seed 42`
-   - Deterministic for a given seed.
-   - Backdates `ts` relative to the current time.
-   - Posts in batches of at most 500 events and 2000 points.
-   - Every item carries `source: "simulated"`.
-   - `--dry-run` writes the payloads to a file instead of posting.
-5. **Replay CLI** (`replay.py`). Reads a recorded ride and posts it with timestamps shifted to now, paced in real time or faster with `--speed 4`. Uses `source: "replay"`. This is the backup if a phone fails during the demo.
-6. **Recorded ride format** (`recorded/README.md`). Three files per ride:
-   - `<name>.motion.csv`: `t_ms,ax,ay,az,gx,gy,gz` (acceleration without gravity, then gravity, both in m/s²).
-   - `<name>.gps.csv`: `t_ms,lat,lon,speed_mps,accuracy_m`.
-   - `<name>.labels.csv` (optional): `t_ms,type`, written by hand after the ride.
-   Lane A's recorder mode writes the first two. Lane B's tests read all three.
-7. **Capture plan.** Get a teammate to record at least three real rides near the venue with deliberate hard stops at known landmarks, and commit them. Do this early: Lane B is blocked on tuning without them.
+1. **Manual demo.** Submit a reproducible report fixture to `POST /v1/reports`. Confirm it appears in the combined hazard feed with automatic services stopped. Use a stable submission UUID for retry tests. Run synthetic manual reports only in the dedicated demo environment and label their descriptions as demo data.
+2. **Automatic fixture publisher.** Send a known polygon to `PUT /v1/automatic/hazards/{external_id}` using the server-side key read from the CLI environment. Publish revision 1, retry it, update with revision 2, and resolve with revision 3. Show the unchanged manual app rendering it. This bypasses detection deliberately to test the integration boundary; mark evidence as simulated.
+3. **Observation generation.** Send events and points to the separate automatic service. Use UUIDs for every item and `source: simulated`. Seed 14 days of campus baseline rides, a repeated hard-braking spot (`pothole` scenario), a closure with traffic diverted to a parallel route, and a two-event `demo_seed`. Scenario YAML contains expected output locations for worker tests. Support seed reproducibility, batching (500 events/2000 points), and dry-run output.
+4. **Recorded replay.** Specify motion CSV (`t_ms,ax,ay,az,gx,gy,gz`), GPS CSV (`t_ms,lat,lon,speed_mps,accuracy_m`), and optional labels (`t_ms,type`). Lane B's collector writes them. Replay through the standalone detector to produce event fixtures; Python replay uploads derived events and GPS with timestamps shifted to now, source replay, stable UUIDs and adjustable speed. Remove identifying endpoints before committing real recordings.
+5. **Combined demonstration.** Manual report → map, automatic observations → worker → publication API → same map, then route comparison. Stop automation and submit another manual report to prove independence. Keep synthetic data in the demo environment and evidence labels visible.
 
-## Watch out for
+## Scenario requirements
 
-- The abandonment rule needs a baseline of at least 5 rides per cell per day. Make baseline volume comfortably higher, around 30 rides per route per day.
-- The closure only registers if the parallel route's traffic rises above 130% of its own baseline. Move the diverted riders, do not just delete them.
-- Do not apply the 100 m privacy trim here. The simulator stands in for data after the phone has already trimmed it.
-- Never mix simulated data into anything presented as real. The `source` field exists so the pitch can state exactly how many rides were real.
+- Include two parallel routes around GSU for closure and routing comparisons.
+- Baseline exceeds 5 rides/cell/day; recent closed-route traffic falls below 30% while nearby diverted traffic exceeds 130% of its own baseline.
+- Synthetic observations represent already-trimmed data; do not trim them a second time.
+- `pothole` currently simulates braking evidence and must expect a `braking` hazard, not a surface classification.
 
 ## Done when
 
-- `baseline` loads 14 days of rides against a local stack.
-- `pothole` and `closure` produce the hazards named in their `expect` blocks once Lane D is in place.
-- `replay.py` plays a recorded ride and pins appear on the dashboard in real time.
-- Three real recorded rides are committed in `recorded/`.
+- Manual scenario works with the automatic service absent.
+- Fixture publication/update/resolution works before real detection is available.
+- Retry scenarios create no duplicate reports, observations or published hazards.
+- Sensor scenarios produce the expected hazards through HTTP publication with visible evidence labels.
+- Three privacy-reviewed recorded rides support detector tuning, without blocking manual release.

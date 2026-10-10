@@ -1,48 +1,51 @@
-# Lane C: Backend API and data
+# Lane C: Product API, data and routing
 
-Receives events and points, stores them, serves the read endpoints, and pushes live updates.
+Supports manual reporting immediately and accepts automatic hazards through HTTP. Runs independently of the automatic subsystem.
 
-**Owns:** `backend/app/api/`, `backend/app/db/`, `backend/app/main.py`, `backend/app/config.py`, `backend/pyproject.toml`, `backend/tests/api/`.
-**Calls:** `risk.recompute` and `routing.plan` from Lane D.
+**Owns:** `backend/` except `app/schemas.py` and `Dockerfile`, including product routing and its tests.
+**Uses:** product contract and Valhalla (recorded fixtures until available). Owns the route planner; does not import automation code.
 
 ## What to build
 
-1. **Database schema** (`db/models.py`, `db/init.sql`). Create tables at startup; skip migrations for the hackathon.
+1. **Product database.** Own `manual_reports` and `hazards`. Reports store UUID, kind, point, observed/received times, description and normalized original payload for idempotency. Hazards store public UUID, source, kind, polygon, label, score, lifecycle timestamps/status, counts, evidence source, and nullable publisher/external ID/revision/original publication payload. Unique manual report linkage and unique `(publisher, external_id)` prevent duplicates. Add spatial indexes and indexes for expiry/status.
+2. **Manual ingest.** Implement `POST /v1/reports` exactly as section 5. In one transaction, save the report and its hazard with an 8 m geographic buffer (project to UTM 16N, buffer, transform back), provisional score 0.5, source manual and 24-hour expiry. Handle identical retries as 200, new submissions as 201, conflicting IDs as 409, invalid input as 422. Never depend on clustering, a ride, or the automatic service.
+3. **Automatic publication.** Authenticate the server-side publisher key. Implement revisioned `PUT /v1/automatic/hazards/{external_id}` with atomic create/update and concurrency-safe revision comparisons. Stamp automatic source, maintain stable public ID, validate geometry/counts/timestamps, and support resolution. This endpoint cannot overwrite manual hazards. Missing/invalid credentials return 401. Same revision/body is a duplicate; stale or conflicting revisions return 409. Do not accept raw sensor events here.
+4. **Reads, routes and live updates.** `/v1/hazards` returns the combined active, unexpired feed for bounds. `/v1/route` passes those same eligible hazards near the trip to `routing.plan`; return 503 on routing outage without affecting reports. Broadcast `hazards.changed` only after committed changes; a periodic expiry task notifies clients, while query-time expiry filtering guarantees correctness. `/healthz` checks only product API/database availability.
+5. **Verification.** With automation stopped, test manual POST/read/route, identical retry, conflicting retry, bounds and expiry. Test automatic publication auth, concurrent revisions, duplicate and stale updates, resolution and source preservation. Confirm a manual hazard survives all automatic update operations. Test WebSocket notification/reconnect refresh and route outage isolation.
 
-   | Table | Columns |
-   |---|---|
-   | `events` | `id uuid pk`, `ride_id uuid`, `type text`, `ts timestamptz`, `geom geometry(Point,4326)`, `accuracy_m`, `speed_before_mps`, `speed_after_mps`, `peak_g`, `duration_ms`, `source text`, `h3 text`, `created_at` |
-   | `points` | `id bigserial pk`, `ride_id uuid`, `ts timestamptz`, `geom geometry(Point,4326)`, `speed_mps`, `accuracy_m`, `h3 text` |
-   | `hazards` | `id uuid pk`, `kind text`, `score real`, `event_count int`, `ride_count int`, `first_seen`, `last_seen`, `label text`, `geom geometry(Polygon,4326)`, `updated_at` |
-   | `cells` | `h3 text pk`, `rides_recent_per_day real`, `rides_baseline_per_day real`, `abandoned bool`, `risk real`, `geom geometry(Polygon,4326)` |
+## Routing (`backend/app/routing/`)
 
-   Indexes: GiST on every `geom`, btree on `events.ts`, btree on `points (h3, ts)`. Lane C writes `events` and `points`. Lane D writes `hazards` and `cells`.
-2. **Ingest.**
-   - `POST /v1/events`: validate, compute `h3` with `h3.latlng_to_cell(lat, lon, 11)`, bulk insert with `ON CONFLICT (id) DO NOTHING`. Return `{ "accepted": n, "duplicates": m }`. Cap a batch at 500.
-   - `POST /v1/rides/{ride_id}/points`: same pattern, cap at 2000.
-   - Reject out-of-range coordinates with 422. Keep the client `ts` as sent.
-3. **Read endpoints.** `bbox` is `minLon,minLat,maxLon,maxLat`. Filter with `geom && ST_MakeEnvelope(...)`. Return GeoJSON built with `ST_AsGeoJSON`.
-   - `GET /v1/events`: optional `since` (ISO time), newest first, limit 2000.
-   - `GET /v1/hazards`: all hazards in the box.
-   - `GET /v1/cells`: all cells in the box.
-4. **Route.** `POST /v1/route`: load hazards within a box around origin and destination padded by 500 m, call `routing.plan`, return its result.
-5. **Report.** `GET /v1/report/top`: hazards ordered by score descending as `ReportRow` (rank, hazard id, kind, score, counts, last seen, centroid lat and lon, label).
-6. **WebSocket** (`api/live.py`). Keep a set of connections. Broadcast `event.created` for each newly accepted event, but only when its `ts` is within the last 5 minutes, so a two-week seed load does not flood the dashboard. Drop dead connections quietly.
-7. **Recompute scheduling.** After any ingest, schedule `risk.recompute` about 2 s later. Restart the timer if more data arrives. Run one recompute at a time. After it finishes, compare the hazards with the previous result and broadcast `hazards.updated` only if something changed.
-8. **Health and config.** `GET /healthz` runs `SELECT 1`. `config.py` reads `DATABASE_URL`, `VALHALLA_URL`, `DEMO_MODE` from the environment.
-9. **Tests** (`tests/api/`). Against the compose Postgres: ingest then read back, duplicate ids, bbox filtering, WebSocket receives an event, old events are not broadcast.
+1. **Valhalla client** (`routing/valhalla.py`). `POST {VALHALLA_URL}/route` with httpx:
 
-## Watch out for
+   ```json
+   {
+     "locations": [{"lat": 33.7531, "lon": -84.3853}, {"lat": 33.7560, "lon": -84.3880}],
+     "costing": "pedestrian",
+     "costing_options": {"pedestrian": {"walking_speed": 16, "step_penalty": 600}},
+     "exclude_polygons": [[[-84.3861, 33.7540], [-84.3859, 33.7540], [-84.3859, 33.7542], [-84.3861, 33.7542]]],
+     "units": "kilometers"
+   }
+   ```
 
-- PostGIS points are `ST_MakePoint(lon, lat)`. Longitude first.
-- The simulator posts tens of thousands of points. Use bulk inserts, not one statement per row.
-- Recompute must not block ingest. Run it as a background task with its own session.
-- Lane D's functions are stubs at first. Build against the stubs and do not reach into Lane D's folders.
-- Stretch only: an `X-Ingest-Key` header and a per-IP rate limit to answer the "what about spam" question.
+   Read `trip.summary.length` (km) and `trip.summary.time` (seconds). Decode `trip.legs[].shape`, which is an encoded polyline with **6** decimal digits of precision, into `[lon, lat]` pairs.
+2. **Planner** (`routing/planner.py`).
+    - Shortest: request with no exclusions.
+    - Safest: use active, unexpired hazards from both manual and automatic sources, excluding those with score at least 0.4.
+    - Leave out any hazard that contains the origin or destination, or no route can exist.
+    - If Valhalla answers the safest request with HTTP 400 (no path), return the shortest route under both kinds with `safest_available: false`.
+    - For each route, intersect its line with the hazard polygons (shapely) to fill `hazard_ids`, and set `risk_score = 1 - product(1 - score)` over those hazards.
+3. **Costing choice.** Spend the first half hour comparing `pedestrian` and `bicycle` costing on three real campus trips. The starting choice is `pedestrian` with scooter speed and a heavy stairs penalty, because campus walkways are mapped as footways and bicycle costing only uses ways with bicycle access. Record the decision in a comment at the top of `valhalla.py`.
+4. **Tests.**
+    - Seed manual and automatic hazard fixtures through the product API; verify both affect routes and expired/resolved hazards do not.
+    - Routing: save real Valhalla responses in `tests/routing/fixtures/` and replay them, so tests run without Valhalla.
+5. **Stretch: soft penalties.** `routing/fallback_graph.py` with an OSMnx walking graph and edge cost `length * (1 + 4 * risk)`. Only start this after the Valhalla path works end to end.
+
+Use polygon rings in `[lon, lat]` order. Cap exclusions to the 20 eligible hazards nearest the trip. Product routing dependencies belong in `backend/pyproject.toml`. This module receives stored hazard data; it never waits for the automatic service.
 
 ## Done when
 
-- Every section 5 endpoint returns real data from Postgres.
-- Posting the same event twice counts one accepted and one duplicate.
-- A connected WebSocket client sees a new event in under a second.
-- Loading the simulator's baseline scenario finishes in under a minute.
+- Manual reporting and hazard reads work with automatic infrastructure absent.
+- An authenticated standalone HTTP client publishes and updates an automatic hazard; unauthorized calls cannot.
+- Manual and automatic hazards appear in the same feed with correct labels.
+- Duplicate requests do not create duplicates; concurrent/stale updates cannot overwrite newer state.
+- Expired or resolved hazards are excluded from reads and routing; route tests use recorded Valhalla responses and pass with automation absent.
