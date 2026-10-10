@@ -16,7 +16,9 @@
         {
           "locationWhenInUsePermission": "Campus Hazards uses your location once, only when you tap \"Use my location\", to place a report pin or route endpoint.",
           "isAndroidBackgroundLocationEnabled": false,
-          "isIosBackgroundLocationEnabled": false
+          "isIosBackgroundLocationEnabled": false,
+          "motionUsagePermission": false,
+          "isAndroidMotionActivityEnabled": false
         }
       ]
     ]

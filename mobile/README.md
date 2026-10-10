@@ -1,8 +1,8 @@
 # Manual mobile app
 
-Expo SDK 55 + TypeScript, React Native Maps. No sensor imports or motion permissions. Uses only
+Expo SDK 57 + TypeScript, React Native Maps. No sensor imports or motion permissions. Uses only
 its local generated product types and copied fixtures; the automatic tree is not a dependency.
-SDK versions follow the [Expo 55 compatibility table](https://docs.expo.dev/versions/v55.0.0/).
+SDK versions follow the [Expo 57 compatibility table](https://docs.expo.dev/versions/v57.0.0/).
 
 From the repository root (Node 22 LTS recommended):
 
@@ -15,7 +15,7 @@ npm start --prefix mobile
 ```
 
 `build` exports iOS and Android JavaScript/Hermes bundles to `mobile/dist`; it does not create a
-signed native binary. Open the development server using an SDK-55-compatible Expo Go or development
+signed native binary. Open the development server using an SDK-57-compatible Expo Go or development
 build. The refresh regression tests run in Node without a device. Both native bundle exports and typechecking have been verified; a physical-device visual
 and interaction check is still needed.
 
@@ -71,7 +71,7 @@ The header line shows "Test server · reports are not kept when it restarts" onl
 reports memory storage. Route state lives in `src/routes/model.ts` (tested in Node,
 `tests/routes.cjs`) and the screen in `src/routes/RouteScreen.tsx`.
 
-Dependencies (exact): `@react-native-async-storage/async-storage` 2.2.0 and `expo-location` 55.1.14.
+Dependencies (exact): `@react-native-async-storage/async-storage` 2.2.0 and `expo-location` 57.0.14.
 A3 adds none.
 
 Verification for A3: `npm test` passes (30 Node tests, 14 new), and CI's mobile job passes on the
@@ -83,3 +83,24 @@ navigation.
 HTTP deadlines cover response headers and JSON body consumption, including route comparisons.
 A stalled body aborts after 15 seconds so a pending report can retry with its original identity.
 The client regression test exercises a stalled body, timeout cleanup, retry, and route stub labeling.
+
+## SDK 57 upgrade (2026-10-10)
+
+After pulling the upgrade, stop Metro, reinstall from the lockfile and clear Metro's cache:
+
+```sh
+npm ci --prefix mobile
+EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:8000 npm start --prefix mobile -- --clear
+```
+
+Scan the new QR code with an iPhone running Expo Go for SDK 57 on the same network.
+A physical iPhone cannot install an older App Store Expo Go; a simulator or custom development
+build is the alternative when its SDK differs. SDK 57 requires iOS 16.4 or newer.
+Custom native builds need Xcode 26.4 or newer; bundle export does not require Xcode.
+
+The selected exact SDK patches and security review are in [the upgrade handoff](SDK57-REVIEW.md).
+The online Expo compatibility check currently recommends newer patch releases and TypeScript 6;
+the pinned releases match the bundled SDK 57 compatibility manifest, and TypeScript 5.9.3 passes
+our existing checks. Review upgrades before running `expo install --fix`.
+Motion activity permission is explicitly disabled in the location plugin. The app still requests
+only a one-shot foreground location when the user taps the location action.

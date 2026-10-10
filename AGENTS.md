@@ -44,7 +44,7 @@ real-recording tuning and hosted deployment remain outstanding. See component RE
 
 | Layer | Stage 0 state |
 |---|---|
-| Mobile | Expo SDK 55 + TypeScript + React Native Maps; fixture/live stub screens |
+| Mobile | Expo SDK 57 + TypeScript + React Native Maps; fixture/live stub screens |
 | Backend | FastAPI; PostGIS persistence via psycopg when `DATABASE_URL` is set, memory stub otherwise |
 | Data | PostgreSQL + PostGIS Compose container; product API persists reports/hazards/revisions |
 | Routing | Valhalla pedestrian costing (scooter pace/step penalty) when `VALHALLA_URL` is set; fixed fixture otherwise |
