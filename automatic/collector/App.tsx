@@ -42,6 +42,8 @@ export default function App() {
   }, [controller, queue]);
 
   const phase = ride?.phase ?? 'idle';
+  // Consent is per ride: once a ride ends (or never started), require a fresh opt-in.
+  useEffect(() => { if (phase === 'idle') setConsent(false); }, [phase]);
   const collecting = phase === 'collecting';
   const busy = phase === 'starting' || phase === 'stopping';
   const liveMode = collecting ? ride?.mode ?? mode : mode;

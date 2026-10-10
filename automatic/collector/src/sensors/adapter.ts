@@ -20,6 +20,8 @@ export type RawLocation = {
 };
 
 export const NOMINAL_MOTION_INTERVAL_MS = 20; // 50 Hz
+/** Burst spacing may push stamps ahead of real time, but never by more than this: beyond it, samples are dropped. */
+export const MAX_STAMP_LEAD_MS = 250;
 
 const finite = (v: RawVector): v is { x: number; y: number; z: number } =>
   !!v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
@@ -38,6 +40,9 @@ export function createMotionNormalizer(nominalIntervalMs = NOMINAL_MOTION_INTERV
       if (!finite(accel) || !finite(including) || !Number.isFinite(nowMs)) return null;
       const step = typeof raw.interval === 'number' && Number.isFinite(raw.interval) && raw.interval > 0 ? raw.interval : nominalIntervalMs;
       const t = last === null || nowMs >= last + step / 2 ? nowMs : last + step;
+      // A platform delivering faster than its stated rate would push stamps ever further ahead of the GPS clock,
+      // misplacing events on the path the privacy trimming relies on. Drop the excess instead.
+      if (t - nowMs > MAX_STAMP_LEAD_MS) return null;
       last = t;
       return {
         t_ms: t,

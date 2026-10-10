@@ -43,3 +43,17 @@ test('unknown speed and accuracy stay unknown', () => {
   assert.equal(normalizeLocation({ ...base, coords: { ...base.coords, latitude: 95 } }), null);
   assert.equal(normalizeLocation({ ...base, timestamp: NaN }), null);
 });
+
+test('a platform flooding samples cannot push stamps far ahead of real time', () => {
+  const { createMotionNormalizer, MAX_STAMP_LEAD_MS } = require('../.test-dist/collector/src/sensors/adapter.js');
+  const n = createMotionNormalizer();
+  const raw = { acceleration: { x: 0, y: 0, z: 0 }, accelerationIncludingGravity: { x: 0, y: 0, z: 9.8 }, interval: 20 };
+  const start = 1_760_000_000_000;
+  let kept = 0, maxLead = 0;
+  for (let i = 0; i < 2000; i++) { // 1000 Hz arrivals against a 50 Hz stated interval
+    const s = n.normalize(raw, start + i);
+    if (s) { kept++; maxLead = Math.max(maxLead, s.t_ms - (start + i)); }
+  }
+  assert.ok(maxLead <= MAX_STAMP_LEAD_MS, `lead ${maxLead}`);
+  assert.ok(kept > 0 && kept < 2000);
+});

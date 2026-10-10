@@ -69,6 +69,8 @@ export function createUploadQueue(deps: QueueDeps) {
   let items: Batch[] = [];
   let totals = { accepted: 0, duplicates: 0 };
   let loadError: string | undefined;
+  /** False until saved data has been read (or is known absent): never overwrite what we could not read. */
+  let loaded = false;
   let writes: Promise<void> = Promise.resolve();
   let draining: Promise<void> | undefined;
   let again = false;
@@ -88,8 +90,8 @@ export function createUploadQueue(deps: QueueDeps) {
   }
 
   async function load(): Promise<void> {
-    const raw = await deps.storage.getItem(STORAGE_KEY);
-    if (raw === null) { items = []; emit(); return; }
+    const raw = await deps.storage.getItem(STORAGE_KEY); // a rejection leaves `loaded` false so add() refuses to overwrite
+    if (raw === null) { items = []; loaded = true; emit(); return; }
     try {
       const data = JSON.parse(raw);
       if (data?.version !== VERSION || !Array.isArray(data.items)) throw new Error(`unsupported queue version ${data?.version}`);
@@ -101,12 +103,14 @@ export function createUploadQueue(deps: QueueDeps) {
       await deps.storage.setItem(`${STORAGE_KEY}.unreadable`, raw);
       items = [];
     }
+    loaded = true;
     emit();
   }
 
   /** Persist new batches before any send. If storage fails nothing is queued and this throws. */
   async function add(batches: Batch[]): Promise<void> {
     if (!batches.length) return;
+    if (!loaded) await load(); // throws if storage is still unreadable: nothing is queued, the ride stops with a clear message
     if (pending() + batches.reduce((n, b) => n + b.count, 0) > MAX_PENDING_OBSERVATIONS) throw new QueueFullError();
     const before = items;
     items = [...items, ...batches];

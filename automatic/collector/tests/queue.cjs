@@ -204,3 +204,20 @@ test('transport posts the frozen body and classifies failures', async () => {
   const odd = await createTransport('http://host', respond(200, { ok: true }))(batch).catch(e => e);
   assert.ok(odd instanceof TransportError);
 });
+
+test('a failed read does not let the next enqueue overwrite the saved queue', async () => {
+  const storage = memoryStorage();
+  const first = createUploadQueue({ storage, now: () => 1, random: () => 0.5, uuid: uuids(1), send: async () => { throw new Error('offline'); } });
+  await first.load();
+  await first.enqueueEvents([{ id: 'x' }]);
+  const saved = storage.data.get([...storage.data.keys()][0]);
+  let failReads = true;
+  const flaky = { ...storage, getItem: async key => { if (failReads) throw new Error('row too big'); return storage.getItem(key); }, setItem: (k, v) => storage.setItem(k, v) };
+  const second = createUploadQueue({ storage: flaky, now: () => 1, random: () => 0.5, uuid: uuids(2), send: async () => { throw new Error('offline'); } });
+  await assert.rejects(second.load());
+  await assert.rejects(second.enqueueEvents([{ id: 'y' }]));        // refuses rather than clobbering unread data
+  assert.equal(storage.data.get([...storage.data.keys()][0]), saved);
+  failReads = false;
+  await second.enqueueEvents([{ id: 'y' }]);                         // once readable, both are kept
+  assert.equal(second.stats().pendingObservations, 2);
+});

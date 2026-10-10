@@ -114,6 +114,7 @@ export function createRideController(deps: ControllerDeps) {
   function onDetected(event: DetectedEvent): void {
     if (phase !== 'collecting' || !rideId) return;
     counters.detected++;
+    emit(); // show detections immediately, including in the indoor demo (no GPS to drive updates)
     // UUID, ride and source are assigned once here and never change across retries.
     const observation: ObservationEvent = {
       id: platform.uuid(), ride_id: rideId, type: event.type, ts: iso(event.t_ms), lat: event.lat, lon: event.lon,
@@ -148,6 +149,7 @@ export function createRideController(deps: ControllerDeps) {
     }
     deps.recorder?.motion(sample);
     detector.pushMotion(sample);
+    if (mode === 'demo' && counters.motionSamples % 50 === 0) emit(); // ~1 Hz stats refresh without GPS
   }
 
   function onLocation(raw: RawLocation): void {
@@ -196,18 +198,27 @@ export function createRideController(deps: ControllerDeps) {
 
   async function startRide(options: StartOptions): Promise<boolean> {
     if (phase !== 'idle') return false;
-    const fail = (why: string) => { teardown(); phase = 'idle'; mode = null; rideId = null; recording = false; message = why; emit(); return false; };
+    const mine = ++generation;
+    const fail = (why: string) => {
+      if (generation !== mine) return false; // this start was cancelled (or superseded); don't clobber the newer state
+      teardown(); phase = 'idle'; mode = null; rideId = null; recording = false; message = why; emit(); return false;
+    };
     if (!options.consent) return fail('Collection is opt-in. Confirm before starting.');
     if (queue.stats().full) return fail('Upload queue is full. Deliver pending observations before collecting more.');
-    const mine = ++generation;
     phase = 'starting'; mode = options.mode; message = null; saveError = null; counters = blank();
     readyEvents = []; readyPoints = []; firstMotionMs = lastMotionMs = nextDemoFixMs = null;
     emit();
     try {
-      if (!(await platform.motionAvailable())) return fail('Motion sensors are not available on this device.');
-      if (!(await platform.requestMotionPermission())) return fail('Motion permission was denied. Nothing is being collected.');
-      if (options.mode === 'device' && !(await platform.requestLocationPermission())) {
-        return fail('Location permission was denied. Nothing is being collected.');
+      const motionOk = await platform.motionAvailable();
+      if (mine !== generation) return false;
+      if (!motionOk) return fail('Motion sensors are not available on this device.');
+      const motionAllowed = await platform.requestMotionPermission();
+      if (mine !== generation) return false;
+      if (!motionAllowed) return fail('Motion permission was denied. Nothing is being collected.');
+      if (options.mode === 'device') {
+        const locationAllowed = await platform.requestLocationPermission();
+        if (mine !== generation) return false;
+        if (!locationAllowed) return fail('Location permission was denied. Nothing is being collected.');
       }
       if (mine !== generation || phase !== 'starting') return false;
       rideId = platform.uuid(); // fresh random UUID per ride; no account or device ID
@@ -237,6 +248,16 @@ export function createRideController(deps: ControllerDeps) {
 
   /** Safe to call twice. The trailing privacy zone and any unfinished detection are discarded. */
   async function stopRide(reason?: string): Promise<void> {
+    if (phase === 'starting') {
+      // Leaving the foreground (or unmounting) while a permission prompt is open must cancel the start,
+      // not let it begin collecting afterwards. Bumping generation makes startRide bail at its next check.
+      generation++;
+      teardown();
+      phase = 'idle'; mode = null; rideId = null; recording = false;
+      message = reason ?? 'Start cancelled. Nothing is being collected.';
+      emit();
+      return;
+    }
     if (phase !== 'collecting') return;
     phase = 'stopping'; generation++;
     emit();

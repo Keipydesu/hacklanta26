@@ -251,3 +251,34 @@ test('raw motion goes only to the local recorder, and only when asked', async ()
   assert.equal(JSON.parse(on.files.find(f => f.name === 'meta.json').contents).trimmed, false);
   for (const sent of on.sent) assert.deepEqual(Object.keys(sent.body), ['events'], 'uploads contain derived events only');
 });
+
+test('leaving the foreground while permission prompts are open cancels the start', async () => {
+  const h = harness();
+  let release;
+  h.platform.requestMotionPermission = () => new Promise(resolve => { release = () => resolve(true); });
+  const starting = h.controller.startRide({ mode: 'device', consent: true });
+  await settle();
+  assert.equal(h.controller.snapshot().phase, 'starting');
+  await h.controller.onBackground();
+  assert.equal(h.controller.snapshot().phase, 'idle');
+  release();
+  assert.equal(await starting, false);
+  assert.equal(h.controller.snapshot().phase, 'idle');
+  assert.equal(h.motionCb, null);                     // never subscribed to sensors
+  assert.equal(h.locationCb, null);
+  assert.ok(!h.awake.includes(true));                 // screen never kept awake
+  // A fresh ride afterwards still works.
+  h.platform.requestMotionPermission = async () => true;
+  assert.equal(await h.controller.startRide({ mode: 'device', consent: true }), true);
+  await h.controller.stopRide();
+});
+
+test('the indoor demo updates the screen when something is detected', async () => {
+  const h = harness();
+  assert.equal(await h.controller.startRide({ mode: 'demo', consent: true }), true);
+  const before = h.snapshots.length;
+  await h.run(6000, { horizontalG: jerk(2000, 2600, 0.7) });
+  assert.ok(h.snapshots.length > before + 2);
+  assert.ok(h.snapshots.some(s => s.detected > 0));
+  await h.controller.stopRide();
+});

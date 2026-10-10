@@ -113,11 +113,11 @@ Verified by CI on the pull request (the collector job): `npm ci` with the lockfi
 `npm run typecheck`, and `npm run build` (iOS and Android bundle export, which exercises the Metro
 resolver for the detector folder).
 
-About the lockfile: it was edited by hand because the change was written without access to the npm
-registry. `expo-location`, `expo-crypto` and AsyncStorage entries are copied from
-`mobile/package-lock.json`, `expo-keep-awake` and `expo-file-system` are the entries Expo already
-pulled in (moved to the top level), and `expo-sensors` was added from registry metadata. `npm ci`
-accepts it; running `npm install --prefix automatic/collector` once will normalize it.
+About the lockfile: it was first edited by hand; on 2026-10-10 it was regenerated against the npm registry
+(`npm install --package-lock-only`) and every version and integrity hash came back identical, so the entries
+are verified. `npm audit --omit=dev` reports 32 findings (11 moderate, 21 high), all transitive through the
+Expo/React Native tooling (`@expo/cli`, `@expo/metro-config`, `@jest/*`) that `mobile/` shares; none is in
+`expo-sensors` or the other packages added here, and `npm audit fix --force` would move the SDK, so it was not run.
 
 **Not verified yet:**
 
@@ -131,7 +131,7 @@ accepts it; running `npm install --prefix automatic/collector` once will normali
 
 | Package | Version | Basis |
 |---|---|---|
-| `expo-sensors` | 55.0.18 (exact) | The version Expo SDK 55's `bundledNativeModules.json` names (`~55.0.18`); published from `expo/expo` by an Expo maintainer; one runtime dependency (`invariant`, already present); no install scripts; registry signature present, no provenance attestation. Deliberately not 55.0.19 or the 57.x `latest`. Publish date and advisory databases were not checked beyond an empty OSV listing — a reviewer should confirm before merge. |
+| `expo-sensors` | 55.0.18 (exact) | The version Expo SDK 55's `bundledNativeModules.json` names (`~55.0.18`); published from `expo/expo` by an Expo maintainer; one runtime dependency (`invariant`, already present); no install scripts; registry signature present, no provenance attestation. Deliberately not 55.0.19 or the 57.x `latest`. Published 2026-08-17; OSV lists no advisories for it (checked 2026-10-10). A reviewer should still confirm provenance. |
 | `expo-location` | 55.1.14 (exact) | Same version and lock entry Lane A reviewed in PR #10. |
 | `@react-native-async-storage/async-storage` | 2.2.0 (exact) | Same version and lock entry Lane A reviewed in PR #9. |
 | `expo-crypto` | ~55.0.8 → 55.0.19 | Same lock entry `mobile/` already uses; needed for random ride and observation UUIDs. |
