@@ -1,6 +1,7 @@
 # Manual mobile app
 
-Expo SDK 57 + TypeScript, React Native Maps. No sensor imports or motion permissions. Uses only
+Expo SDK 57 + TypeScript. The map is MapLibre GL JS in a WebView with OpenFreeMap OSM vector tiles
+([decision 010](../docs/decisions/010-osm-maplibre-basemap.md)). No sensor imports or motion permissions. Uses only
 its local generated product types and copied fixtures; the automatic tree is not a dependency.
 SDK versions follow the [Expo 57 compatibility table](https://docs.expo.dev/versions/v57.0.0/).
 
@@ -18,6 +19,26 @@ npm start --prefix mobile
 signed native binary. Open the development server using an SDK-57-compatible Expo Go or development
 build. The refresh regression tests run in Node without a device. Both native bundle exports and typechecking have been verified; a physical-device visual
 and interaction check is still needed.
+
+## Map
+
+`src/map/` holds the map. `MapLibreView` renders a self-contained page in `react-native-webview`, which
+ships in Expo Go. The page runs MapLibre GL JS 6.11.2, inlined from `node_modules` into the gitignored
+`src/map/maplibreBundle.generated.ts` by `npm run map:bundle`. The start, typecheck, test and build
+scripts run that step first. Nothing loads from a CDN at runtime.
+
+- **Basemap:** OpenFreeMap's OSM-derived `liberty` style, free with no key. Override it with
+  `EXPO_PUBLIC_MAP_STYLE_URL` (a public value, never a secret). MapLibre shows the required
+  OpenFreeMap/OpenMapTiles/OpenStreetMap attribution. Its links open in the browser.
+- **Routing consistency:** Valhalla also routes over OSM, but over a dated Georgia extract rather
+  than OpenFreeMap's build, so small drift between drawn and routed paths is expected (issue #27).
+- **Offline:** if the style can't load within 12 s, the page switches to a local blank background
+  with a notice. Hazards, pins and routes still draw, so the fixture preview works without network.
+- **Privacy:** tile requests reveal the viewed area to OpenFreeMap. Reports and routes go only to
+  the product API.
+- **Bridge:** app-to-page messages and their validation live in `src/map/protocol.ts`, and the
+  overlay is built by `src/map/overlay.ts`. The page script is `map-web/page.js`. All three are
+  covered by `tests/map.cjs` in Node. Dependency review: [MAPLIBRE-REVIEW.md](MAPLIBRE-REVIEW.md).
 
 With no `EXPO_PUBLIC_API_URL`, the app opens in visibly labeled offline fixture preview mode.
 Map source/evidence labels and expiry are shown; timestamps shift once per app session. Report

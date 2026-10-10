@@ -12,7 +12,7 @@ start/stop or recording belong in this release. Publication credentials never en
 `EXPO_PUBLIC_API_URL` must point only to the product API, never the observation/automatic service,
 including when Lane G supplies multiple service URLs for the hosted rehearsal.
 
-Stage 0 is merged through [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) and already has Expo SDK 55, React Native Maps, a pin form, source/evidence/expiry display,
+Stage 0 is merged through [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) and already has Expo SDK 55, React Native Maps (since replaced by MapLibre GL JS in a WebView, decision 010), a pin form, source/evidence/expiry display,
 in-session retry and illustrative routes. It polls every five seconds and has viewport freshness
 regression tests. It has no durable queue, reconnecting live channel, current-location convenience
 or selectable route endpoints. Build on those files; do not rebuild the skeleton or describe its
@@ -187,7 +187,8 @@ Keep refresh regression tests. Cover reconnect refetch and route stale-response/
 without live upstreams. Run typecheck plus the changed behavior checks locally; CI remains the
 routine full lane gate. Bundle export writes output and requires the stick in a shared room.
 
-Run device checks on SDK-57-compatible Expo Go/development builds. Verify map gestures, keyboard/form,
+Run device checks on SDK-57-compatible Expo Go/development builds. Verify the MapLibre basemap and its
+airplane-mode fallback, map gestures, pin drag, attribution links opening in the browser, keyboard/form,
 permission denial, screen reader/status text, connection recovery and both platform renderings where
 devices are available. `npm run build` produces JS/Hermes exports, not signed binaries or proof that
 permissions work on-device. Use phone-reachable LAN URLs locally and G's HTTPS URL for hosted tests.

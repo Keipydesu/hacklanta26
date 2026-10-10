@@ -4,9 +4,14 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "map:bundle": "node scripts/build-map-bundle.mjs",
+    "prestart": "npm run map:bundle",
     "start": "expo start",
+    "pretypecheck": "npm run map:bundle",
     "typecheck": "tsc --noEmit",
+    "prebuild": "npm run map:bundle",
     "build": "expo export --platform ios --platform android",
+    "pretest": "npm run map:bundle",
     "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs"
   },
   "dependencies": {
@@ -16,10 +21,11 @@
     "expo-location": "57.0.14",
     "react": "19.2.3",
     "react-native": "0.86.3",
-    "react-native-maps": "1.27.2"
+    "react-native-webview": "13.16.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
+    "maplibre-gl": "6.11.2",
     "typescript": "~5.9.2"
   }
 }

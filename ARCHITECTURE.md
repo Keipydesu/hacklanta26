@@ -200,6 +200,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.
 - UI copy says “lower-risk route,” never “safe route.”
+- The manual app's basemap is OSM vector tiles from OpenFreeMap, drawn by MapLibre GL JS in a WebView ([decision 010](docs/decisions/010-osm-maplibre-basemap.md)). Tile requests reveal the viewed area to that host; reports and routes do not go there. The required OpenStreetMap attribution stays visible.
 
 ## 9. Configuration
 
@@ -208,6 +209,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 | `DATABASE_URL` | product API | Product database only |
 | `VALHALLA_URL` | product API | Routing server |
 | `EXPO_PUBLIC_API_URL` | mobile | Shared product API URL |
+| `EXPO_PUBLIC_MAP_STYLE_URL` | mobile | Optional MapLibre basemap style; defaults to OpenFreeMap (public, never a secret) |
 | `AUTOMATION_DATABASE_URL` | automatic service | Private observation database |
 | `PRODUCT_API_URL` | automatic worker | Publication destination |
 | `AUTOMATION_PUBLISH_KEY` | product API and worker | Server-only publication credential |
