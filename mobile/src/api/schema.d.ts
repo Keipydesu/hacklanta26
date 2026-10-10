@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hazards/{hazard_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description A rider answers "Is this hazard still there?" for an active hazard. 201 records new feedback. The same feedback UUID with the same hazard and body returns 200 duplicate=true, even after the hazard has changed; a different hazard or body returns 409. 404 when the hazard is unknown, resolved, expired or hidden by feedback. Feedback is separate from reports and never changes source/evidence labels or automatic publication revisions. Its effect on visibility and expiry follows decision 013. No location, account or device identifier is collected. */
+        post: operations["submit_hazard_feedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/route": {
         parameters: {
             query?: never;
@@ -139,6 +156,22 @@ export interface components {
         ReportReceipt: {
             /** Format: uuid */
             report_id: string;
+            /** Format: uuid */
+            hazard_id: string;
+            duplicate: boolean;
+        };
+        HazardFeedback: {
+            /**
+             * Format: uuid
+             * @description Client-generated; reused unchanged for retries.
+             */
+            id: string;
+            /** @enum {string} */
+            response: "still_there" | "gone";
+        };
+        FeedbackReceipt: {
+            /** Format: uuid */
+            feedback_id: string;
             /** Format: uuid */
             hazard_id: string;
             duplicate: boolean;
@@ -407,6 +440,68 @@ export interface operations {
                 };
             };
             /** @description Invalid bounds */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    submit_hazard_feedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hazard_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HazardFeedback"];
+            };
+        };
+        responses: {
+            /** @description Duplicate retry of accepted feedback */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackReceipt"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackReceipt"];
+                };
+            };
+            /** @description Hazard is unknown, resolved, expired or hidden by feedback */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Same feedback UUID with a different hazard or body */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Invalid feedback */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -8,7 +8,11 @@ import { locateOnce } from './src/location/foreground';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
-import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { createFeedback, FeedbackState } from './src/feedback/feedback';
+import { HazardPanel } from './src/feedback/HazardPanel';
+import { createNearbyWatcher } from './src/feedback/nearby';
+import { createHazardSelection, HazardSelection, selectionAvailable } from './src/feedback/selection';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
 import { DARK_ROUTE_COLORS, ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
 import { MapLibreView } from './src/map/MapLibreView';
@@ -62,7 +66,7 @@ export default function App() {
     if (!apiUrl) return;
     return connectLive({
       url: liveUrl(apiUrl), createSocket: url => new WebSocket(url) as any,
-      onChange: () => { void refresh(); comparison.hazardsChanged(); }, onStatus: setLiveConnected,
+      onChange: () => { void refresh(); comparison.hazardsChanged(); void nearby.invalidate(); void selection.refresh(); }, onStatus: setLiveConnected,
       setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: h => clearTimeout(h as any), random: Math.random,
     });
   }, []);
@@ -72,6 +76,20 @@ export default function App() {
     return () => clearInterval(tick);
   }, [region, liveConnected]);
   // The queue persists each frozen report before any network I/O and resends the same body until resolved.
+  const [feedbackStates, setFeedbackStates] = useState<Readonly<Record<string, FeedbackState>>>({});
+  const [selectionState, setSelectionState] = useState<HazardSelection<HazardCollection['features'][number]> | null>(null);
+  const [selection] = useState(() => createHazardSelection({ load: getHazards, onChange: setSelectionState }));
+  const selected = selectionState?.feature.properties ?? null;
+  const [feedback] = useState(() => createFeedback({
+    send: submitFeedback, uuid: Crypto.randomUUID, onChange: setFeedbackStates,
+    onAccepted: () => { void refresh(); void selection.refresh(); void nearby.invalidate(); comparison.hazardsChanged(); },
+  }));
+  useEffect(() => {
+    void selection.setActive(AppState.currentState === 'active');
+    const subscription = AppState.addEventListener('change', state => { void selection.setActive(state === 'active'); });
+    const timer = setInterval(() => { if (AppState.currentState === 'active') void selection.refresh(); }, 5000);
+    return () => { clearInterval(timer); subscription.remove(); void selection.setActive(false); };
+  }, []);
   const [queue] = useState(() => createReportQueue({
     storage: AsyncStorage,
     send: submitReport,
@@ -130,7 +148,39 @@ export default function App() {
   const overlay = buildOverlay({
     screen, hazards: visible, submissions, pin: { lat: pin.latitude, lon: pin.longitude },
     routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors,
+    selectedHazardId: selected?.id,
   });
+  const [nearby] = useState(() => createNearbyWatcher({
+    load: getHazards, now: Date.now, busy: () => !!selection.state(),
+    onPrompt: hazard => { void selection.select(hazard); },
+  }));
+  useEffect(() => { if (!selected) nearby.evaluate(); }, [selected]);
+  useEffect(() => {
+    if (fixtureMode) return;
+    let subscription: { remove(): void } | null = null;
+    let generation = 0;
+    async function start() {
+      const mine = ++generation;
+      try {
+        const { granted } = await Location.requestForegroundPermissionsAsync();
+        if (!granted || mine !== generation) return;
+        const watching = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
+          ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }));
+        if (mine !== generation) watching.remove(); else subscription = watching;
+      } catch {}
+    }
+    function stop() { generation++; subscription?.remove(); subscription = null; }
+    void start();
+    const appState = AppState.addEventListener('change', state => {
+      if (state === 'active') { void nearby.setActive(true); if (!subscription) void start(); }
+      else { void nearby.setActive(false); stop(); }
+    });
+    return () => { void nearby.setActive(false); stop(); appState.remove(); };
+  }, []);
+  function onSelectHazard(id: string) {
+    const hazard = visible.find(h => h.properties.id === id);
+    if (hazard) void selection.select(hazard);
+  }
   function onMapPress(position: LngLat) {
     if (screen === 'report') setPin(toLatLng(position));
     else if (screen === 'route') placeRouteEndpoint(toLatLng(position));
@@ -146,11 +196,16 @@ export default function App() {
     <Button title={mapTheme === 'light' ? 'Map: Positron (switch to Dark Matter)' : 'Map: Dark Matter (switch to Positron)'}
       onPress={() => setMapTheme(mapTheme === 'light' ? 'dark' : 'light')} />
     <MapLibreView style={styles.map} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
-      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} />
+      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} onSelect={onSelectHazard} />
     <ScrollView style={styles.content}>
+      {selected && <HazardPanel hazard={selected} available={selectionAvailable(selectionState, now)} state={feedbackStates[selected.id]} disabled={fixtureMode}
+        availabilityError={selectionState?.error}
+        onRespond={response => void feedback.respond(selected.id, response)} onRetry={() => void feedback.retry(selected.id)}
+        onClose={() => selection.clear()} />}
       {screen === 'map' && <>
         <Button title="Refresh hazards" onPress={() => void refresh()} />
         {visible.length === 0 && <Text>No active reports in these bounds.</Text>}
+        {visible.length > 0 && !selected && <Text>Tap a hazard pin to answer “Is it still there?”</Text>}
         {visible.map(h => <View key={h.properties.id} style={styles.card}>
           <Text style={styles.heading}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
           <Text>{h.properties.label}</Text><Text>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>

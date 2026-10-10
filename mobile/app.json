@@ -14,7 +14,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Campus Hazards uses your location once, only when you tap \"Use my location\", to place a report pin or route endpoint.",
+          "locationWhenInUsePermission": "Campus Hazards uses your location only while the app is open: to ask whether a hazard you are near is still there, and when you tap \"Use my location\" for a report pin or route start. It is never tracked in the background or sent with your answers.",
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false,
           "motionUsagePermission": false,

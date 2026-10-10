@@ -147,6 +147,61 @@ paths:
         description: minLon,minLat,maxLon,maxLat; finite WGS84 numbers with minLon
           < maxLon and minLat < maxLat; antimeridian-crossing boxes unsupported.
         example: -84.40,33.74,-84.37,33.77
+  /v1/hazards/{hazard_id}/feedback:
+    post:
+      operationId: submit_hazard_feedback
+      description: A rider answers "Is this hazard still there?" for an active hazard.
+        201 records new feedback. The same feedback UUID with the same hazard and
+        body returns 200 duplicate=true, even after the hazard has changed; a different
+        hazard or body returns 409. 404 when the hazard is unknown, resolved, expired or
+        hidden by feedback.
+        Feedback is separate from reports and never changes source/evidence labels or
+        automatic publication revisions. Its effect on visibility and expiry follows
+        decision 013. No location, account or device identifier is collected.
+      responses:
+        '200':
+          description: Duplicate retry of accepted feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackReceipt'
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackReceipt'
+        '404':
+          description: Hazard is unknown, resolved, expired or hidden by feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Same feedback UUID with a different hazard or body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HazardFeedback'
+      parameters:
+      - name: hazard_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
   /v1/route:
     post:
       operationId: plan_routes
@@ -316,6 +371,38 @@ components:
           type: boolean
       required:
       - report_id
+      - hazard_id
+      - duplicate
+      additionalProperties: false
+    HazardFeedback:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Client-generated; reused unchanged for retries.
+        response:
+          type: string
+          enum:
+          - still_there
+          - gone
+      required:
+      - id
+      - response
+      additionalProperties: false
+    FeedbackReceipt:
+      type: object
+      properties:
+        feedback_id:
+          type: string
+          format: uuid
+        hazard_id:
+          type: string
+          format: uuid
+        duplicate:
+          type: boolean
+      required:
+      - feedback_id
       - hazard_id
       - duplicate
       additionalProperties: false
