@@ -10,8 +10,7 @@ automatic process is stopped. Follow [the architecture](../../ARCHITECTURE.md),
 No imports from `automatic/`, sensor libraries, motion permissions, continuous location, ride
 start/stop or recording belong in this release. Publication credentials never enter the app.
 
-Stage 0 in [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1), pending merge when this plan
-was written, already has Expo SDK 55, React Native Maps, a pin form, source/evidence/expiry display,
+Stage 0 is merged through [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) and already has Expo SDK 55, React Native Maps, a pin form, source/evidence/expiry display,
 in-session retry and illustrative routes. It polls every five seconds and has viewport freshness
 regression tests. It has no durable queue, reconnecting live channel, current-location convenience
 or selectable route endpoints. Build on those files; do not rebuild the skeleton or describe its
@@ -165,7 +164,7 @@ contract change rather than editing generated types or `backend/app/schemas.py` 
 
 ## Validation and handoff
 
-Existing stage-0 commands from the repository root, after PR #1 is available:
+Existing stage-0 commands from the repository root:
 
 ```sh
 npm ci --prefix mobile
