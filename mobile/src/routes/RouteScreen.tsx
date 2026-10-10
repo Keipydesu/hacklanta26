@@ -4,7 +4,6 @@ import { canRequest, presentRoutes, type Point, type RouteLine, type RouteState 
 
 export type Target = 'origin' | 'destination';
 export const ROUTE_COLORS = { shortest: '#5f5f5f', safest: '#005f73' } as const;
-/** Lighter route colors that stay visible on the Dark Matter basemap. */
 export const DARK_ROUTE_COLORS = { shortest: '#ffe083', safest: '#69f0d1' } as const;
 
 const where = (p: Point | null) => (p ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : 'not set');
