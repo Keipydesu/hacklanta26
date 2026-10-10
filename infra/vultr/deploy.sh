@@ -38,7 +38,10 @@ note "uploading an export of $SHORT"
 git -C "$REPO_DIR" archive --format=tar "$SHA" | ssh "$TARGET" "rm -rf /opt/campus/releases/$SHORT.new && mkdir -p /opt/campus/releases/$SHORT.new && tar -x -C /opt/campus/releases/$SHORT.new && echo $SHA > /opt/campus/releases/$SHORT.new/RELEASE"
 
 # Everything below runs on the host under one lock, so two deployments cannot interleave.
-ssh "$TARGET" "flock -n /opt/campus/deploy.lock bash -s -- '$SHORT' ${PROFILES[*]@Q}" <<'REMOTE'
+# The script is written to a file and run from there: `bash -s` would read it from stdin, and any
+# `docker compose exec` inside would inherit that stdin and swallow the rest of the script.
+QUOTED="$(printf '%q ' "${PROFILES[@]}")"
+ssh "$TARGET" "cat > /tmp/campus-deploy-$SHORT.sh && { flock -n /opt/campus/deploy.lock bash /tmp/campus-deploy-$SHORT.sh '$SHORT' $QUOTED </dev/null; rc=\$?; rm -f /tmp/campus-deploy-$SHORT.sh; exit \$rc; }" <<'REMOTE'
 set -euo pipefail
 SHORT="$1"; shift
 PROFILES=("$@")
@@ -55,25 +58,31 @@ for name in PRODUCT_DB_PASSWORD AUTOMATION_PUBLISH_KEY PRODUCT_HOSTNAME; do
   case "$v" in replace-*|localhost) die "$name in $ENV_FILE is still a placeholder" ;; esac
 done
 [ "$(value API_BIND)" = "127.0.0.1" ] || die "set API_BIND=127.0.0.1 in $ENV_FILE so only Caddy is public"
+# Passwords go into postgresql:// URLs unescaped, and Docker-published ports bypass ufw.
+for name in PRODUCT_DB_PASSWORD OBSERVATIONS_DB_PASSWORD; do
+  v="$(value "$name")"
+  case "$v" in *[!A-Za-z0-9._~-]*) die "$name must use only letters, digits and . _ ~ - (it is embedded in a database URL)" ;; esac
+done
 case " ${PROFILES[*]} " in
   *" routing "*) [ -f "$ROOT/shared/custom_files/valhalla_tiles.tar" ] || die "routing profile requested but $ROOT/shared/custom_files has no tiles"
                  [ -n "$(value VALHALLA_URL)" ] || die "routing profile requested but VALHALLA_URL is empty in $ENV_FILE" ;;
 esac
 case " ${PROFILES[*]} " in
-  *" automation "*) for name in OBSERVATIONS_DB_PASSWORD OBSERVATION_HOSTNAME; do [ -n "$(value "$name")" ] || die "$name is empty in $ENV_FILE"; done ;;
+  *" automation "*) for name in OBSERVATIONS_DB_PASSWORD OBSERVATION_HOSTNAME; do [ -n "$(value "$name")" ] || die "$name is empty in $ENV_FILE"; done
+                    [ "$(value AUTOMATION_BIND)" = "127.0.0.1" ] || die "set AUTOMATION_BIND=127.0.0.1 in $ENV_FILE: the observation ingress has no authentication and must only be reached through Caddy" ;;
 esac
 [ "$(df --output=avail -BG "$ROOT" | tail -n 1 | tr -dc 0-9)" -ge 3 ] || die "less than 3 GB free on $ROOT"
 
+# Back up first: redeploying the commit that is already current replaces the very directory the backup runs from.
+if [ -L "$ROOT/current" ] && docker compose --env-file "$ENV_FILE" -f "$ROOT/current/infra/docker-compose.yml" ps --status running --services 2>/dev/null | grep -qx db; then
+  note "backing up the product database before the new release starts"
+  ENV_FILE="$ENV_FILE" "$ROOT/current/infra/backup.sh" product "$ROOT/backups" >/dev/null || die "pre-deploy backup failed; nothing was changed"
+fi
 NEW="$ROOT/releases/$SHORT"
 rm -rf "$NEW"; mv "$NEW.new" "$NEW"
 mkdir -p "$ROOT/shared/custom_files"
 rm -rf "$NEW/infra/valhalla/custom_files"; ln -s "$ROOT/shared/custom_files" "$NEW/infra/valhalla/custom_files"
 compose() { docker compose --env-file "$ENV_FILE" -f "$NEW/infra/docker-compose.yml" "${PROFILES[@]}" "$@"; }
-
-if [ -L "$ROOT/current" ] && docker compose --env-file "$ENV_FILE" -f "$ROOT/current/infra/docker-compose.yml" ps --status running --services 2>/dev/null | grep -qx db; then
-  note "backing up the product database before the new release starts"
-  ENV_FILE="$ENV_FILE" "$ROOT/current/infra/backup.sh" product "$ROOT/backups" >/dev/null || die "pre-deploy backup failed; nothing was changed"
-fi
 
 note "building images for $SHORT"
 compose build --quiet

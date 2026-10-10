@@ -15,7 +15,8 @@ while [ $# -gt 0 ]; do
     *) die "unknown option $1" ;;
   esac
 done
-ssh "$TARGET" "flock -n /opt/campus/deploy.lock bash -s -- ${PROFILES[*]@Q}" <<'REMOTE'
+QUOTED="$(printf '%q ' "${PROFILES[@]}")"
+ssh "$TARGET" "cat > /tmp/campus-rollback.sh && { flock -n /opt/campus/deploy.lock bash /tmp/campus-rollback.sh $QUOTED </dev/null; rc=\$?; rm -f /tmp/campus-rollback.sh; exit \$rc; }" <<'REMOTE'
 set -euo pipefail
 PROFILES=("$@")
 ROOT=/opt/campus; ENV_FILE="$ROOT/shared/.env"

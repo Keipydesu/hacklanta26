@@ -10,8 +10,8 @@
 #   manifest.json                       source, checksum, date, bbox and engine image
 #   previous/                           the tile set this build replaced, kept for rollback
 #
-# NOT YET RUN where this was written. The image tag, config flags and resource needs must be
-# confirmed on first use; record what you measured in infra/README.md.
+# Run once on 2026-10-10 against a small campus-area OSM extract with ghcr.io/valhalla/valhalla:3.9.1
+# (build, validation route, promotion). Resource needs for the full Georgia extract are still unmeasured.
 set -euo pipefail
 . "$(dirname "$0")/../lib.sh"
 
@@ -30,24 +30,29 @@ case "${1:-}" in
     curl -fL --retry 3 -o "$WORK/georgia.osm.pbf" "$GEOFABRIK_URL"
     SOURCE="$GEOFABRIK_URL"
     note "clipping to $BBOX"
-    osmium extract --bbox "$BBOX" --output "$WORK/extract.osm.pbf" "$WORK/georgia.osm.pbf" ;;
+    osmium extract --bbox "$BBOX" --output "$WORK/extract.osm.pbf" "$WORK/georgia.osm.pbf"; EXTRACT=extract.osm.pbf ;;
   ""|-*) die "usage: $0 EXTRACT.osm.pbf | --geofabrik" ;;
   *)
     [ -s "$1" ] || die "extract $1 not found or empty"
-    cp "$1" "$WORK/extract.osm.pbf"; SOURCE="$(basename "$1")" ;;
+    case "$1" in *.pbf) EXTRACT=extract.osm.pbf ;; *) EXTRACT=extract.osm ;; esac   # Valhalla picks the reader by extension
+    cp "$1" "$WORK/$EXTRACT"; SOURCE="$(basename "$1")" ;;
 esac
-checksum="$(sha256sum "$WORK/extract.osm.pbf" | cut -d' ' -f1)"
+EXTRACT="${EXTRACT:-extract.osm.pbf}"
+# sha256sum is GNU-only; macOS has shasum.
+if command -v sha256sum >/dev/null; then checksum="$(sha256sum "$WORK/$EXTRACT" | cut -d' ' -f1)"; else checksum="$(shasum -a 256 "$WORK/$EXTRACT" | cut -d' ' -f1)"; fi
 
 note "building tiles with $IMAGE (peak memory and time depend on the extract; measure them)"
 docker pull --quiet "$IMAGE" >/dev/null
 digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE" 2>/dev/null || echo "$IMAGE")"
 mkdir -p "$WORK/out"; chmod 777 "$WORK/out"
-docker run --rm -v "$WORK:/build" "$IMAGE" sh -euc '
-  valhalla_build_config --mjolnir-tile-dir /build/out/valhalla_tiles --mjolnir-tile-extract /custom_files/valhalla_tiles.tar \
-    --mjolnir-admin /build/out/admin.sqlite --mjolnir-timezone /build/out/tz.sqlite > /build/out/valhalla.json
-  valhalla_build_tiles -c /build/out/valhalla.json /build/extract.osm.pbf
-  tar -cf /build/out/valhalla_tiles.tar -C /build/out/valhalla_tiles .
-'
+# The build mounts its output at /custom_files, the same path the serving container uses, so every path
+# written into valhalla.json (tiles, extract, admin and timezone databases) is valid when it is served.
+docker run --rm -v "$WORK/out:/custom_files" -v "$WORK/$EXTRACT:/input/$EXTRACT:ro" "$IMAGE" sh -euc "
+  valhalla_build_config --mjolnir-tile-dir /custom_files/valhalla_tiles --mjolnir-tile-extract /custom_files/valhalla_tiles.tar \
+    --mjolnir-admin /custom_files/admin.sqlite --mjolnir-timezone /custom_files/tz.sqlite > /custom_files/valhalla.json
+  valhalla_build_tiles -c /custom_files/valhalla.json /input/$EXTRACT
+  valhalla_build_extract -c /custom_files/valhalla.json -v
+"
 [ -s "$WORK/out/valhalla_tiles.tar" ] || die "tile build produced no tiles"
 
 note "validating: a real pedestrian route across the GSU campus on the new tiles"
@@ -69,11 +74,12 @@ note "promoting the validated tile set (previous set kept in custom_files/previo
 mkdir -p "$OUT"
 if [ -f "$OUT/valhalla_tiles.tar" ]; then
   rm -rf "$OUT/previous"; mkdir -p "$OUT/previous"
-  mv "$OUT/valhalla_tiles.tar" "$OUT/valhalla.json" "$OUT/previous/" 2>/dev/null || true
+  mv "$OUT/valhalla_tiles.tar" "$OUT/valhalla.json" "$OUT/admin.sqlite" "$OUT/tz.sqlite" "$OUT/previous/" 2>/dev/null || true
   [ -f "$OUT/manifest.json" ] && mv "$OUT/manifest.json" "$OUT/previous/"
 fi
 cp "$WORK/out/valhalla.json" "$OUT/valhalla.json"
 mv "$WORK/out/valhalla_tiles.tar" "$OUT/valhalla_tiles.tar"
+for extra in admin.sqlite tz.sqlite; do [ -f "$WORK/out/$extra" ] && mv "$WORK/out/$extra" "$OUT/$extra"; done
 cat > "$OUT/manifest.json" <<JSON
 {
   "built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",

@@ -24,5 +24,5 @@ python3 -m simulator.cli manual --product-url "$PRODUCT_URL" --demo-target --see
 if [ -n "$AUTOMATION_URL" ]; then
   note "simulated observations -> worker -> published hazard (evidence: simulated)"
   python3 -m simulator.cli observations --scenario demo-seed --automation-url "$AUTOMATION_URL" \
-    --product-url "$PRODUCT_URL" --demo-target --seed "$SEED" --wait 90 "${AT[@]}"
+    --product-url "$PRODUCT_URL" --demo-target --seed "$SEED" --wait 90 ${AT[@]+"${AT[@]}"}
 fi

@@ -13,9 +13,9 @@ esac
 require_demo_environment
 [ "$CONFIRM" = "--yes-delete-demo-data" ] || die "this deletes every row in the '$DATASET' dataset. Re-run with --yes-delete-demo-data"
 note "resetting dataset '$DATASET' (service: $SERVICE). The other dataset is not touched."
-compose "${PROFILE[@]}" stop "$SERVICE" >/dev/null 2>&1 || true
+compose ${PROFILE[@]+"${PROFILE[@]}"} stop "$SERVICE" >/dev/null 2>&1 || true
 db_admin --dbname postgres -c "DROP DATABASE IF EXISTS $DATASET WITH (FORCE)" -c "CREATE DATABASE $DATASET OWNER $OWNER" \
   -c "REVOKE CONNECT ON DATABASE $DATASET FROM PUBLIC" >/dev/null
 db_admin --dbname "$DATASET" -c 'CREATE EXTENSION IF NOT EXISTS postgis' >/dev/null
-compose "${PROFILE[@]}" up -d "$SERVICE"
+compose ${PROFILE[@]+"${PROFILE[@]}"} up -d "$SERVICE"
 echo "dataset '$DATASET' is empty; $SERVICE restarted and will recreate its schema"
