@@ -62,6 +62,16 @@ class AutomaticPublication(Model):
             raise ValueError('require first_seen <= last_seen <= expires_at')
         return self
 
+class Place(Model):
+    id: Annotated[str, Field(max_length=64)]
+    name: Annotated[str, Field(max_length=120)]
+    address: Annotated[str, Field(max_length=200)]
+    lat: Lat
+    lon: Lon
+
+class PlaceResults(Model):
+    places: Annotated[list[Place], Field(max_length=5)]
+
 class ReportReceipt(Model):
     report_id: UUID
     hazard_id: UUID

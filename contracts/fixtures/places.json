@@ -1,0 +1,9 @@
+{
+  "places": [
+    {"id": "W27144451", "name": "Georgia State University", "address": "33 Gilmer Street Southeast, Atlanta, GA", "lat": 33.75359, "lon": -84.38542},
+    {"id": "W29318380", "name": "55 Park Place", "address": "Atlanta, Georgia", "lat": 33.75596, "lon": -84.38716},
+    {"id": "W123478021", "name": "Christopher W. Klaus Advanced Computing Building", "address": "266 Ferst Drive Northwest, Atlanta, GA", "lat": 33.77716, "lon": -84.3962},
+    {"id": "W46512345", "name": "Georgia Institute of Technology", "address": "North Avenue Northwest, Atlanta, Georgia", "lat": 33.77574, "lon": -84.39627},
+    {"id": "W100000001", "name": "Centennial Olympic Park", "address": "Centennial Olympic Park Drive Northwest, Atlanta, Georgia", "lat": 33.76049, "lon": -84.39321}
+  ]
+}

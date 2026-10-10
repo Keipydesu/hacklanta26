@@ -147,6 +147,50 @@ paths:
         description: minLon,minLat,maxLon,maxLat; finite WGS84 numbers with minLon
           < maxLon and minLat < maxLat; antimeridian-crossing boxes unsupported.
         example: -84.40,33.74,-84.37,33.77
+  /v1/places:
+    get:
+      operationId: search_places
+      description: Address and place search for trip endpoints (decision 018). Results are
+        limited to the metro-Atlanta routing area, best match first, at most five.
+        `q` must be 3-100 characters after trimming (422 otherwise). `near` (lat,lon)
+        only ranks results and is rounded before use. 503 when the search provider is
+        unavailable or not configured; trips can still use map points. Routes keep using
+        lat/lon coordinates.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceResults'
+        '422':
+          description: Query too short or too long, or invalid near
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Place search unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 3
+          maxLength: 100
+        example: 55 Park Place NE
+      - name: near
+        in: query
+        required: false
+        schema:
+          type: string
+        description: lat,lon used to rank results; never stored.
+        example: 33.7531,-84.3853
   /v1/route:
     post:
       operationId: plan_routes
@@ -302,6 +346,44 @@ components:
       - lat
       - lon
       - observed_at
+      additionalProperties: false
+    Place:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 120
+        address:
+          type: string
+          maxLength: 200
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+      required:
+      - id
+      - name
+      - address
+      - lat
+      - lon
+      additionalProperties: false
+    PlaceResults:
+      type: object
+      properties:
+        places:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/Place'
+      required:
+      - places
       additionalProperties: false
     ReportReceipt:
       type: object
