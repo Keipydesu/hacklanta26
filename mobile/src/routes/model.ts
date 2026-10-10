@@ -37,6 +37,7 @@ export function createRouteComparison(deps: RouteDeps) {
   let state: RouteState = { origin: null, destination: null, status: 'idle', result: null, error: null, outdated: false };
   // Bumped whenever the endpoints change, so a response for an older pair is never shown.
   let generation = 0;
+  let hazardGeneration = 0;
   let inFlight: { generation: number; promise: Promise<void> } | undefined;
 
   const set = (next: Partial<RouteState>) => { state = { ...state, ...next }; deps.onChange?.({ ...state }); };
@@ -54,20 +55,21 @@ export function createRouteComparison(deps: RouteDeps) {
     if (!validPoint(origin) || !validPoint(destination) || coincident(origin, destination)) return Promise.resolve();
     if (inFlight && inFlight.generation === generation) return inFlight.promise;
     const mine = generation;
+    const hazardsAtStart = hazardGeneration;
     set({ status: 'loading', error: null });
     const promise = (async () => {
       try {
         const result = await deps.load(origin, destination);
         if (mine !== generation) return;
         if (!shortestOf(result.response)) throw new Error('The server returned no route.');
-        set({ status: 'ready', result, error: null, outdated: false });
+        set({ status: 'ready', result, error: null, outdated: hazardGeneration !== hazardsAtStart });
       } catch (e) {
         if (mine !== generation) return;
         const status = (e as { status?: number } | null)?.status;
-        // Keep the previous comparison visible (marked outdated) if a refresh fails.
-        if (status === 503) set({ status: 'unavailable', error: 'Routing is unavailable right now. The map and reporting still work.', outdated: state.result !== null });
-        else if (status === 422) set({ status: 'failed', error: 'These points cannot be routed. Move the pins and try again.', result: null });
-        else set({ status: 'failed', error: `Could not compare routes: ${e instanceof Error ? e.message : String(e)}`, outdated: state.result !== null });
+        // Keep previous geometry and its hint-based staleness if a refresh fails.
+        if (status === 503) set({ status: 'unavailable', error: 'Routing is unavailable right now. The map and reporting still work.' });
+        else if (status === 422) set({ status: 'failed', error: 'These points cannot be routed. Move the pins and try again.', result: null, outdated: false });
+        else set({ status: 'failed', error: `Could not compare routes: ${e instanceof Error ? e.message : String(e)}` });
       }
     })().finally(() => { if (inFlight?.promise === promise) inFlight = undefined; });
     inFlight = { generation: mine, promise };
@@ -89,7 +91,10 @@ export function createRouteComparison(deps: RouteDeps) {
     },
     request,
     /** A change hint arrived. Local queued reports do not count until the server accepts them. */
-    hazardsChanged() { if (state.result && !state.outdated) set({ outdated: true }); },
+    hazardsChanged() {
+      hazardGeneration++;
+      if (state.result && !state.outdated) set({ outdated: true });
+    },
   };
 }
 export type RouteComparison = ReturnType<typeof createRouteComparison>;

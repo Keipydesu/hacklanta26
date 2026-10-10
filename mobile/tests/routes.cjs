@@ -111,7 +111,7 @@ test('503 is reported as routing unavailable and can be retried', async () => {
   assert.equal(s.error, null);
 });
 
-test('a failed refresh keeps the earlier comparison but marks it outdated', async () => {
+test('a failed refresh keeps the earlier comparison without inventing a hazard hint', async () => {
   const h = harness();
   h.comparison.setOrigin(A); h.comparison.setDestination(B);
   let pending = h.comparison.request();
@@ -123,7 +123,7 @@ test('a failed refresh keeps the earlier comparison but marks it outdated', asyn
   const s = h.comparison.state();
   assert.equal(s.status, 'unavailable');
   assert.equal(s.result.response, two);
-  assert.equal(s.outdated, true);
+  assert.equal(s.outdated, false);
 });
 
 test('other failures and unroutable points are explained', async () => {
@@ -207,4 +207,54 @@ test('formatting', () => {
   assert.equal(formatDuration(40), 'under 1 min');
   assert.equal(formatDuration(122), '2 min');
   assert.equal(formatRisk(0.5), 'risk 0.50');
+});
+
+test('hazard hints during initial comparison and refresh survive successful responses', async () => {
+  const h = harness();
+  h.comparison.setOrigin(A); h.comparison.setDestination(B);
+  for (let i = 0; i < 2; i++) {
+    const pending = h.comparison.request();
+    h.comparison.hazardsChanged();
+    h.calls[i].resolve({ response: two, illustrative: false });
+    await pending;
+    assert.equal(h.comparison.state().outdated, true);
+  }
+  const fresh = h.comparison.request();
+  h.calls[2].resolve({ response: two, illustrative: false });
+  await fresh;
+  assert.equal(h.comparison.state().outdated, false);
+});
+
+test('failed refresh preserves actual hazard staleness and network errors alone do not create it', async () => {
+  for (const changed of [false, true]) {
+    for (const error of [apiError(503), new Error('timeout')]) {
+      const h = harness();
+      h.comparison.setOrigin(A); h.comparison.setDestination(B);
+      const first = h.comparison.request();
+      h.calls[0].resolve({ response: two, illustrative: false });
+      await first;
+      const refresh = h.comparison.request();
+      if (changed) h.comparison.hazardsChanged();
+      h.calls[1].reject(error);
+      await refresh;
+      assert.equal(h.comparison.state().outdated, changed);
+      assert.equal(h.comparison.state().result.response, two);
+      assert.ok(h.comparison.state().error);
+    }
+  }
+});
+
+test('a hint during an obsolete endpoint request does not taint the next pair', async () => {
+  const h = harness();
+  h.comparison.setOrigin(A); h.comparison.setDestination(B);
+  const old = h.comparison.request();
+  h.comparison.hazardsChanged();
+  h.comparison.setDestination(C);
+  const current = h.comparison.request();
+  h.calls[1].resolve({ response: two, illustrative: false });
+  await current;
+  h.calls[0].resolve({ response: fallback, illustrative: false });
+  await old;
+  assert.equal(h.comparison.state().outdated, false);
+  assert.equal(h.comparison.state().result.response, two);
 });
