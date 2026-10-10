@@ -1,4 +1,4 @@
-# 007. Automation evaluation and outbox rules
+# 008. Automation evaluation and outbox rules
 
 - Status: Accepted
 - Date: 2026-10-10

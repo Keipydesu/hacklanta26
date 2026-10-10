@@ -1,0 +1,50 @@
+{
+  "name": "bump-spot",
+  "kind": "observations",
+  "version": 1,
+  "description": "Four fresh bump events from two rides at one spot. Expect one surface hazard, not a braking hazard.",
+  "prerequisites": "Observation API. To see a published hazard: Lane D's worker and the product API. Thresholds are the worker's own (12 m, 3 events, 2 rides); this scenario does not lower them.",
+  "evidence_source": "simulated",
+  "points_per_ride": 12,
+  "clusters": [
+    {
+      "key": "spot",
+      "type": "bump",
+      "center": {
+        "lat": 33.7549,
+        "lon": -84.3859
+      },
+      "events": 4,
+      "rides": 2,
+      "radius_m": 4,
+      "age_minutes": [
+        0,
+        20
+      ]
+    }
+  ],
+  "expect": {
+    "hazards": [
+      {
+        "kind": "surface",
+        "near": {
+          "lat": 33.7549,
+          "lon": -84.3859
+        },
+        "within_m": 30,
+        "evidence_source": "simulated",
+        "min_score": 0.7
+      }
+    ],
+    "absent": [
+      {
+        "kind": "braking",
+        "near": {
+          "lat": 33.7549,
+          "lon": -84.3859
+        },
+        "within_m": 30
+      }
+    ]
+  }
+}

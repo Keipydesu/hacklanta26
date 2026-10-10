@@ -32,7 +32,7 @@ automatic/service/
     cluster.py                  metric DBSCAN and buffered hulls
     scoring.py                  frozen-time decay
     identity.py                 deterministic match/split/merge lifecycle
-    abandonment.py              daily traffic analysis (implemented; see decision 007)
+    abandonment.py              daily traffic analysis (implemented; see decision 008)
   app/publisher.py               existing HTTP adapter, shared async client
   app/outbox.py                  claim, send, acknowledge, retry/conflict state
   migrations/                   private DB schema evolution

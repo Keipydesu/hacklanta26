@@ -66,10 +66,12 @@ Omit the API variable for offline fixture preview. Use SDK-55-compatible Expo Go
 build. Reporting works with a manually placed pin and no location permission. The stub loses
 reports on restart; offline persistence is milestone 1. The route preview is not navigation.
 
-For API + PostGIS startup see [infra](infra/README.md). Start optional automation separately:
+For API + PostGIS startup, optional routing/automation profiles, HTTPS and the Vultr deployment
+runbook see [infra](infra/README.md). Start optional automation separately:
 [observation service](automatic/service/README.md), [collector](automatic/collector/README.md),
 [detector](automatic/detector/README.md). Test the HTTP bridge using the
 [fixture publisher](contracts/README.md); no automatic worker is required.
 
 Setup, start, export and verification commands live in [backend](backend/README.md),
-[mobile](mobile/README.md), and [contracts](contracts/README.md). No hosted deployment exists yet.
+[mobile](mobile/README.md), and [contracts](contracts/README.md). No hosted deployment exists yet:
+the deployment scripts are written but have not been run against a host.

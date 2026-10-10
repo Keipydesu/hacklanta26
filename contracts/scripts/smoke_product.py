@@ -15,7 +15,7 @@ def call(path, body=None):
                   headers={'Content-Type':'application/json'})
     with urlopen(req, timeout=10) as response:
         return response.status, json.load(response)
-assert call('/healthz')[1]['storage'] == 'memory'
+assert call('/healthz')[1]['storage'] in ('memory', 'postgis')  # postgis once DATABASE_URL is set
 manual = json.loads((root/'fixtures/manual-report.json').read_text())
 manual.update(id=str(uuid4()),observed_at=datetime.now(timezone.utc).isoformat())
 status, receipt = call('/v1/reports',manual)
@@ -26,4 +26,4 @@ subprocess.run([sys.executable,str(root/'scripts/publish_fixture.py'),'--url',ba
 feed = call('/v1/hazards?bbox=-84.40,33.74,-84.37,33.77')[1]
 assert any(h['properties']['id'] == receipt['hazard_id'] and h['properties']['source'] == 'manual' for h in feed['features'])
 assert call('/v1/route',json.loads((root/'fixtures/route-request.json').read_text()))[0] == 200
-print('PASS: live product health, manual retry, publication lifecycle, manual preservation, fixed route response.')
+print('PASS: live product health, manual retry, publication lifecycle, manual preservation, route response (fixed fixture unless VALHALLA_URL is set).')

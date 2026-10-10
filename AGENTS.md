@@ -34,8 +34,9 @@ introduces them. Keep records short and update affected plans to match.
 
 ## Current state
 
-Stage 0 contracts, fixtures and independently runnable skeletons now exist. Product and
-observation APIs use nonpersistent memory; mobile/collector export native bundles; the detector is
+Stage 0 contracts, fixtures and independently runnable skeletons now exist. The product API persists to PostGIS when `DATABASE_URL` is set (memory otherwise); the
+observation API persists to its private PostGIS database and runs a hazard worker/outbox when
+`AUTOMATION_DATABASE_URL` is set (memory stub otherwise); mobile/collector export native bundles; the detector is
 an explicit no-op. Real persistence, offline queues, sensors, routing and deployment remain later
 milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
 
@@ -44,13 +45,13 @@ milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md)
 | Layer | Stage 0 state |
 |---|---|
 | Mobile | Expo SDK 55 + TypeScript + React Native Maps; fixture/live stub screens |
-| Backend | FastAPI in-memory stub |
-| Data | PostgreSQL + PostGIS Compose container; API persistence not connected |
-| Routing | Fixed fixture; planned Valhalla pedestrian costing with scooter pace/step penalty |
+| Backend | FastAPI; PostGIS persistence via psycopg when `DATABASE_URL` is set, memory stub otherwise |
+| Data | PostgreSQL + PostGIS Compose container; product API persists reports/hazards/revisions |
+| Routing | Valhalla pedestrian costing (scooter pace/step penalty) when `VALHALLA_URL` is set; fixed fixture otherwise |
 | Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
 | Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
 | Automatic service | Independent FastAPI; durable PostGIS ingestion, serialized hazard worker and publication outbox when `AUTOMATION_DATABASE_URL` is set (memory stub otherwise) |
-| Hosting | Local Compose verified; Vultr deployment remains planned |
+| Hosting | Compose manual stack with opt-in `routing` / `https` / `automation` profiles and Vultr deploy/rollback scripts (`infra/`); Vultr path not yet run on a real host |
 
 ## Commands
 
@@ -71,8 +72,12 @@ From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
 - Collector: `npm ci --prefix automatic/collector`; `npm start --prefix automatic/collector`;
   `npm run typecheck --prefix automatic/collector`; `npm run build --prefix automatic/collector`.
 - Detector: `npm ci --prefix automatic/detector`; `npm test --prefix automatic/detector`.
+- Simulator: `PYTHONPATH=simulator/src python3 -m unittest discover -s simulator/tests -t simulator`;
+  `node --test "simulator/replay-detector/*.test.mjs"`.
 - Documentation: `python3 scripts/check_docs.py`; `git diff --check`.
-- Compose setup/start/stop: [infra README](infra/README.md).
+- Compose setup/start/stop: [infra README](infra/README.md). Stack probes `infra/check_stack.sh URL`;
+  backup/restore proof `infra/backup.sh` then `infra/restore_check.sh FILE`; routing tiles
+  `infra/valhalla/build_tiles.sh EXTRACT`; Vultr `infra/vultr/deploy.sh` / `rollback.sh` (not yet run on a host).
 
 Verified commands and remaining device checks are recorded in the handoff. Native exports produce
 JavaScript/Hermes bundles, not signed binaries. Keep local checks scoped; CI is the routine gate.
@@ -185,7 +190,8 @@ Use recorded routing responses and fixtures so checks do not require live upstre
 ## Gotchas
 
 - Stage 0 stubs are not production implementations. Check component READMEs before relying on behavior.
-- `simulator/`, real DB models, routing infrastructure and sensor processing are still planned.
+- `simulator/` exists (scenario CLI; run `PYTHONPATH=simulator/src python3 -m simulator.cli scenarios`). Real-ride
+  tuning, closure scenarios and the hosted rehearsal are still planned.
 
 ## Working agreements
 
