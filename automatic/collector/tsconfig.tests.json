@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "strict": true,
+    "skipLibCheck": true,
+    "rootDir": "..",
+    "outDir": ".test-dist",
+    "types": []
+  },
+  "include": ["src/sensors/adapter.ts", "src/privacy/trim.ts", "src/queue/store.ts", "src/queue/sender.ts", "src/recording/csv.ts", "src/ride/controller.ts"]
+}

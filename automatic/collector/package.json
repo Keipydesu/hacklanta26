@@ -6,10 +6,17 @@
   "scripts": {
     "start": "expo start",
     "typecheck": "tsc --noEmit",
-    "build": "expo export --platform ios --platform android"
+    "build": "expo export --platform ios --platform android",
+    "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~55.0.0",
+    "expo-crypto": "~55.0.8",
+    "expo-file-system": "~55.0.26",
+    "expo-keep-awake": "~55.0.8",
+    "expo-location": "55.1.14",
+    "expo-sensors": "55.0.18",
     "react": "19.2.0",
     "react-native": "0.83.10"
   },
