@@ -162,7 +162,7 @@ lane plans together.
 
 ### Interface
 
-- Manual reporting works with location permission denied: users can place a map pin.
+- New manual reports require a current one-shot foreground device location; denied/unavailable location blocks new submissions with retry guidance. No manual report-pin placement. Saved reports retry with their original location and ID; route endpoint pins remain optional-location controls.
 - Keep draft, queued, sending, submitted, and failed report states distinct. Queued reports are not
   accepted server hazards; preserve the submission ID and body across retries.
 - Show source/evidence labels and expiry. A routing outage must not block reporting or map browsing.

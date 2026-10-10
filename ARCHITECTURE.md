@@ -18,7 +18,7 @@ sensor collector → detector → hazard worker ──┘
                          own observation storage
 ```
 
-- **Track 1 ships first:** choose a location, submit a hazard, see it on the map, compare routes. No sensor collection or ride tracking is required.
+- **Track 1 ships first:** obtain current device location, submit a hazard, see it on the map, compare routes. No sensor collection or ride tracking is required.
 - **Track 2 develops independently:** record or replay sensor data, detect events, cluster them into hazards, publish those hazards through the shared API.
 - **One display contract:** the app reads manual and automatic hazards from the same endpoint and labels their origin. It does not import detection code.
 - **One integration boundary:** automatic workers use HTTP to publish; they never write directly to the product database. A sample HTTP request must demonstrate this connection before real detection exists.
@@ -195,7 +195,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 
 ## 8. Privacy and source labeling
 
-- The manual app asks for foreground location only when needed; a user can instead place a pin. Submission sends that selected point and report, not a ride trace.
+- The manual app requires a one-shot foreground device location for each new report, requested by an explicit user action. Denied or unavailable location blocks new reports with retry/settings guidance; there is no manual report-pin fallback. Submission sends that point and report, not a ride trace. Saved submissions retain their original coordinates on retry. Route endpoint pins remain available independently. See [decision 011](docs/decisions/011-required-report-location.md).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.
@@ -246,7 +246,7 @@ Finish with a hand-off note: what works, how to run it, what is stubbed.
 
 ## 11. Acceptance checks
 
-- **Manual product:** with automation stopped, submit a report, see it on another phone, retry without duplicates, and request routes using that hazard.
+- **Manual product:** with automation stopped, confirm denied/unavailable location blocks new reports, then obtain current location and submit a report, see it on another phone, retry without duplicates, and request routes using that hazard.
 - **API boundary:** a standalone HTTP client publishes, updates, and resolves an automatic fixture; the unchanged mobile app displays its source correctly. Invalid credentials, stale revisions, and invalid payloads are rejected.
 - **Independent automation:** recorded or simulated observations become hazards through the publication API; product outages leave publications queued, and automatic outages leave manual reporting functional.
 - **Data lifecycle:** automatic recomputation preserves manual reports; expired/resolved hazards leave the map and routing; simulated evidence remains labeled.

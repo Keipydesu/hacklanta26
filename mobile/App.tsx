@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, SafeAreaView, ScrollView, View, Text, Button, TextInput, StyleSheet } from 'react-native';
+import { AppState, SafeAreaView, ScrollView, View, Text, Button, TextInput, StyleSheet, Linking } from 'react-native';
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
 import { locateOnce } from './src/location/foreground';
+import { createReportLocation, ReportLocationState } from './src/reports/location';
 import { createSubmitGuard } from './src/reports/submit';
-import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
+import { createReportQueue, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
@@ -30,7 +31,25 @@ export default function App() {
     currentRegion.current = next;
     setRegion(next);
   }
-  const [pin, setPin] = useState({ latitude: center.latitude, longitude: center.longitude });
+  const [reportLocation, setReportLocation] = useState<ReportLocationState>({ status: 'idle' });
+  const [reportLocator] = useState(() => createReportLocation({
+    locate: () => locateOnce(Location, Location.Accuracy.Balanced),
+    now: Date.now, onChange: setReportLocation,
+  }));
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      // Permission dialogs can make iOS inactive; only backgrounding ends the draft fix.
+      if (state === 'background') reportLocator.clear();
+    });
+    return () => { sub.remove(); reportLocator.clear(); };
+  }, []);
+  useEffect(() => {
+    if (reportLocation.status !== 'locating') return;
+    const timer = setTimeout(() => {
+      reportLocator.clear('unavailable');
+    }, 20_000);
+    return () => clearTimeout(timer);
+  }, [reportLocation]);
   const [hazards, setHazards] = useState<HazardCollection['features']>([]);
   // Route endpoints and their comparison live apart from the report form and the hazard feed.
   const [routeState, setRouteState] = useState<RouteState>({ origin: null, destination: null, status: 'idle', result: null, error: null, outdated: false });
@@ -97,11 +116,6 @@ export default function App() {
   }, [submissions]);
   const [submitting, setSubmitting] = useState(false);
   const [guardSubmit] = useState(createSubmitGuard);
-  async function useMyLocation() {
-    const result = await locateOnce(Location, Location.Accuracy.Balanced);
-    if (result.ok) { setPin({ latitude: result.lat, longitude: result.lon }); setError(''); }
-    else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the pin instead.' : 'Could not get your location. Tap the map to place the pin instead.');
-  }
   function placeRouteEndpoint(point: { latitude: number; longitude: number }, which: Target = routeTarget) {
     const next = { lat: point.latitude, lon: point.longitude };
     if (which === 'origin') { comparison.setOrigin(next); if (!comparison.state().destination) setRouteTarget('destination'); }
@@ -117,7 +131,9 @@ export default function App() {
     return guardSubmit(async () => {
       setSubmitting(true); setError('');
       try {
-        await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude, description }, Date.now(), Crypto.randomUUID()));
+        if (fixtureMode) return;
+        await queue.enqueue(reportLocator.freeze({ kind, description }, Crypto.randomUUID()));
+        reportLocator.clear();
         setDescription('');
         void queue.drain();
       } catch (e) { setError(`Report was not saved: ${String(e)}`); }
@@ -128,9 +144,9 @@ export default function App() {
   return <SafeAreaView style={styles.page}>
     <Text style={styles.title}>Campus hazards</Text>
     <Text style={styles.notice}>{fixtureMode ? 'DEMO · Offline fixture preview' : server?.storage === 'memory' ? 'Test server · reports are not kept when it restarts' : ''}</Text>
-    <View style={styles.tabs}>{(['map','report','route'] as const).map(tab => <Button key={tab} title={tab} onPress={() => setScreen(tab)} />)}</View>
+    <View style={styles.tabs}>{(['map','report','route'] as const).map(tab => <Button key={tab} title={tab} onPress={() => { if (tab !== screen) reportLocator.clear(); setScreen(tab); }} />)}</View>
     <MapView style={styles.map} initialRegion={center} onRegionChangeComplete={changeRegion}
-      onPress={e => { if (screen === 'report') setPin(e.nativeEvent.coordinate); else if (screen === 'route') placeRouteEndpoint(e.nativeEvent.coordinate); }}>
+      onPress={e => { if (screen === 'route') placeRouteEndpoint(e.nativeEvent.coordinate); }}>
       {visible.map(h => <Polygon key={h.properties.id} coordinates={h.geometry.coordinates[0].map(toPoint)}
         holes={h.geometry.coordinates.slice(1).map(r => r.map(toPoint))}
         strokeColor={h.properties.source === 'manual' ? '#af4d00' : '#5555bb'} fillColor={h.properties.source === 'manual' ? '#fa9f4266' : '#7777dd66'} />)}
@@ -139,8 +155,8 @@ export default function App() {
         description={h.properties.label} />)}
       {submissions.filter(sub => sub.state !== 'submitted').map(sub => <Marker key={`pending-${sub.id}`} coordinate={{ latitude: sub.body.lat, longitude: sub.body.lon }}
         pinColor="blue" title="Pending report (not yet accepted)" description={sub.body.kind} />)}
-      {screen === 'report' && <Marker coordinate={pin} draggable title="Report location"
-        onDragEnd={e => setPin(e.nativeEvent.coordinate)} />}
+      {screen === 'report' && reportLocation.status === 'ready' && reportLocator.ready() && <Marker
+        coordinate={{ latitude: reportLocation.lat, longitude: reportLocation.lon }} title="Current report location" />}
       {screen === 'route' && presented?.lowerRisk && <Polyline coordinates={presented.lowerRisk.coordinates.map(toPoint)} strokeWidth={6} strokeColor={ROUTE_COLORS.safest} />}
       {screen === 'route' && presented && <Polyline coordinates={presented.shortest.coordinates.map(toPoint)} strokeWidth={4} strokeColor={ROUTE_COLORS.shortest} lineDashPattern={presented.lowerRisk ? [10, 8] : undefined} />}
       {screen === 'route' && routeState.origin && <Marker coordinate={{ latitude: routeState.origin.lat, longitude: routeState.origin.lon }} pinColor="green" draggable
@@ -158,14 +174,20 @@ export default function App() {
         </View>)}
       </>}
       {screen === 'report' && <>
-        <Text style={styles.heading}>Place a pin to report a hazard</Text>
-        <Text>Tap the map or drag the pin. No location permission needed.</Text>
-        <Text>{pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}</Text>
-        <Button title="Use my location (optional)" onPress={() => void useMyLocation()} />
+        <Text style={styles.heading}>Report a hazard at your location</Text>
+        <Text>Current device location is required. We request one foreground fix, without tracking your ride.</Text>
+        {reportLocation.status === 'ready' && reportLocator.ready() && <Text>{reportLocation.lat.toFixed(5)}, {reportLocation.lon.toFixed(5)}</Text>}
+        {reportLocation.status === 'locating' && <Text accessibilityRole="alert">Getting your current location…</Text>}
+        {reportLocation.status === 'denied' && <Text accessibilityRole="alert">Location permission is required to report a hazard. Enable it in Settings, then retry.</Text>}
+        {reportLocation.status === 'unavailable' && <Text accessibilityRole="alert">Current location is unavailable. Check location services and retry; location is required to submit.</Text>}
+        {reportLocation.status === 'ready' && !reportLocator.ready() && <Text accessibilityRole="alert">Your location has expired. Refresh it before submitting.</Text>}
+        <Button title={reportLocation.status === 'idle' ? 'Use my location' : reportLocation.status === 'ready' ? 'Refresh my location' : 'Retry location'}
+          disabled={submitting || reportLocation.status === 'locating'} onPress={() => void reportLocator.request()} />
+        {reportLocation.status === 'denied' && <Button title="Open location settings" onPress={() => void Linking.openSettings().catch(() => setError('Open device Settings to enable location permission.'))} />}
         <View style={styles.tabs}>{(['pothole','obstruction','closure','other'] as const).map(k => <Button key={k} title={k === kind ? `✓ ${k}` : k} onPress={() => setKind(k)} />)}</View>
         <TextInput style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholder="Description (optional)" />
         <Text>Reports are saved on this phone and retried with the same ID until the server answers. Pending reports are not yet accepted hazards.</Text>
-        <Button title="Submit report" disabled={fixtureMode || submitting} onPress={() => void send()} />
+        <Button title="Submit report" disabled={fixtureMode || submitting || !reportLocator.ready()} onPress={() => void send()} />
         {submissions.map(sub => <View key={sub.id} style={styles.card}>
           <Text style={styles.heading}>{sub.body.kind} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
           <Text>Observed {new Date(sub.body.observed_at).toLocaleString()}{sub.attempts ? ` · attempts ${sub.attempts}` : ''}</Text>
