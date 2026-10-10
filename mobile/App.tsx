@@ -9,7 +9,9 @@ import { locateOnce } from './src/location/foreground';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
-import { ApiError, apiUrl, fixtureMode, getHazards, getRoutes, submitReport, HazardCollection, Report, RouteResponse } from './src/api/client';
+import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
+import { ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
 
 const center = { latitude: 33.7531, longitude: -84.3853, latitudeDelta: 0.012, longitudeDelta: 0.012 };
 const toPoint = ([longitude, latitude]: number[]) => ({ latitude, longitude });
@@ -30,7 +32,11 @@ export default function App() {
   }
   const [pin, setPin] = useState({ latitude: center.latitude, longitude: center.longitude });
   const [hazards, setHazards] = useState<HazardCollection['features']>([]);
-  const [routes, setRoutes] = useState<RouteResponse>();
+  // Route endpoints and their comparison live apart from the report form and the hazard feed.
+  const [routeState, setRouteState] = useState<RouteState>({ origin: null, destination: null, status: 'idle', result: null, error: null, outdated: false });
+  const [comparison] = useState(() => createRouteComparison({ load: getRoutes, onChange: setRouteState }));
+  const [routeTarget, setRouteTarget] = useState<Target>('origin');
+  const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind']>('pothole');
   const [description, setDescription] = useState('');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -55,7 +61,7 @@ export default function App() {
     if (!apiUrl) return;
     return connectLive({
       url: liveUrl(apiUrl), createSocket: url => new WebSocket(url) as any,
-      onChange: () => void refresh(), onStatus: setLiveConnected,
+      onChange: () => { void refresh(); comparison.hazardsChanged(); }, onStatus: setLiveConnected,
       setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: h => clearTimeout(h as any), random: Math.random,
     });
   }, []);
@@ -76,7 +82,10 @@ export default function App() {
   useEffect(() => {
     if (fixtureMode) return;
     void queue.load().then(() => { if (queue.loadError()) setError(queue.loadError()!); return queue.drain(); });
-    const sub = AppState.addEventListener('change', state => { if (state === 'active') { setNow(Date.now()); void refresh(); void queue.drain(); } });
+    // Only used to say honestly whether the server keeps reports; never blocks the app.
+    const probe = () => getHealth().then(setServer).catch(() => undefined);
+    void probe();
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') { setNow(Date.now()); void refresh(); void queue.drain(); void probe(); } });
     return () => sub.remove();
   }, []);
   // Wake when the earliest backoff expires; submissions also change on every drain.
@@ -93,6 +102,17 @@ export default function App() {
     if (result.ok) { setPin({ latitude: result.lat, longitude: result.lon }); setError(''); }
     else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the pin instead.' : 'Could not get your location. Tap the map to place the pin instead.');
   }
+  function placeRouteEndpoint(point: { latitude: number; longitude: number }, which: Target = routeTarget) {
+    const next = { lat: point.latitude, lon: point.longitude };
+    if (which === 'origin') { comparison.setOrigin(next); if (!comparison.state().destination) setRouteTarget('destination'); }
+    else comparison.setDestination(next);
+  }
+  async function useMyLocationAsStart() {
+    const result = await locateOnce(Location, Location.Accuracy.Balanced);
+    if (result.ok) { placeRouteEndpoint({ latitude: result.lat, longitude: result.lon }, 'origin'); setError(''); }
+    else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the start pin instead.' : 'Could not get your location. Tap the map to place the start pin instead.');
+  }
+  const presented = routeState.result ? presentRoutes(routeState.result) : null;
   function send() {
     return guardSubmit(async () => {
       setSubmitting(true); setError('');
@@ -107,10 +127,10 @@ export default function App() {
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   return <SafeAreaView style={styles.page}>
     <Text style={styles.title}>Campus hazards</Text>
-    <Text style={styles.notice}>{fixtureMode ? 'DEMO · Offline fixture preview' : 'STAGE 0 · Nonpersistent API'}</Text>
+    <Text style={styles.notice}>{fixtureMode ? 'DEMO · Offline fixture preview' : server?.storage === 'memory' ? 'Test server · reports are not kept when it restarts' : ''}</Text>
     <View style={styles.tabs}>{(['map','report','route'] as const).map(tab => <Button key={tab} title={tab} onPress={() => setScreen(tab)} />)}</View>
     <MapView style={styles.map} initialRegion={center} onRegionChangeComplete={changeRegion}
-      onPress={e => { if (screen === 'report') setPin(e.nativeEvent.coordinate); }}>
+      onPress={e => { if (screen === 'report') setPin(e.nativeEvent.coordinate); else if (screen === 'route') placeRouteEndpoint(e.nativeEvent.coordinate); }}>
       {visible.map(h => <Polygon key={h.properties.id} coordinates={h.geometry.coordinates[0].map(toPoint)}
         holes={h.geometry.coordinates.slice(1).map(r => r.map(toPoint))}
         strokeColor={h.properties.source === 'manual' ? '#af4d00' : '#5555bb'} fillColor={h.properties.source === 'manual' ? '#fa9f4266' : '#7777dd66'} />)}
@@ -121,7 +141,12 @@ export default function App() {
         pinColor="blue" title="Pending report (not yet accepted)" description={sub.body.kind} />)}
       {screen === 'report' && <Marker coordinate={pin} draggable title="Report location"
         onDragEnd={e => setPin(e.nativeEvent.coordinate)} />}
-      {screen === 'route' && routes?.routes.map(r => <Polyline key={r.kind} coordinates={r.geometry.coordinates.map(toPoint)} strokeWidth={4} strokeColor={r.kind === 'shortest' ? '#666666' : '#005f73'} />)}
+      {screen === 'route' && presented?.lowerRisk && <Polyline coordinates={presented.lowerRisk.coordinates.map(toPoint)} strokeWidth={6} strokeColor={ROUTE_COLORS.safest} />}
+      {screen === 'route' && presented && <Polyline coordinates={presented.shortest.coordinates.map(toPoint)} strokeWidth={4} strokeColor={ROUTE_COLORS.shortest} lineDashPattern={presented.lowerRisk ? [10, 8] : undefined} />}
+      {screen === 'route' && routeState.origin && <Marker coordinate={{ latitude: routeState.origin.lat, longitude: routeState.origin.lon }} pinColor="green" draggable
+        title="Start (A)" onDragEnd={e => placeRouteEndpoint(e.nativeEvent.coordinate, 'origin')} />}
+      {screen === 'route' && routeState.destination && <Marker coordinate={{ latitude: routeState.destination.lat, longitude: routeState.destination.lon }} pinColor="purple" draggable
+        title="Destination (B)" onDragEnd={e => placeRouteEndpoint(e.nativeEvent.coordinate, 'destination')} />}
     </MapView>
     <ScrollView style={styles.content}>
       {screen === 'map' && <>
@@ -150,13 +175,9 @@ export default function App() {
         </View>)}
         {fixtureMode && <Text>Fixture preview only. Configure the product API URL to submit.</Text>}
       </>}
-      {screen === 'route' && <>
-        <Text style={styles.heading}>GSU route comparison preview</Text>
-        <Text>Fixed illustrative routes only. Not navigation; these do not respond to reports yet.</Text>
-        <Button title="Compare example routes" onPress={async () => { try { setRoutes(await getRoutes()); setError(''); } catch (e) { setError(String(e)); } }} />
-        {routes?.routes.map(r => <Text key={r.kind}>{r.kind === 'shortest' ? 'Shortest' : 'Lower-risk'}: {r.distance_m} m · {Math.round(r.duration_s/60)} min · risk {r.risk_score}</Text>)}
-        {routes && !routes.safest_available && <Text>No lower-risk alternative available.</Text>}
-      </>}
+      {screen === 'route' && <RouteScreen state={routeState} target={routeTarget} offlinePreview={fixtureMode}
+        onTarget={setRouteTarget} onUseLocation={() => void useMyLocationAsStart()} onCompare={() => void comparison.request()}
+        onSwap={() => comparison.swap()} onClear={() => { comparison.clear(); setRouteTarget('origin'); }} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazards.length ? 'Offline or stale: showing the last successful results. ' : ''}{hazardError}</Text>}
     </ScrollView>

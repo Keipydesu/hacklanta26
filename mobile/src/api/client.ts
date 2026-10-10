@@ -20,7 +20,7 @@ export class ApiError extends Error {
   get permanent() { return this.status >= 400 && this.status < 500 && this.status !== 408 && this.status !== 429; }
 }
 const REQUEST_TIMEOUT_MS = 15000;
-async function request<T>(path: string, body?: unknown): Promise<T> {
+async function call<T>(path: string, body?: unknown): Promise<{ data: T; headers: Headers }> {
   // A hung connection must surface as a retryable failure, not leave a report stuck in "sending".
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -35,14 +35,26 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
       const retryAfter = Number(response.headers.get('Retry-After'));
       throw new ApiError(response.status, `API ${response.status}: ${await response.text()}`, Number.isFinite(retryAfter) && response.headers.get('Retry-After') ? retryAfter : undefined);
     }
-    return await response.json();
+    // Keep the deadline alive through body consumption, not just response headers.
+    const data = await response.json() as T;
+    return { data, headers: response.headers };
   } finally { clearTimeout(timer); }
 }
+const request = async <T>(path: string, body?: unknown): Promise<T> => (await call<T>(path, body)).data;
 export const getHazards = (bbox: string) => fixtureMode ? Promise.resolve(fixtures) : request<HazardCollection>(`/v1/hazards?bbox=${encodeURIComponent(bbox)}`);
 export const submitReport = (body: Report) => {
   if (fixtureMode) throw new Error('Connect EXPO_PUBLIC_API_URL to submit reports.');
   return request<components['schemas']['ReportReceipt']>('/v1/reports', body);
 };
-export const getRoutes = () => fixtureMode ? Promise.resolve(routeFixture as RouteResponse) : request<RouteResponse>('/v1/route', {
-  origin: { lat: 33.7531, lon: -84.3853 }, destination: { lat: 33.7560, lon: -84.3880 },
-});
+export type Coordinate = components['schemas']['Coordinate'];
+/**
+ * Routes for the selected pair. `illustrative` is true for the offline preview and when the server
+ * reports that it has no routing engine and answered with its fixed example (X-Stage-0-Stub).
+ */
+export async function getRoutes(origin: Coordinate, destination: Coordinate): Promise<{ response: RouteResponse; illustrative: boolean }> {
+  if (fixtureMode) return { response: routeFixture as RouteResponse, illustrative: true };
+  const response = await call<RouteResponse>('/v1/route', { origin, destination });
+  return { response: response.data, illustrative: response.headers.get('X-Stage-0-Stub') !== null };
+}
+export type Health = components['schemas']['Health'];
+export const getHealth = () => request<Health>('/healthz');
