@@ -60,6 +60,15 @@ function startCampusMap(ml, env) {
   }
 
   function ensureLayers() {
+    if (!map.getSource('bike-lanes')) {
+      map.addSource('bike-lanes', { type: 'geojson', data: env.bikeLanes, attribution: '© OpenStreetMap contributors' });
+      var firstSymbol = map.getStyle().layers.find(function (layer) { return layer.type === 'symbol'; });
+      map.addLayer({ id: 'bike-lanes', type: 'line', source: 'bike-lanes',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': env.bikeLaneColors[currentTheme],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 12, 1, 16, 2.5], 'line-opacity': 0.48 } },
+      firstSymbol && firstSymbol.id);
+    }
     if (!map.getSource('hazards')) {
       map.addSource('hazards', { type: 'geojson', data: EMPTY });
       map.addLayer({ id: 'hazard-fill', type: 'fill', source: 'hazards',

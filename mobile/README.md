@@ -57,6 +57,12 @@ scripts run that step first. Nothing loads from a CDN at runtime.
   the browser.
 - **Routing consistency:** Valhalla also routes over OSM, but over a dated Georgia extract rather
   than OpenFreeMap's build, so small drift between drawn and routed paths is expected (issue #27).
+- **Bike lanes:** a muted, always-on layer shows only confirmed `present` segments from the bundled
+  [OSM campus export](../backend/bike_lanes/README.md) ([decision 024](../docs/decisions/024-static-bike-lane-map-overlay.md)). It is non-interactive, survives
+  theme changes and the offline blank style, and makes no safety or routing-cost claim. Run
+  `npm run bike-lanes:generate --prefix mobile` after refreshing the source export; mobile tests check
+  that the committed geometry-only asset is current. The source snapshot is limited to Georgia Tech
+  and GSU, so no highlight outside those areas does not mean there is no bike lane.
 - **Offline:** if the selected style can't load within 12 s, the page switches to a light or dark
   local blank background with a notice. Hazards, pins and routes still draw, so the fixture preview
   works without network. Switching themes retries the remote style.

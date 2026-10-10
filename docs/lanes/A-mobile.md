@@ -136,6 +136,9 @@ Live hints are not authoritative deletions: an expired hazard may have been repu
 hint arrives. Always refetch. Do not let stale errors replace a newer successful viewport result.
 Detail shows kind, label, community versus automatic source, simulated/replay/mixed evidence where
 present, age and expiry. Scores are routing heuristics, not probabilities or verified severity.
+The map also keeps a muted, non-interactive OSM bike-lane overlay beneath hazard and route layers,
+from the bundled `present` campus segments only
+([decision 024](../decisions/024-static-bike-lane-map-overlay.md)); it does not alter route scoring.
 
 Retain visibly labeled fixture preview when no API URL is configured: timestamps shift once per
 preview session, report submission remains disabled, and directions remain unavailable until real routing is connected; no fixture route lines are drawn.

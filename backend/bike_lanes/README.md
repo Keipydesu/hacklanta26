@@ -2,8 +2,10 @@
 
 Street segments around Georgia Tech and GSU with bike-lane status, from OpenStreetMap. This is
 infrastructure data, separate from hazard reports; it does not depend on the automatic service.
-Nothing reads it yet. Map styling and route scoring are follow-up work, and bike-lane presence is
-not a safety guarantee. See [decision 012](../../docs/decisions/012-osm-bike-lane-coverage.md).
+The mobile map bundles confirmed `present` segments as a mild static overlay
+([decision 024](../../docs/decisions/024-static-bike-lane-map-overlay.md)). Route
+scoring remains a follow-up, and bike-lane presence is not a safety guarantee. See
+[decision 012](../../docs/decisions/012-osm-bike-lane-coverage.md).
 
 | File | Contents |
 |---|---|
@@ -24,6 +26,8 @@ retries 429/5xx responses with backoff. A JSON `remark` aborts the refresh befor
 is written, even when HTTP status is 200; partial results are never accepted. Review the diff, rerun
 `uv run --project backend pytest -c backend/pyproject.toml backend/tests -q`, and update the
 spot-check below if facilities changed. Current files: OSM snapshot `2026-10-10T18:36:21Z`.
+Regenerate the bundled mobile overlay with `npm run bike-lanes:generate --prefix mobile`, then run
+`npm run bike-lanes:check --prefix mobile` before committing the refreshed export.
 
 ## Coverage boundaries
 
