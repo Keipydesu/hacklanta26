@@ -1,6 +1,7 @@
 import type { components } from './schema';
 import hazardFixture from '../fixtures/hazards.json';
 import routeFixture from '../fixtures/route.json';
+import placeFixture from '../fixtures/places.json';
 export type HazardCollection = components['schemas']['HazardCollection'];
 export type Report = components['schemas']['ManualReport'];
 export type RouteResponse = components['schemas']['RouteResponse'];
@@ -46,6 +47,17 @@ export const submitReport = (body: Report) => {
   if (fixtureMode) throw new Error('Connect EXPO_PUBLIC_API_URL to submit reports.');
   return request<components['schemas']['ReportReceipt']>('/v1/reports', body);
 };
+export type Place = components['schemas']['Place'];
+/** Trip endpoint search. The offline preview filters the fixture places instead of calling the API. */
+export async function searchPlaces(query: string, near?: { lat: number; lon: number }): Promise<Place[]> {
+  if (fixtureMode) {
+    const needle = query.trim().toLowerCase();
+    return (placeFixture.places as Place[]).filter(p => `${p.name} ${p.address}`.toLowerCase().includes(needle));
+  }
+  const params = new URLSearchParams({ q: query });
+  if (near) params.set('near', `${near.lat.toFixed(3)},${near.lon.toFixed(3)}`);
+  return (await request<components['schemas']['PlaceResults']>(`/v1/places?${params}`)).places;
+}
 export type Coordinate = components['schemas']['Coordinate'];
 /**
  * Routes for the selected pair. `illustrative` is true for the offline preview and when the server

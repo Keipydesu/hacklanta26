@@ -17,6 +17,8 @@
     "src/routes/model.ts",
     "src/map/protocol.ts",
     "src/map/overlay.ts",
-    "src/map/html.ts"
+    "src/map/html.ts",
+    "src/trip/trip.ts",
+    "src/trip/placeSearch.ts"
   ]
 }

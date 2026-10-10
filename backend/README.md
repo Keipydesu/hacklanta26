@@ -58,6 +58,14 @@ python3 contracts/scripts/smoke_product.py
 This creates a demo manual report and exercises automatic publication over HTTP. It does not
 require the observation service, collector, or detector.
 
+## Place search
+
+`GET /v1/places?q=&near=lat,lon` returns up to five places for trip endpoints. It proxies Photon
+(`PHOTON_URL`, default `https://photon.komoot.io`; set it empty to disable search with 503) within
+the metro-Atlanta routing box. It requires 3-100 characters, rounds `near` to about 100 m, caches
+answers for 10 minutes, and turns provider failures into 503. Tests use a mock transport, so no
+network is needed. See [decision 018](../docs/decisions/018-trip-address-search-and-current-origin.md).
+
 ## Routing failure and refresh semantics
 
 Only Valhalla's recorded no-path code 442 permits a no-alternative fallback; a baseline no-path
