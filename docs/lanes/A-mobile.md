@@ -18,6 +18,9 @@ regression tests. It has no durable queue, reconnecting live channel, current-lo
 or selectable route endpoints. Build on those files; do not rebuild the skeleton or describe its
 fixture routes as navigation. All new method names below are proposed internal interfaces.
 
+The current mobile runtime is SDK 57; see [decision 009](../decisions/009-mobile-expo57.md)
+for the Expo Go compatibility upgrade and device checks still required.
+
 ## Proposed structure and data flow
 
 ```text
@@ -184,7 +187,7 @@ Keep refresh regression tests. Cover reconnect refetch and route stale-response/
 without live upstreams. Run typecheck plus the changed behavior checks locally; CI remains the
 routine full lane gate. Bundle export writes output and requires the stick in a shared room.
 
-Run device checks on SDK-55-compatible Expo Go/development builds. Verify map gestures, keyboard/form,
+Run device checks on SDK-57-compatible Expo Go/development builds. Verify map gestures, keyboard/form,
 permission denial, screen reader/status text, connection recovery and both platform renderings where
 devices are available. `npm run build` produces JS/Hermes exports, not signed binaries or proof that
 permissions work on-device. Use phone-reachable LAN URLs locally and G's HTTPS URL for hosted tests.

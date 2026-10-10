@@ -62,7 +62,7 @@ npm ci --prefix mobile
 EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:8000 npm start --prefix mobile
 ```
 
-Omit the API variable for offline fixture preview. Use SDK-55-compatible Expo Go or a development
+Omit the API variable for offline fixture preview. Use SDK-57-compatible Expo Go or a development
 build. Reporting works with a manually placed pin and no location permission. The stub loses
 reports on restart; offline persistence is milestone 1. The route preview is not navigation.
 
