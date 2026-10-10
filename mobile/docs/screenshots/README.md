@@ -1,5 +1,15 @@
 # UI concept screenshots
 
+Latest metallic texture revision (iPhone 17, same fixture setup):
+
+| Light metallic controls | Dark metallic controls |
+| --- | --- |
+| ![Light metal](ui-metallic-light.png) | ![Dark metal](ui-metallic-dark.png) |
+
+The blue gear in these two captures is the Expo development overlay, not an app control.
+The earlier gallery below predates the textured silver controls.
+
+
 Captured 2026-10-10 from the actual React Native app on iPhone 17 / iOS 26.1 Simulator,
 Expo Go 57.0.9, SDK 57. These unedited captures show the silver/cyan palette in offline fixture mode.
 The existing Apple map remains until the separate OSM migration lands.

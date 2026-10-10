@@ -8,7 +8,7 @@ export const palette = {
 const light = {
   ink: palette.charcoal as string, muted: palette.charcoal as string,
   surface: palette.white as string, canvas: palette.white as string,
-  quiet: palette.white as string, line: palette.silver as string,
+  quiet: palette.silver as string, controlInk: palette.charcoal as string, line: palette.silver as string,
   selected: palette.cyan as string, selectedEdge: palette.cyan as string,
   primary: palette.blue as string, primaryEdge: palette.blue as string,
   inverse: palette.white as string, warning: palette.blue as string, danger: '#a00020',
@@ -18,7 +18,7 @@ const light = {
 export type Theme = typeof light;
 const dark: Theme = {
   ...light, ink: palette.white, muted: palette.silver, surface: palette.charcoal,
-  canvas: palette.charcoal, quiet: palette.charcoal, line: palette.silver,
+  canvas: palette.charcoal, quiet: palette.silver, line: palette.silver,
   selectedEdge: palette.silver, primaryEdge: palette.silver,
   warning: palette.silver, danger: '#ffb4ab', routeShortest: palette.silver,
 };

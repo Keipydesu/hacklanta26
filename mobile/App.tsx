@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar, useColorScheme } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
+import { SilverTexture } from './src/ui/SilverTexture';
 import { Icon } from './src/ui/Icon';
 import { useTheme, type Theme } from './src/ui/theme';
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
@@ -196,7 +197,8 @@ export default function App() {
         <View style={styles.categories}>{(['pothole','obstruction','closure','other'] as const).map(k => <Pressable key={k}
           accessibilityRole="button" accessibilityLabel={k} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
           style={[styles.category, k === kind && styles.categorySelected]}>
-          <Icon name={k} color={k === kind ? theme.inverse : theme.ink} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{k[0].toUpperCase() + k.slice(1)}</Text>
+          {k !== kind && <SilverTexture />}
+          <Icon name={k} color={k === kind ? theme.inverse : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{k[0].toUpperCase() + k.slice(1)}</Text>
         </Pressable>)}</View>
         {expanded && <TextInput accessibilityLabel="Optional report description" style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholderTextColor={theme.muted} placeholder="Description (optional)" />}
 
@@ -245,9 +247,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   iconButton: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
   tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: 6 },
   categories: { flexDirection: 'row', gap: 6, marginVertical: 6 },
-  category: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64, paddingVertical: 8, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius },
+  category: { overflow: 'hidden', backgroundColor: theme.quiet, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64, paddingVertical: 8, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius },
   categorySelected: { backgroundColor: theme.selected, borderColor: theme.selectedEdge },
-  categoryLabel: { fontSize: 11, color: theme.ink, textAlign: 'center' },
+  categoryLabel: { fontSize: 11, color: theme.controlInk, textAlign: 'center' },
   categoryLabelSelected: { color: theme.inverse },
   content: { flexShrink: 1 }, contentInner: { paddingBottom: 8 },
   caption: { fontSize: 12, lineHeight: 18, color: theme.muted },

@@ -43,8 +43,9 @@ See [decision 012](../../docs/decisions/012-silver-cyan-mobile-palette.md).
 | `#d9d9d9` metallic silver | Dividers, dark-mode outlines and secondary foreground |
 | `#284b63` deep blue | Primary action and light-mode notices |
 
-Device appearance selects light or dark UI. Silver is flat and restrained; no metallic texture
-or gradient is required. Selected controls retain accessible selected state and short labels.
+Device appearance selects light or dark UI. Silver secondary buttons and unselected hazard categories use the operator-supplied metal
+grain at 22% opacity over silver, with charcoal labels in both appearances. Keep the map,
+text, cyan selections and blue primary actions untextured. See [decision 013](../../docs/decisions/013-metallic-silver-texture.md). Selected controls retain accessible selected state and short labels.
 White on cyan is 5.74:1; white on blue 9.22:1; charcoal on white 12.27:1; silver on charcoal
 8.69:1. These are computed solid-color text pairs, not a full accessibility certification.
 Error foregrounds remain red exceptions (`#a00020` light / `#ffb4ab` dark). Existing hazard
