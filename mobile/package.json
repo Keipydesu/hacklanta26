@@ -6,7 +6,8 @@
   "scripts": {
     "start": "expo start",
     "typecheck": "tsc --noEmit",
-    "build": "expo export --platform ios --platform android"
+    "build": "expo export --platform ios --platform android",
+    "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs"
   },
   "dependencies": {
     "expo": "~55.0.0",

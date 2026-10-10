@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, Button, TextInput, StyleSheet } from 'react-native';
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
+import { createHazardRefresh } from './src/api/hazardRefresh';
 import { ApiError, apiUrl, fixtureMode, getHazards, getRoutes, submitReport, HazardCollection, Report, RouteResponse } from './src/api/client';
 
 const center = { latitude: 33.7531, longitude: -84.3853, latitudeDelta: 0.012, longitudeDelta: 0.012 };
@@ -16,6 +17,11 @@ const bounds = (r: Region) => {
 export default function App() {
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
   const [region, setRegion] = useState(center);
+  const currentRegion = useRef<Region>(center);
+  function changeRegion(next: Region) {
+    currentRegion.current = next;
+    setRegion(next);
+  }
   const [pin, setPin] = useState({ latitude: center.latitude, longitude: center.longitude });
   const [hazards, setHazards] = useState<HazardCollection['features']>([]);
   const [routes, setRoutes] = useState<RouteResponse>();
@@ -27,16 +33,13 @@ export default function App() {
   const [error, setError] = useState('');
   const [hazardError, setHazardError] = useState('');
   const [now, setNow] = useState(Date.now());
-  const latestRefresh = useRef(0);
-  async function refresh() {
-    const request = ++latestRefresh.current;
-    try {
-      const result = await getHazards(bounds(region));
-      // Ignore responses that arrive after a newer refresh was started.
-      if (request !== latestRefresh.current) return;
-      setHazards(result.features); setHazardError('');
-    } catch (e) { if (request === latestRefresh.current) setHazardError(String(e)); }
-  }
+  // A delayed submit keeps this same function, which reads the current viewport.
+  const [refresh] = useState(() => createHazardRefresh(
+    () => currentRegion.current,
+    region => getHazards(bounds(region)),
+    result => { setHazards(result.features); setHazardError(''); },
+    error => setHazardError(String(error)),
+  ));
   useEffect(() => { void refresh(); }, [region]);
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
@@ -64,7 +67,7 @@ export default function App() {
     <Text style={styles.title}>Campus hazards</Text>
     <Text style={styles.notice}>{fixtureMode ? 'DEMO · Offline fixture preview' : 'STAGE 0 · Nonpersistent API'}</Text>
     <View style={styles.tabs}>{(['map','report','route'] as const).map(tab => <Button key={tab} title={tab} onPress={() => setScreen(tab)} />)}</View>
-    <MapView style={styles.map} initialRegion={center} onRegionChangeComplete={setRegion}
+    <MapView style={styles.map} initialRegion={center} onRegionChangeComplete={changeRegion}
       onPress={e => { if (screen === 'report' && status === 'draft') setPin(e.nativeEvent.coordinate); }}>
       {visible.map(h => <Polygon key={h.properties.id} coordinates={h.geometry.coordinates[0].map(toPoint)}
         holes={h.geometry.coordinates.slice(1).map(r => r.map(toPoint))}

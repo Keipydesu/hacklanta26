@@ -11,3 +11,4 @@ dist/
 *.egg-info/
 .DS_Store
 infra/valhalla/custom_files/
+.test-dist/

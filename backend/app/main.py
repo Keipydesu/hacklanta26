@@ -55,14 +55,18 @@ def create_app():
         while True:
             await asyncio.sleep(1)
             now = datetime.now(timezone.utc)
+            expired = []
+            # Finish the entire prune before yielding: a publication may refresh any
+            # hazard while notify() awaits a socket. Never delete from a stale snapshot.
             for id, hazard in tuple(hazards.items()):
                 props = hazard['properties']
-                # Expired and resolved hazards never reappear in the feed, so drop them.
                 if props['expires_at'] <= now:
                     del hazards[id]
-                    await notify(id)
+                    expired.append(id)
                 elif props['status'] != 'active':
                     del hazards[id]
+            for id in expired:
+                await notify(id)
 
     @asynccontextmanager
     async def lifespan(app):

@@ -62,6 +62,7 @@ jobs:
         with: {node-version: '22'}
       - run: npm ci --prefix mobile
       - run: npm run typecheck --prefix mobile
+      - run: npm test --prefix mobile
       - run: npm run build --prefix mobile
         env: {CI: '1', EXPO_NO_TELEMETRY: '1'}
   collector:

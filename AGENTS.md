@@ -63,7 +63,7 @@ From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
   `uv run --project backend uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000`.
 - Product tests: `uv run --project backend pytest -c backend/pyproject.toml backend/tests -q`.
 - Mobile: `npm ci --prefix mobile`; `npm start --prefix mobile`;
-  `npm run typecheck --prefix mobile`; `npm run build --prefix mobile`.
+  `npm run typecheck --prefix mobile`; `npm test --prefix mobile`; `npm run build --prefix mobile`.
 - Observation API: `uv sync --project automatic/service --frozen`, then
   `uv run --project automatic/service uvicorn app.main:app --app-dir automatic/service --port 8001`.
 - Observation tests:

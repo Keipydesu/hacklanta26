@@ -128,3 +128,79 @@ def test_contract_checks_timestamp_format():
     _, auto = fresh()
     with pytest.raises(Exception):
         validate('AutomaticPublication',dict(auto,expires_at='tomorrow'))
+
+@pytest.mark.parametrize('inactive_status', ['expired', 'resolved'])
+def test_expiry_scan_preserves_publication_refreshed_during_notification(monkeypatch, inactive_status):
+    """A stalled expiry notification must not let a stale scan delete a newer revision."""
+    import asyncio
+    import httpx
+    from fastapi import WebSocketDisconnect
+
+    monkeypatch.setenv('AUTOMATION_PUBLISH_KEY', 'test-only-key')
+
+    async def scenario():
+        app = create_app()
+        started, resume, scanned, connected, disconnect = (asyncio.Event() for _ in range(5))
+        second_id = None
+
+        class Socket:
+            calls = 0
+            second_messages = 0
+
+            async def accept(self):
+                connected.set()
+
+            async def receive_text(self):
+                await disconnect.wait()
+                raise WebSocketDisconnect()
+
+            async def send_json(self, message):
+                self.calls += 1
+                if self.calls == 1:
+                    started.set()
+                    await resume.wait()
+                elif message['data']['hazard_id'] == second_id:
+                    self.second_messages += 1
+                    # For expired entries, a second message is the deferred expiry hint.
+                    if self.second_messages == 2:
+                        scanned.set()
+
+            async def close(self):
+                disconnect.set()
+
+        now = datetime.now(timezone.utc)
+        expired = dict(fixture('automatic-hazard.json'), first_seen=(now-timedelta(days=2)).isoformat(),
+                       last_seen=(now-timedelta(days=2)).isoformat(), expires_at=(now-timedelta(days=1)).isoformat())
+        second_url = f'/v1/automatic/hazards/{uuid4()}'
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+            assert (await client.put(f'/v1/automatic/hazards/{uuid4()}', json=expired, headers=AUTH)).status_code == 201
+            second = expired if inactive_status == 'expired' else dict(expired, status='resolved', expires_at=(now+timedelta(days=1)).isoformat())
+            response = await client.put(second_url, json=second, headers=AUTH)
+            assert response.status_code == 201
+            second_id = response.json()['hazard_id']
+            live = next(route.endpoint for route in app.routes if route.path == '/v1/live')
+            socket_task = asyncio.create_task(live(Socket()))
+            await connected.wait()
+            try:
+                async with app.router.lifespan_context(app):
+                    await asyncio.wait_for(started.wait(), 3)
+                    active = dict(second, revision=2, status='active', expires_at=(now+timedelta(days=1)).isoformat())
+                    assert (await client.put(second_url, json=active, headers=AUTH)).status_code == 200
+                    resume.set()
+                    if inactive_status == 'expired':
+                        await asyncio.wait_for(scanned.wait(), 3)
+                    else:
+                        # One full subsequent maintenance tick ensures the suspended scan completed.
+                        await asyncio.sleep(1.1)
+                    response = await client.get(FEED)
+                    validate('HazardCollection', response.json())
+                    assert second_id in [h['properties']['id'] for h in response.json()['features']]
+                    retry = await client.put(second_url, json=active, headers=AUTH)
+                    assert retry.status_code == 200 and retry.json()['duplicate']
+                    assert second_id in app.state.hazards
+            finally:
+                resume.set()
+                disconnect.set()
+                await socket_task
+
+    asyncio.run(scenario())

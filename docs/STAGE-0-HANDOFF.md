@@ -25,9 +25,11 @@ checkpoint before consumers were built; final skeleton review is recorded in the
 Verified locally during implementation:
 
 - Both OpenAPI specs and all 22 fixtures pass validation; invalid fixtures are rejected.
-- Product: 6 tests; observation: 4 tests. Canonical request-schema parity, core retries/conflicts,
-  expiry, revisions, source preservation, atomic batches and live-message shape covered.
-- Both Expo apps typecheck and export iOS and Android bundles; dependency versions match installed
+- Product: 10 tests; observation: 4 tests. Canonical request-schema parity, core retries/conflicts,
+  expiry, revisions, source preservation, atomic batches and live-message shape covered. Expiry
+  cleanup regressions verify that revived expired/resolved publications survive suspended notifications.
+- Two mobile refresh regressions cover delayed submission after a pan and stale responses/errors.
+  Both Expo apps typecheck and export iOS and Android bundles; dependency versions match installed
   Expo SDK compatibility metadata. Detector build and no-fabricated-evidence check pass.
 - Actual Docker Compose build/start: healthy PostGIS and running API, no automatic container.
 - Live HTTP probe: manual creation/retry, authenticated publication create/retry/update/stale

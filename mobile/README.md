@@ -9,13 +9,14 @@ From the repository root (Node 22 LTS recommended):
 ```sh
 npm ci --prefix mobile
 npm run typecheck --prefix mobile
+npm test --prefix mobile
 npm run build --prefix mobile
 npm start --prefix mobile
 ```
 
 `build` exports iOS and Android JavaScript/Hermes bundles to `mobile/dist`; it does not create a
 signed native binary. Open the development server using an SDK-55-compatible Expo Go or development
-build. Both native bundle exports and typechecking have been verified; a physical-device visual
+build. The refresh regression tests run in Node without a device. Both native bundle exports and typechecking have been verified; a physical-device visual
 and interaction check is still needed.
 
 With no `EXPO_PUBLIC_API_URL`, the app opens in visibly labeled offline fixture preview mode.
