@@ -14,17 +14,20 @@ export type MapMarker = {
   description?: string;
   draggable?: boolean;
   select?: string;
+  dot?: boolean;
 };
 export type RouteLine = { id: string; coordinates: LngLat[]; color: string; width: number; dashed: boolean };
 export type Overlay = { hazards: HazardShape[]; markers: MapMarker[]; routes: RouteLine[] };
 
 export type MapTheme = 'light' | 'dark';
-export type ToWeb = { type: 'overlay'; overlay: Overlay } | { type: 'theme'; theme: MapTheme };
+export type Camera = { position: LngLat | null; follow: boolean; revision: number };
+export type ToWeb = { type: 'overlay'; overlay: Overlay } | { type: 'theme'; theme: MapTheme } | { type: 'camera'; camera: Camera };
 export const readyMessages = (theme: MapTheme, overlay: Overlay): ToWeb[] => [
   { type: 'theme', theme }, { type: 'overlay', overlay },
 ];
 export type FromWeb =
   | { type: 'ready' }
+  | { type: 'gesture' }
   | { type: 'press'; position: LngLat }
   | { type: 'drag'; id: string; position: LngLat }
   | { type: 'select'; id: string }
@@ -74,6 +77,7 @@ export function parseFromWeb(data: string): FromWeb | null {
   if (!message || typeof message !== 'object') return null;
   switch (message.type) {
     case 'ready': return { type: 'ready' };
+    case 'gesture': return { type: 'gesture' };
     case 'press': {
       const position = normalizePosition(message.position);
       return position ? { type: 'press', position } : null;

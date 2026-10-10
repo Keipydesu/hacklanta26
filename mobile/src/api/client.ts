@@ -1,6 +1,5 @@
 import type { components } from './schema';
 import hazardFixture from '../fixtures/hazards.json';
-import routeFixture from '../fixtures/route.json';
 import placeFixture from '../fixtures/places.json';
 export type HazardCollection = components['schemas']['HazardCollection'];
 export type Report = components['schemas']['ManualReport'];
@@ -66,10 +65,10 @@ export const submitFeedback = (hazardId: string, body: HazardFeedback) => {
 };
 export type Coordinate = components['schemas']['Coordinate'];
 /**
- * Routes for the selected pair. Only the explicitly offline preview may show fixture routes.
+ * Routes for the selected pair. Never draw fixed example geometry as a trip.
  */
 export async function getRoutes(origin: Coordinate, destination: Coordinate): Promise<{ response: RouteResponse; illustrative: boolean }> {
-  if (fixtureMode) return { response: routeFixture as RouteResponse, illustrative: true };
+  if (fixtureMode) throw new ApiError(503, 'Connect to real routing to get directions.');
   const response = await call<RouteResponse>('/v1/route', { origin, destination });
   if (response.headers.get('X-Stage-0-Stub') !== null) {
     throw new ApiError(503, 'Routing is unavailable right now.');

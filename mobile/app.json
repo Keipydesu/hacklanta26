@@ -14,7 +14,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Campus Hazards uses your location only while the app is open: to place a hazard report where you are, to start a trip from your current location, and to ask whether a hazard you are near is still there. It is never tracked in the background or sent with your hazard answers.",
+          "locationWhenInUsePermission": "Campus Hazards uses your location only while the app is open: to place a hazard report where you are, to show and follow your live position during a trip, and to ask whether a hazard you are near is still there. It is never tracked in the background or sent with your hazard answers.",
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false,
           "motionUsagePermission": false,

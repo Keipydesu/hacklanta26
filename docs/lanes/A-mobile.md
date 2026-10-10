@@ -9,13 +9,13 @@ automatic process is stopped. Follow [the architecture](../../ARCHITECTURE.md),
 For the UI design pass, lead with scooter/bike trip planning and use hazards as supporting trip
 context. Lime and Waze are the primary references in the [working brief](../UI-INSPIRATION.md).
 Follow [decision 014](../decisions/014-scooter-bike-first-ui.md): visual priority does not imply
-new travel modes, rental integration, continuous tracking or a change to milestone order.
+new travel modes, rental integration or a change to milestone order. Decision 024 now authorizes foreground live trip position and camera follow.
 [Decision 015](../decisions/015-map-first-mobile-controls.md) makes the map the primary canvas,
 with short labeled icons and expandable details; follow the [mobile UI guide](../../mobile/docs/UI-GUIDE.md).
 
 **Owns:** `mobile/`. Consume only the product HTTP/live contract and local generated types/fixtures.
-No imports from `automatic/`, sensor libraries, motion permissions, continuous location, ride
-start/stop or recording belong in this release. Publication credentials never enter the app.
+No imports from `automatic/`, motion sensor libraries, motion permissions, background location or ride
+recording belong in this release. Foreground live trip position follows [decision 024](../decisions/024-foreground-trip-tracking.md). Publication credentials never enter the app.
 `EXPO_PUBLIC_API_URL` must point only to the product API, never the observation/automatic service,
 including when Lane G supplies multiple service URLs for the hosted rehearsal.
 
@@ -138,7 +138,7 @@ Detail shows kind, label, community versus automatic source, simulated/replay/mi
 present, age and expiry. Scores are routing heuristics, not probabilities or verified severity.
 
 Retain visibly labeled fixture preview when no API URL is configured: timestamps shift once per
-preview session, report submission remains disabled, and routes remain explicitly illustrative.
+preview session, report submission remains disabled, and directions remain unavailable until real routing is connected; no fixture route lines are drawn.
 An unavailable configured API must show a connection error; do not silently fall back to fictional
 successful submissions or fixture data that appears live.
 
@@ -154,7 +154,7 @@ duration and risk heuristic with a clear legend. Contract kind `safest` remains 
 copy says “lower-risk.” If `safest_available` is false, explain that no alternative is available and
 avoid presenting duplicated geometry as two different paths. If both successful routes happen to
 share geometry, show the result honestly. A 503 shows routing unavailable with retry while the
-hazard map and report form remain functional. This is comparison, not turn-by-turn navigation.
+hazard map and report form remain functional. Trip also shows a live foreground GPS dot with follow/recenter, independent of endpoints. Panning/editing pauses camera following. Stale fixes disappear; backgrounding stops updates. No turn instructions or automatic rerouting are provided (decision 024).
 
 A new hazard hint refreshes the map and marks an existing comparison as potentially outdated;
 allow a refresh for the unchanged endpoints, with one in-flight request and debouncing if automatic
@@ -216,4 +216,4 @@ permissions work on-device. Use phone-reachable LAN URLs locally and G's HTTPS U
 Handoff records what works, exact app/API revisions and launch URL, commands and devices actually
 checked, retry IDs/receipts, outage behavior, and remaining stubs. Do not remove fixture warnings
 until the corresponding live capability exists. Defer accounts, cross-source merging,
-continuous tracking, motion detection, dashboard and cosmetic polish beyond the manual release.
+background tracking/recording, motion detection, dashboard and cosmetic polish beyond the manual release.

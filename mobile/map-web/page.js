@@ -10,6 +10,9 @@ function startCampusMap(ml, env) {
   var overlay = { hazards: [], markers: [], routes: [] };
   var markers = {};
   var currentTheme = 'light';
+  var cameraRevision = -1;
+  var cameraPaused = false;
+  var cameraNeedsZoom = true;
   var styleGeneration = 0;
   var styleLoadHandler = null;
   var styleErrorHandler = null;
@@ -94,9 +97,17 @@ function startCampusMap(ml, env) {
       var marker = markers[m.id];
       if (marker && marker.campusColor !== m.color) { marker.remove(); marker = null; }
       if (!marker) {
-        marker = new ml.Marker({ color: m.color, draggable: !!m.draggable });
+        var options = { color: m.color, draggable: !!m.draggable };
+        if (m.dot) {
+          var dot = env.document.createElement('div');
+          dot.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#1877f2;border:3px solid white;box-shadow:0 0 0 5px rgba(24,119,242,.22);';
+          dot.setAttribute('aria-label', 'Your location');
+          options.element = dot;
+          options.anchor = 'center';
+        }
+        marker = new ml.Marker(options);
         marker.campusColor = m.color;
-        marker.on('dragstart', function () { marker.campusDragging = true; });
+        marker.on('dragstart', function () { marker.campusDragging = true; cameraPaused = true; post({ type: 'gesture' }); });
         marker.on('dragend', function () {
           marker.campusDragging = false;
           var p = marker.getLngLat();
@@ -147,12 +158,25 @@ function startCampusMap(ml, env) {
     if (target && target !== map.getCanvas()) return; // a marker or popup tap is not a map tap
     post({ type: 'press', position: [event.lngLat.lng, event.lngLat.lat] });
   });
+  map.on('movestart', function (event) {
+    if (event && event.originalEvent) { cameraPaused = true; post({ type: 'gesture' }); }
+  });
   map.on('moveend', postBounds);
   map.on('load', postBounds);
   beginStyle(null);
 
   return {
     receive: function (message) {
+      if (message && message.type === 'camera' && message.camera) {
+        var camera = message.camera;
+        var recenter = camera.revision !== cameraRevision;
+        if (recenter) { cameraRevision = camera.revision; cameraPaused = false; cameraNeedsZoom = true; }
+        if (camera.follow && camera.position && !cameraPaused) {
+          var target = { center: camera.position, duration: 350 };
+          if (cameraNeedsZoom) { target.zoom = Math.max(map.getZoom(), 16); cameraNeedsZoom = false; }
+          map.easeTo(target);
+        }
+      }
       if (message && message.type === 'overlay' && message.overlay) { overlay = message.overlay; render(); }
       if (message && message.type === 'theme' && (message.theme === 'light' || message.theme === 'dark') && message.theme !== currentTheme) {
         currentTheme = message.theme;

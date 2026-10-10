@@ -33,6 +33,7 @@ export function RouteScreen(props: {
       <Button title="Swap" disabled={!props.canSwap} onPress={props.onSwap} />
       <Button title="Clear" onPress={props.onClear} />
     </View>}
+    {props.offlinePreview && <Text style={styles.notice}>Offline preview · connect to routing for directions</Text>}
     {loading && <Text style={styles.fine}>Comparing routes…</Text>}
     {ready && !loading && (!presented || expanded) && <Button primary title={presented ? 'Refresh routes' : 'Compare routes'} onPress={props.onCompare} />}
     {!!state.error && <Text accessibilityRole="alert" style={styles.error}>{state.error}</Text>}
@@ -41,8 +42,7 @@ export function RouteScreen(props: {
       <Text accessibilityRole="alert" style={styles.notice}>Reports changed · routes may be outdated</Text>
       {!expanded && <Button title="Refresh routes" onPress={props.onCompare} disabled={loading} />}
     </View>}
-    {presented && <>
-      {presented.illustrative && <Text style={styles.notice}>Offline preview · example routes, not your trip</Text>}
+    {presented && !presented.illustrative && <>
       <View style={styles.row}>
         <RouteCard colors={props.colors} line={presented.shortest} expanded={expanded} />
         {presented.lowerRisk && <RouteCard colors={props.colors} line={presented.lowerRisk} expanded={expanded} />}
@@ -50,7 +50,7 @@ export function RouteScreen(props: {
       {!presented.lowerRisk && <Text style={styles.fine}>No distinct lower-risk alternative</Text>}
       {expanded && <>
         <Text style={styles.fine}>{presented.summary}</Text>
-        <Text style={styles.fine}>Comparison only, not navigation. Risk is a routing heuristic, not a safety guarantee.</Text>
+        <Text style={styles.fine}>Routes do not reroute automatically. Risk is a routing heuristic, not a safety guarantee.</Text>
       </>}
     </>}
   </>;

@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 // Exercise the actual Expo client without starting React Native or a live API.
-function client(fetch) {
+function client(fetch, apiUrl = 'https://product.example') {
   const timers = new Map();
   const exports = {};
   const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/api/client.ts'), 'utf8'), {
@@ -14,7 +14,7 @@ function client(fetch) {
   }).outputText;
   vm.runInNewContext(source, {
     exports, require: p => require(path.resolve(__dirname, '../src/api', p)),
-    process: { env: { EXPO_PUBLIC_API_URL: 'https://product.example' } },
+    process: { env: { EXPO_PUBLIC_API_URL: apiUrl } },
     AbortController, fetch,
     setTimeout: (fn, ms) => { const id = {}; timers.set(id, { fn, ms }); return id; },
     clearTimeout: id => timers.delete(id),
@@ -58,4 +58,11 @@ test('a live server fixture is an outage, never a route for the selected pins', 
   await assert.rejects(h.api.getRoutes({ lat: 33.7531, lon: -84.3853 }, { lat: 33.7560, lon: -84.3880 }),
     error => error.status === 503);
   assert.equal(h.timers.size, 0);
+});
+
+
+test('offline destination planning never returns unrelated example geometry', async () => {
+  const h = client(() => { throw new Error('must not fetch without an API'); }, '');
+  await assert.rejects(h.api.getRoutes({ lat: 33.75, lon: -84.38 }, { lat: 33.76, lon: -84.39 }),
+    error => error.status === 503);
 });

@@ -21,6 +21,7 @@ export type OverlayInput = {
   destination: Point | null;
   routeColors: { shortest: string; safest: string };
   selectedHazardId?: string | null;
+  livePosition?: Point | null;
 };
 
 const at = (p: Point): LngLat => [p.lon, p.lat];
@@ -42,6 +43,8 @@ export function buildOverlay(input: OverlayInput): Overlay {
       title: 'Pending report (not yet accepted)', description: sub.body.kind });
   }
   if (input.screen === 'report' && input.pin) markers.push({ id: 'pin', position: at(input.pin), color: MARKER_COLORS.pin, title: 'Current report location', draggable: false });
+
+  if (input.screen === 'route' && input.livePosition) markers.push({ id: 'live-position', position: at(input.livePosition), color: '#1877f2', title: 'Your location', draggable: false, dot: true });
 
   const routes: RouteLine[] = [];
   if (input.screen === 'route') {

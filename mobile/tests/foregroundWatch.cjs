@@ -82,3 +82,40 @@ test('foreground return rechecks permission and removes the previous watcher', a
   assert.equal(watches, 1);
   assert.equal(removed, 1);
 });
+
+
+test('watch errors surface unavailable and invalidate callbacks, including a late subscription', async () => {
+  const pending = deferred();
+  let onPosition, onError, removed = 0;
+  const statuses = [], positions = [];
+  const watcher = createForegroundWatch({
+    permission: async () => ({ granted: true }),
+    watch: (position, error) => { onPosition = position; onError = error; return pending.promise; },
+    onPosition: p => positions.push(p), onActive() {}, onStatus: s => statuses.push(s),
+  });
+  const starting = watcher.setActive(true);
+  await settle();
+  onError(); onPosition('late');
+  pending.resolve({ remove() { removed++; } });
+  await starting;
+  assert.deepEqual(statuses, ['checking', 'unavailable']);
+  assert.deepEqual(positions, []);
+  assert.equal(removed, 1);
+});
+
+test('denial and startup rejection are distinguishable and a new activation can recover', async () => {
+  let granted = false, fail = true;
+  const statuses = [];
+  const watcher = createForegroundWatch({
+    permission: async () => ({ granted }),
+    watch: async () => { if (fail) throw new Error('GPS off'); return { remove() {} }; },
+    onPosition() {}, onActive() {}, onStatus: s => statuses.push(s),
+  });
+  await watcher.setActive(true);
+  granted = true;
+  await watcher.setActive(true);
+  fail = false;
+  await watcher.setActive(true);
+  await watcher.setActive(false);
+  assert.deepEqual(statuses, ['checking', 'denied', 'checking', 'unavailable', 'checking', 'watching', 'paused']);
+});

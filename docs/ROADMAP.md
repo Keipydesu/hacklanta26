@@ -13,7 +13,7 @@ milestones (3–4) can proceed in parallel once lane 0's contracts are agreed, p
 Stage 0 contracts, fixtures and runnable skeletons are implemented, with scoped CI workflows.
 See [the stage 0 handoff](STAGE-0-HANDOFF.md) for checks and limitations, including outstanding
 physical-device smoke verification. Milestones 1–4 are not started. Next: Lane A/C manual persistence
-and report queue work, with Lane G extending infrastructure. Stub routes do not complete milestone 2.
+and report queue work, with Lane G extending infrastructure. Stub routes do not complete milestone 2. Decision 024 adds foreground live trip position and camera follow to Lane A; the milestone-2 phone rehearsal must verify movement, pan/recenter and background/resume.
 
 ## Milestones
 

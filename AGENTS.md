@@ -10,7 +10,7 @@ edit this file, never create a second copy of its rules.
 1. **Read [ARCHITECTURE.md](ARCHITECTURE.md) in full.** It holds the API boundary, data model,
    routing design, environment variables, and acceptance criteria — the actual product contract.
 2. **Read [README.md](README.md)** for scope, the delivery checklist, and the scope decisions
-   (what is explicitly out: no dashboard, no continuous ride tracking, no selected DB redundancy).
+   (what is explicitly out: no dashboard, no background ride tracking/recording, no selected DB redundancy).
 3. **Read [docs/ROADMAP.md](docs/ROADMAP.md)** for milestone sequence, owners, dependencies, and
    the MVP cut line.
 4. **Read your lane's plan under `docs/lanes/`** before touching its paths — see the ownership
@@ -44,7 +44,7 @@ real-recording tuning and hosted deployment remain outstanding. See component RE
 
 | Layer | Stage 0 state |
 |---|---|
-| Mobile | Expo SDK 57 + TypeScript; MapLibre GL JS in a WebView with OpenFreeMap OSM tiles (decision 010); fixture/live stub screens |
+| Mobile | Expo SDK 57 + TypeScript; MapLibre GL JS in a WebView with OpenFreeMap OSM tiles (decision 010); foreground live trip position/follow; fixture/live screens |
 | Backend | FastAPI; PostGIS persistence via psycopg when `DATABASE_URL` is set, memory stub otherwise |
 | Data | PostgreSQL + PostGIS Compose container; product API persists reports/hazards/revisions |
 | Routing | Valhalla pedestrian costing (scooter pace/step penalty) when `VALHALLA_URL` is set; fixed fixture otherwise |
@@ -152,8 +152,8 @@ lane plans together.
   PR or handoff. Release age, popularity, and a clean vulnerability scan alone do not establish
   safety. If vetting is incomplete or compromise is suspected, defer adoption or choose a vetted
   alternative. Apply security fixes promptly after reviewing the specific patched release.
-- Keep the monitoring web app, continuous ride tracking, and motion permissions out of the first
-  user-facing release (see README scope decisions). Database redundancy is a proposal, not selected
+- Keep the monitoring web app, background ride tracking/recording, and motion permissions out of the first
+  user-facing release. Foreground trip position/follow is supported by decision 024 (see README scope decisions). Database redundancy is a proposal, not selected
   or provisioned infrastructure — do not implement application-level dual writes.
 - Keep publication credentials server-side, never in Expo public variables or collector code. Do
   not commit secrets or identifying recording endpoints.

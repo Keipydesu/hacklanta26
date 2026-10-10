@@ -12,7 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
 import { locateOnce, locatePosition, requestForegroundPermission } from './src/location/foreground';
-import { createForegroundWatch } from './src/location/foregroundWatch';
+import { createForegroundWatch, WatchStatus } from './src/location/foregroundWatch';
+import { freshPosition, livePosition, LivePosition } from './src/location/livePosition';
 import { createReportLocation, ReportLocationState } from './src/reports/location';
 import { CATEGORIES, categoryLabel, hazardTitle } from './src/reports/categories';
 import { canSubmit, locationAction, shouldLocateOnEnter, showSubmit } from './src/reports/reportFlow';
@@ -49,6 +50,7 @@ function CampusApp() {
   const [safeFrame, setSafeFrame] = useState({ y: 0, height: 0 });
   const bottomInset = Math.max(0, pageHeight - safeFrame.y - safeFrame.height);
   function openScreen(next: 'map' | 'report' | 'route') {
+    if (next === 'route' && screenRef.current !== 'route') { setFollowing(true); setCameraRevision(value => value + 1); }
     screenRef.current = next;
     setScreen(next); setExpanded(false);
     if (next !== 'route') { setPicking(null); setEditing(null); }
@@ -83,6 +85,18 @@ function CampusApp() {
   }, []);
   const [hazards, setHazards] = useState<HazardCollection['features']>([]);
   const [permissionRevision, setPermissionRevision] = useState(0);
+  const [position, setPosition] = useState<LivePosition | null>(null);
+  const [watchStatus, setWatchStatus] = useState<WatchStatus>('paused');
+  const [following, setFollowing] = useState(true);
+  const [cameraRevision, setCameraRevision] = useState(0);
+  async function followLocation() {
+    setFollowing(true); setCameraRevision(value => value + 1);
+    if (watchStatus === 'denied') {
+      try { await requestForegroundPermission(Location, () => setPermissionRevision(value => value + 1)); }
+      catch { setWatchStatus('unavailable'); }
+    } else if (!freshPosition(position, Date.now())) setPermissionRevision(value => value + 1);
+  }
+
   const locateForAction = () => locateOnce(Location, Location.Accuracy.Balanced,
     () => setPermissionRevision(value => value + 1));
   // Route endpoints and their comparison live apart from the report form and the hazard feed.
@@ -102,7 +116,7 @@ function CampusApp() {
       lat: (currentRegion.current.south + currentRegion.current.north) / 2, lon: (currentRegion.current.west + currentRegion.current.east) / 2 }),
     onChange: setSearchState, schedule: (run, ms) => setTimeout(run, ms), cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>),
   }));
-  function editEndpoint(which: Which | null) { setEditing(which); setPicking(null); placeSearch.reset(); }
+  function editEndpoint(which: Which | null) { if (which) setFollowing(false); setEditing(which); setPicking(null); placeSearch.reset(); }
   function planTrip() { openScreen('route'); editEndpoint(trip.state().destination.kind === 'none' ? 'destination' : null); void trip.start(); }
   const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind'] | null>(null);
@@ -197,10 +211,11 @@ function CampusApp() {
       finally { setSubmitting(false); }
     });
   }
+  const currentPosition = freshPosition(position, now);
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   const overlay = buildOverlay({
     screen, hazards: visible, submissions, pin: reportLocation.status === 'ready' && reportLocator.ready() ? reportLocation : null,
-    routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors: ROUTE_COLORS,
+    livePosition: currentPosition, routes: presented?.illustrative ? null : presented, origin: routeState.origin, destination: routeState.destination, routeColors: ROUTE_COLORS,
     selectedHazardId: selected?.id,
   });
   if (mapTheme === 'dark' && overlay.routes.some(line => line.id === 'lower-risk')) {
@@ -213,20 +228,26 @@ function CampusApp() {
   }));
   useEffect(() => { if (!selected) nearby.evaluate(); }, [selected]);
   useEffect(() => {
-    if (fixtureMode) return;
+    if (fixtureMode && screen !== 'route') return;
     const watcher = createForegroundWatch<Location.LocationObject>({
       permission: () => Location.getForegroundPermissionsAsync(),
-      watch: onPosition => Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 }, onPosition),
-      onPosition: ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }),
-      onActive: active => { void nearby.setActive(active); },
+      watch: (onPosition, onError) => Location.watchPositionAsync(
+        screen === 'route'
+          ? { accuracy: Location.Accuracy.High, distanceInterval: 0, timeInterval: 1000 }
+          : { accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 }, onPosition, onError),
+      onPosition: fix => {
+        setPosition(previous => livePosition(fix, Date.now(), previous));
+        if (!fixtureMode) void nearby.position({ lat: fix.coords.latitude, lon: fix.coords.longitude });
+      },
+      onStatus: status => { setWatchStatus(status); if (status !== 'watching') setPosition(null); },
+      onActive: active => { if (!fixtureMode) void nearby.setActive(active); },
     });
     void watcher.setActive(AppState.currentState === 'active');
     const appState = AppState.addEventListener('change', state => {
       void watcher.setActive(state === 'active');
     });
     return () => { void watcher.setActive(false); appState.remove(); };
-  }, [permissionRevision]);
+  }, [permissionRevision, screen]);
   function onSelectHazard(id: string) {
     const hazard = visible.find(h => h.properties.id === id);
     if (hazard) void selection.select(hazard);
@@ -242,7 +263,8 @@ function CampusApp() {
   return <View style={styles.page} onLayout={e => setPageHeight(e.nativeEvent.layout.height)}>
     <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
     <View style={[styles.map, { bottom: dockHeight + bottomInset }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
-      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} onSelect={onSelectHazard} /></View>
+      camera={{ position: currentPosition ? [currentPosition.lon, currentPosition.lat] : null, follow: screen === 'route' && following, revision: cameraRevision }}
+      onGesture={() => setFollowing(false)} onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} onSelect={onSelectHazard} /></View>
     <SafeAreaView pointerEvents="box-none" style={styles.safeControls}>
     <KeyboardAvoidingView pointerEvents="box-none" style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       onLayout={e => { const { y, height } = e.nativeEvent.layout; setSafeFrame({ y, height }); }}>
@@ -309,6 +331,15 @@ function CampusApp() {
           {(sub.state === 'submitted' || (sub.state === 'failed' && !sub.retryable)) && <Button title="Dismiss" onPress={() => void queue.dismiss(sub.id)} />}
         </View>)}
       </>}
+      {screen === 'route' && <View>
+        <Text accessibilityLiveRegion="polite" style={styles.caption}>{watchStatus === 'denied' ? 'Location permission is off' :
+          watchStatus === 'unavailable' ? 'Live location unavailable' : watchStatus === 'paused' ? 'Live location paused' :
+          currentPosition ? (following ? 'Following your location' : 'Live location · map free to explore') : position ? 'GPS signal lost · waiting for a fresh location…' : 'Waiting for an accurate GPS location…'}</Text>
+        <Button icon="locate" title={currentPosition ? (following ? 'Stop following' : 'Recenter') : 'Retry live location'}
+          onPress={() => { if (currentPosition && following) setFollowing(false); else void followLocation(); }} />
+        {watchStatus === 'denied' && <Button title="Open location settings" onPress={() => void Linking.openSettings().catch(() => setError('Open device Settings to enable location permission.'))} />}
+        <Text style={styles.caption}>Live while the app is open · route does not reroute automatically</Text>
+      </View>}
       {screen === 'route' && <RouteScreen colors={ROUTE_COLORS} expanded={expanded} state={routeState} offlinePreview={fixtureMode}
         fields={<TripFields trip={tripState} editing={editing} picking={picking} search={searchState}
           onEdit={editEndpoint} onCancel={() => editEndpoint(null)}
@@ -317,7 +348,7 @@ function CampusApp() {
           onRetrySearch={() => void placeSearch.retry()}
           onUseCurrent={() => { editEndpoint(null); void trip.useCurrentLocation(); }}
           onRetryLocation={() => void trip.retryLocation()}
-          onPickOnMap={which => { editEndpoint(null); setPicking(which); Keyboard.dismiss(); }} />}
+          onPickOnMap={which => { editEndpoint(null); setFollowing(false); setPicking(which); Keyboard.dismiss(); }} />}
         canSwap={trip.canSwap()} onCompare={() => void comparison.request()}
         onSwap={() => trip.swap()} onClear={() => { void trip.clear(); editEndpoint('destination'); }} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}

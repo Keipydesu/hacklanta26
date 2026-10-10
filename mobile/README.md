@@ -71,8 +71,7 @@ scripts run that step first. Nothing loads from a CDN at runtime.
 
 With no `EXPO_PUBLIC_API_URL`, the app opens in visibly labeled offline fixture preview mode.
 Map source/evidence labels and expiry are shown; timestamps shift once per app session. Report
-submission is disabled in fixture mode. The route screen shows fixed example GSU routes, labeled
-as an offline preview.
+submission is disabled in fixture mode. Directions remain unavailable until a real routing API is connected; example route lines are never drawn for selected destinations.
 
 For the live product stub, set the URL when starting Metro:
 
@@ -119,7 +118,7 @@ only ever shown as "Lower-risk".
 - A live `hazards.changed` hint marks an existing comparison as possibly out of date and offers a
   refresh. Queued reports do not affect routes until the server accepts them.
 - When the server has no routing engine it answers with its fixed example and an
-  `X-Stage-0-Stub` header; the app then labels the lines as examples that do not follow the pins.
+  `X-Stage-0-Stub` header; the app rejects it as routing unavailable and draws no example lines.
 
 The header line shows "Test server · reports are not kept when it restarts" only when `/healthz`
 reports memory storage. Route state lives in `src/routes/model.ts` (tested in Node,
@@ -188,7 +187,7 @@ The online Expo compatibility check currently recommends newer patch releases an
 the pinned releases match the bundled SDK 57 compatibility manifest, and TypeScript 5.9.3 passes
 our existing checks. Review upgrades before running `expo install --fix`.
 Motion activity permission is explicitly disabled in the location plugin. The app still requests
-only a one-shot foreground location when the user taps the location action.
+foreground location: one-shot report/trip-start fixes and live trip position while the app is open.
 
 ### UI fonts
 
@@ -232,3 +231,22 @@ and Settings return remain unverified; automated lifecycle tests do not replace 
 ## Report categories
 
 The Report screen has no free-text field. Riders pick one of four categories (pothole or rough surface, obstruction, closed path or road, other), which map one-to-one to the API's `kind` values in `src/reports/categories.ts`; "Other" needs no explanation. The API's optional `description` is unchanged, so reports queued by earlier versions still send. Adding a category beyond these four needs a coordinated contract change.
+
+
+## Live trip position
+
+Trip shows a blue live GPS dot independently of the start/destination pins. Use Recenter to follow
+it; panning or editing endpoints frees the camera, and Stop following leaves the dot updating.
+Permission denial offers Settings/retry. Fixes older than 20 seconds disappear with a signal-loss
+notice; inaccurate fixes do not move the dot. Inactive/background stops updates and clears the dot,
+and returning rechecks permission. No positions are recorded or uploaded as a ride trace.
+There are no spoken turns, route-progress estimates or automatic rerouting.
+
+Real directions require the [routing demo setup](../infra/README.md) and its printed
+`EXPO_PUBLIC_API_URL` when starting Metro. Restart Metro with `--clear` after changing that variable.
+Offline preview and a server without real routing show unavailable instead of unrelated fixture lines.
+
+See [decision 024](../docs/decisions/024-foreground-trip-tracking.md). Test on a physical phone:
+walk with Trip open, pan then Recenter, deny/re-enable permission in Settings, lose GPS, and
+background/resume. Confirm Report still acquires its own fresh draft location. Automated tests
+cover model/bridge/lifecycle behavior; they do not verify native GPS or WebView gestures.
