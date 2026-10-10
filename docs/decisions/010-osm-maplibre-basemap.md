@@ -24,7 +24,8 @@ calls Valhalla, which builds its graph from OSM. Operator direction; tracked in 
   `EXPO_PUBLIC_MAP_STYLE_URL` overrides the style. It is public and never a secret.
 - **Version.** 6.11.2 was the latest patch on a minor line more than two weeks old. All releases up
   to 6.4.0, including the whole 5.x line, are affected by the critical XSS advisory
-  GHSA-jrc7-96c5-q579. Popups are built from text nodes, never HTML.
+  GHSA-jrc7-96c5-q579. Popups are built from text nodes, never HTML. The WebView loads only its own
+  page in place, opens other http(s) links in the browser and blocks every other scheme.
 - **Consistency claim.** The basemap and Valhalla are both OSM-derived, but OpenFreeMap serves its
   own planet build while Valhalla uses a dated Georgia extract. Expect small drift between drawn
   paths and routed paths. Exact consistency requires self-hosting a basemap built from the same
@@ -37,8 +38,9 @@ calls Valhalla, which builds its graph from OSM. Operator direction; tracked in 
 
 ## Verification and limits
 
-Mobile typecheck, 56 Node tests and iOS/Android bundle export pass. The tests cover bounds,
-message validation, overlay parity, script escaping and the page script against a fake MapLibre.
+Mobile typecheck, 57 Node tests and iOS/Android bundle export pass. The tests cover bounds,
+message validation, navigation guarding, overlay parity, script escaping and the page script
+against a fake MapLibre.
 The real generated page was also smoke-tested in headless Chrome over an HTTP origin. Online, the
 OpenFreeMap basemap and the hazard, route and pin overlays rendered. Offline, the blank-style
 fallback rendered the same overlays. A physical-device Expo Go check on iOS and Android is still

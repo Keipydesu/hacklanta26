@@ -24,7 +24,11 @@ start/typecheck/test/build pre-hooks). Nothing loads from a CDN at runtime.
   marker popups with `textContent`, never HTML, so server labels are not parsed as markup.
 - **GHSA-36j3-xxf7-4pqg** (medium, 2020): Android WebView universal XSS in
   `react-native-webview` <= 10.10.2. 13.16.1 is outside the range. The WebView disables multiple
-  windows, and the link guard opens any outside URL (such as attribution links) in the system browser.
+  windows. Its navigation guard (`navigationDecision`) loads only the page's own origin and
+  `about:blank` in place. It opens other http(s) links (attribution comes from the remote style)
+  in the system browser and blocks every other scheme (`javascript:`, `data:`, `intent:`, `file:` ...).
+  `originWhitelist` stays `['*']` because the library hands non-matching URLs straight to
+  `Linking.openURL`.
 - No install scripts in `maplibre-gl`, `react-native-webview` or the new transitive packages
   (`hasInstallScript` checked in the lockfile).
 - `npm audit`: 22 advisories on this branch versus 23 on main. None are new. The one removed was
@@ -62,7 +66,7 @@ control from the style. To self-host later, point `EXPO_PUBLIC_MAP_STYLE_URL` at
 | Check | Result |
 | --- | --- |
 | `npm run typecheck --prefix mobile` | Pass |
-| `npm test --prefix mobile` | 56/56 pass, including 17 map tests |
+| `npm test --prefix mobile` | 57/57 pass, including 18 map tests |
 | `npm run build --prefix mobile` | iOS and Android Hermes bundles exported |
 | Headless Chrome, real generated page served over HTTP, OpenFreeMap reachable | Basemap loaded (1,441 rendered features); hazard and route sources populated; pin marker in the DOM |
 | Same page with an unreachable style | Blank-style fallback and notice; hazards, routes and pin still rendered |

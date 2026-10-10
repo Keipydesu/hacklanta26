@@ -77,3 +77,20 @@ export function parseFromWeb(data: string): FromWeb | null {
 
 /** JavaScript to inject into the WebView; JSON is a valid JS expression. */
 export const injection = (message: ToWeb) => `window.__campusMap && window.__campusMap.receive(${JSON.stringify(message)}); true;`;
+
+export type NavigationDecision = 'load' | 'external' | 'block';
+/**
+ * What the WebView does with a navigation. Only the page's own document loads in place. Outside
+ * http(s) links (attribution comes from the remote style) open in the system browser. Every other
+ * scheme (javascript:, data:, file:, intent:, other about: pages, blob: ...) is refused. Exactly
+ * `about:blank` may load: react-native-webview always allows it because a raw-HTML page can
+ * bootstrap through it, and it runs no code.
+ */
+export function navigationDecision(url: string, pageOrigin: string): NavigationDecision {
+  if (url === 'about:blank') return 'load';
+  let parsed: URL, origin: URL;
+  try { parsed = new URL(url); origin = new URL(pageOrigin); } catch { return 'block'; }
+  if (parsed.protocol === origin.protocol && parsed.host === origin.host && !parsed.username && !parsed.password) return 'load';
+  if ((parsed.protocol === 'https:' || parsed.protocol === 'http:') && !parsed.username && !parsed.password) return 'external';
+  return 'block';
+}

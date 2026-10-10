@@ -3,7 +3,7 @@ import { Linking, type StyleProp, type ViewStyle } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { MAP_PAGE_ORIGIN, mapStyleUrl } from './config';
 import { buildMapHtml } from './page';
-import { injection, parseFromWeb, type Bounds, type LngLat, type Overlay } from './protocol';
+import { injection, navigationDecision, parseFromWeb, type Bounds, type LngLat, type Overlay } from './protocol';
 
 export type MapLibreViewProps = {
   style?: StyleProp<ViewStyle>;
@@ -50,13 +50,15 @@ export function MapLibreView(props: MapLibreViewProps) {
     }
   }
 
-  return <WebView ref={ref} style={props.style} source={{ html, baseUrl: MAP_PAGE_ORIGIN }} originWhitelist={['*']} onMessage={onMessage}
+  return <WebView ref={ref} style={props.style} source={{ html, baseUrl: MAP_PAGE_ORIGIN }} onMessage={onMessage}
     javaScriptEnabled domStorageEnabled={false} setSupportMultipleWindows={false}
+    // '*' sends every navigation to the guard below. A narrower whitelist would make the library pass
+    // non-matching URLs (intent:, tel:, javascript: ...) straight to Linking.openURL.
+    originWhitelist={['*']}
     onShouldStartLoadWithRequest={request => {
-      // The page itself loads at MAP_PAGE_ORIGIN; any other link (attribution) opens in the browser.
-      if (request.url.startsWith(MAP_PAGE_ORIGIN) || !/^https?:/i.test(request.url)) return true;
-      void Linking.openURL(request.url);
-      return false;
+      const decision = navigationDecision(request.url, MAP_PAGE_ORIGIN);
+      if (decision === 'external') void Linking.openURL(request.url);
+      return decision === 'load';
     }}
     onContentProcessDidTerminate={() => { ready.current = false; ref.current?.reload(); }}
     onRenderProcessGone={() => { ready.current = false; ref.current?.reload(); }} />;

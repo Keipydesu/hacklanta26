@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeBounds, bboxParam, boundsAround, parseFromWeb, injection } = require('../.test-dist/map/protocol.js');
+const { normalizeBounds, bboxParam, boundsAround, parseFromWeb, injection, navigationDecision } = require('../.test-dist/map/protocol.js');
 const { buildOverlay, MARKER_COLORS } = require('../.test-dist/map/overlay.js');
 const { renderMapPage, scriptLiteral } = require('../.test-dist/map/html.js');
 const { startCampusMap } = require('../map-web/page.js');
@@ -238,4 +238,20 @@ test('overlay layers are added when a remote style loads even before its tile so
   assert.equal(page.map.styles.length, 1, 'a tile error after the style loaded is not a basemap failure');
   page.api.receive({ type: 'overlay', overlay: { ...overlay, hazards: [] } });
   assert.equal(page.map.getSource('hazards').data.features.length, 0, 'later overlays update while tiles still load');
+});
+
+test('WebView navigation: only the page loads in place; outside http(s) opens in the browser; other schemes are blocked', () => {
+  const origin = 'https://campus-map.invalid/';
+  assert.equal(navigationDecision('https://campus-map.invalid/', origin), 'load');
+  assert.equal(navigationDecision('https://campus-map.invalid/#x', origin), 'load');
+  assert.equal(navigationDecision('about:blank', origin), 'load', 'react-native-webview bootstrap page');
+  assert.equal(navigationDecision('https://openfreemap.org/', origin), 'external');
+  assert.equal(navigationDecision('https://www.openstreetmap.org/copyright', origin), 'external');
+  assert.equal(navigationDecision('http://example.com/', origin), 'external');
+  assert.equal(navigationDecision('https://campus-map.invalid.evil.example/', origin), 'external', 'a lookalike host never loads in place');
+  for (const url of ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,<script>alert(1)</script>', 'file:///etc/passwd',
+    'intent://scan/#Intent;scheme=zxing;end', 'tel:5550100', 'about:srcdoc', 'blob:https://campus-map.invalid/abc',
+    'https://user:pw@campus-map.invalid/', 'https://user@openfreemap.org/', 'not a url', '']) {
+    assert.equal(navigationDecision(url, origin), 'block', url);
+  }
 });
