@@ -1,12 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, Button, TextInput, StyleSheet } from 'react-native';
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
-import { apiUrl, fixtureMode, getHazards, getRoutes, submitReport, HazardCollection, Report, RouteResponse } from './src/api/client';
+import { ApiError, apiUrl, fixtureMode, getHazards, getRoutes, submitReport, HazardCollection, Report, RouteResponse } from './src/api/client';
 
 const center = { latitude: 33.7531, longitude: -84.3853, latitudeDelta: 0.012, longitudeDelta: 0.012 };
 const toPoint = ([longitude, latitude]: number[]) => ({ latitude, longitude });
-const bounds = (r: Region) => [r.longitude-r.longitudeDelta/2, r.latitude-r.latitudeDelta/2, r.longitude+r.longitudeDelta/2, r.latitude+r.latitudeDelta/2].join(',');
+const clamp = (value: number, limit: number) => Math.min(limit, Math.max(-limit, value));
+// The API rejects bounds outside WGS84, which a zoomed-out map easily produces.
+const bounds = (r: Region) => {
+  const wide = r.longitudeDelta >= 360;
+  return [wide ? -180 : clamp(r.longitude-r.longitudeDelta/2, 180), clamp(r.latitude-r.latitudeDelta/2, 90),
+    wide ? 180 : clamp(r.longitude+r.longitudeDelta/2, 180), clamp(r.latitude+r.latitudeDelta/2, 90)].join(',');
+};
 export default function App() {
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
   const [region, setRegion] = useState(center);
@@ -17,11 +23,19 @@ export default function App() {
   const [description, setDescription] = useState('');
   const [draft, setDraft] = useState<Report>();
   const [status, setStatus] = useState<'draft'|'sending'|'submitted'|'failed'>('draft');
+  const [retryable, setRetryable] = useState(true);
   const [error, setError] = useState('');
+  const [hazardError, setHazardError] = useState('');
   const [now, setNow] = useState(Date.now());
+  const latestRefresh = useRef(0);
   async function refresh() {
-    try { setHazards((await getHazards(bounds(region))).features); }
-    catch (e) { setError(String(e)); }
+    const request = ++latestRefresh.current;
+    try {
+      const result = await getHazards(bounds(region));
+      // Ignore responses that arrive after a newer refresh was started.
+      if (request !== latestRefresh.current) return;
+      setHazards(result.features); setHazardError('');
+    } catch (e) { if (request === latestRefresh.current) setHazardError(String(e)); }
   }
   useEffect(() => { void refresh(); }, [region]);
   useEffect(() => {
@@ -38,9 +52,13 @@ export default function App() {
     const body = draft ?? { id: Crypto.randomUUID(), kind, lat: pin.latitude, lon: pin.longitude, description, observed_at: new Date().toISOString() };
     setDraft(body); setStatus('sending'); setError('');
     try { await submitReport(body); setStatus('submitted'); await refresh(); }
-    catch (e) { setStatus('failed'); setError(String(e)); }
+    catch (e) {
+      const permanent = e instanceof ApiError && e.permanent;
+      setStatus('failed'); setRetryable(!permanent);
+      setError(permanent ? `${String(e)}\nThe server rejected this report; start a new draft.` : String(e));
+    }
   }
-  function reset() { setDraft(undefined); setStatus('draft'); setError(''); }
+  function reset() { setDraft(undefined); setStatus('draft'); setRetryable(true); setError(''); }
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   return <SafeAreaView style={styles.page}>
     <Text style={styles.title}>Campus hazards</Text>
@@ -75,7 +93,7 @@ export default function App() {
         <TextInput style={styles.input} value={description} editable={status === 'draft'} onChangeText={setDescription} maxLength={280} placeholder="Description (optional)" />
         <Text>Report status: {status}</Text>
         <Text>Stage 0 has no persistent offline queue. A retry in this session keeps the original ID and body.</Text>
-        <Button title={status === 'failed' ? 'Retry original report' : 'Submit report'} disabled={fixtureMode || status === 'sending' || status === 'submitted'} onPress={() => void send()} />
+        <Button title={status === 'failed' ? 'Retry original report' : 'Submit report'} disabled={fixtureMode || status === 'sending' || status === 'submitted' || !retryable} onPress={() => void send()} />
         <Button title="New draft" disabled={status === 'sending'} onPress={reset} />
         {fixtureMode && <Text>Fixture preview only. Configure the product API URL to submit.</Text>}
       </>}
@@ -87,6 +105,7 @@ export default function App() {
         {routes && !routes.safest_available && <Text>No lower-risk alternative available.</Text>}
       </>}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+      {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazardError}</Text>}
     </ScrollView>
   </SafeAreaView>;
 }

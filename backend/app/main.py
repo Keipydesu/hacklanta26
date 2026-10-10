@@ -1,6 +1,6 @@
 """Stage 0 ONLY: one-process, nonpersistent memory; no actual navigation or DB use."""
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta, timezone
 import json
 import math
@@ -20,20 +20,36 @@ from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, Publica
 
 CONTRACTS = Path(os.getenv('CONTRACTS_DIR', Path(__file__).resolve().parents[2] / 'contracts'))
 BEARER = HTTPBearer(auto_error=False)
-FORWARD = Transformer.from_crs(4326, 32616, always_xy=True).transform
-REVERSE = Transformer.from_crs(32616, 4326, always_xy=True).transform
+SEND_TIMEOUT_S = 1.0
+
+def report_area(lon, lat, radius_m=8):
+    # Buffer in a metre-based projection centred on the point so any global coordinate stays finite.
+    local = f'+proj=aeqd +lat_0={lat} +lon_0={lon} +units=m +datum=WGS84'
+    reverse = Transformer.from_crs(local, 4326, always_xy=True).transform
+    polygon = transform(reverse, Point(0, 0).buffer(radius_m))
+    west, _, east, _ = polygon.bounds
+    if not polygon.is_valid or east - west > 180:
+        raise HTTPException(422, 'Report location is too close to a pole or the antimeridian')
+    return polygon
 
 def create_app():
     reports, publications, hazards = {}, {}, {}
     sockets = set()
-    expired_notified = set()
+    spec = yaml.safe_load((CONTRACTS/'openapi.yaml').read_text())
+    route_fixture = json.loads((CONTRACTS/'fixtures/route.json').read_text())
+
+    async def send(socket, message):
+        try:
+            await asyncio.wait_for(socket.send_json(message), SEND_TIMEOUT_S)
+        except Exception:
+            # A stalled or broken client must not hold up writers; drop and close it.
+            sockets.discard(socket)
+            with suppress(Exception):
+                await asyncio.wait_for(socket.close(), SEND_TIMEOUT_S)
 
     async def notify(hazard_id):
-        for socket in tuple(sockets):
-            try:
-                await socket.send_json({'type':'hazards.changed','data':{'hazard_id':hazard_id}})
-            except Exception:
-                sockets.discard(socket)
+        message = {'type':'hazards.changed','data':{'hazard_id':hazard_id}}
+        await asyncio.gather(*(send(socket, message) for socket in tuple(sockets)))
 
     async def expiry_loop():
         while True:
@@ -41,9 +57,12 @@ def create_app():
             now = datetime.now(timezone.utc)
             for id, hazard in tuple(hazards.items()):
                 props = hazard['properties']
-                if props['expires_at'] <= now and id not in expired_notified:
-                    expired_notified.add(id)
+                # Expired and resolved hazards never reappear in the feed, so drop them.
+                if props['expires_at'] <= now:
+                    del hazards[id]
                     await notify(id)
+                elif props['status'] != 'active':
+                    del hazards[id]
 
     @asynccontextmanager
     async def lifespan(app):
@@ -57,7 +76,7 @@ def create_app():
 
     app = FastAPI(title='Campus product stub', lifespan=lifespan)
     # Serve the agreed artifact; tests validate model/response parity against it.
-    app.openapi = lambda: yaml.safe_load((CONTRACTS/'openapi.yaml').read_text())
+    app.openapi = lambda: spec
     app.state.hazards = hazards
 
     def authenticate(credentials: HTTPAuthorizationCredentials | None = Depends(BEARER)):
@@ -80,7 +99,7 @@ def create_app():
             response.status_code = 200
             return {'report_id':id,'hazard_id':hazard_id,'duplicate':True}
         hazard_id = str(uuid4())
-        polygon = transform(REVERSE, transform(FORWARD, Point(body.lon, body.lat)).buffer(8))
+        polygon = report_area(body.lon, body.lat)
         props = dict(id=hazard_id, source='manual', kind=body.kind, label=body.description or body.kind,
                      score=0.5, status='active', first_seen=body.observed_at, last_seen=body.observed_at,
                      expires_at=body.observed_at+timedelta(hours=24), event_count=0, ride_count=0,
@@ -106,7 +125,6 @@ def create_app():
         props.update(id=hazard_id, source='automatic', report_count=0)
         hazards[hazard_id] = {'type':'Feature','geometry':body.geometry.model_dump(),'properties':props}
         publications[key] = (body, hazard_id)
-        expired_notified.discard(hazard_id)
         await notify(hazard_id)
         return {'hazard_id':hazard_id,'revision':body.revision,'duplicate':False}
 
@@ -127,7 +145,7 @@ def create_app():
     @app.post('/v1/route', response_model=RouteResponse)
     def plan_routes(body: RouteRequest, response: Response):
         response.headers['X-Stage-0-Stub'] = 'fixed-route-fixture-not-navigation'
-        return json.loads((CONTRACTS/'fixtures/route.json').read_text())
+        return route_fixture
 
     @app.websocket('/v1/live')
     async def live(socket: WebSocket):

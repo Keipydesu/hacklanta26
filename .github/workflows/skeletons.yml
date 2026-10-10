@@ -31,7 +31,7 @@ jobs:
             mobile: ['mobile/**', 'contracts/**', '.github/workflows/skeletons.yml']
             collector: ['automatic/collector/**', 'contracts/**', '.github/workflows/skeletons.yml']
             detector: ['automatic/detector/**', '.github/workflows/skeletons.yml']
-            contracts: ['contracts/**', 'mobile/src/api/schema.d.ts', 'automatic/collector/src/api/schema.d.ts', 'automatic/service/product-api.d.ts', '.github/workflows/skeletons.yml']
+            contracts: ['contracts/**', 'mobile/src/api/schema.d.ts', 'automatic/collector/src/api/schema.d.ts', 'automatic/service/product-api.d.ts', 'mobile/src/fixtures/**', 'automatic/collector/src/*.json', '.github/workflows/skeletons.yml']
   backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -96,7 +96,7 @@ jobs:
         with: {node-version: '22'}
       - run: npm ci --prefix contracts
       - run: npm run generate --prefix contracts
-      - run: git diff --exit-code -- mobile/src/api/schema.d.ts automatic/collector/src/api/schema.d.ts automatic/service/product-api.d.ts
+      - run: git diff --exit-code -- mobile/src/api/schema.d.ts automatic/collector/src/api/schema.d.ts automatic/service/product-api.d.ts mobile/src/fixtures automatic/collector/src/events.json automatic/collector/src/points.json
   docs-and-compose:
     runs-on: ubuntu-latest
     steps:

@@ -14,13 +14,18 @@ for (const feature of fixtures.features) {
     feature.properties[field] = new Date(Date.parse(feature.properties[field]) + loadedAt - referenceTime).toISOString();
   }
 }
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+  // 4xx other than timeout/rate limit means resending the same body cannot succeed.
+  get permanent() { return this.status >= 400 && this.status < 500 && this.status !== 408 && this.status !== 429; }
+}
 async function request<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     method: body ? 'POST' : 'GET',
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!response.ok) throw new Error(`API ${response.status}: ${await response.text()}`);
+  if (!response.ok) throw new ApiError(response.status, `API ${response.status}: ${await response.text()}`);
   return response.json();
 }
 export const getHazards = (bbox: string) => fixtureMode ? Promise.resolve(fixtures) : request<HazardCollection>(`/v1/hazards?bbox=${encodeURIComponent(bbox)}`);

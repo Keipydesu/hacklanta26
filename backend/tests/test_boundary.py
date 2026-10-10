@@ -114,3 +114,17 @@ def test_request_schema_parity():
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
     module.assert_request_parity(SPEC, {name:getattr(schemas,name) for name in ['ManualReport','AutomaticPublication','RouteRequest']})
+
+def test_reports_anywhere_keep_feed_valid(client):
+    for lat, lon in [(0, 120), (89.99, 0), (-45, -179.99999)]:
+        manual = dict(fresh()[0], id=str(uuid4()), lat=lat, lon=lon)
+        assert client.post('/v1/reports',json=manual).status_code in (201, 422)
+    feed = client.get('/v1/hazards?bbox=-180,-90,180,90')
+    assert feed.status_code == 200
+    validate('HazardCollection',feed.json())
+    assert len(feed.json()['features']) >= 2
+
+def test_contract_checks_timestamp_format():
+    _, auto = fresh()
+    with pytest.raises(Exception):
+        validate('AutomaticPublication',dict(auto,expires_at='tomorrow'))

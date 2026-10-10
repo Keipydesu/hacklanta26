@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -19,6 +19,7 @@ dependencies = [
     { name = "jsonschema" },
     { name = "openapi-spec-validator" },
     { name = "pyyaml" },
+    { name = "rfc3339-validator" },
 ]
 
 [package.metadata]
@@ -26,6 +27,7 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "openapi-spec-validator", specifier = ">=0.7,<0.8" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "rfc3339-validator", specifier = ">=0.1.4,<1" },
 ]
 
 [[package]]
