@@ -1,0 +1,195 @@
+"""Routing tests replay responses recorded from a real Valhalla (see fixtures/); no engine needed."""
+import asyncio
+from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
+
+import httpx
+import pytest
+from shapely.geometry import Polygon, box
+
+from app.main import create_app
+from app.routing import planner
+from app.routing.planner import Hazard
+from app.routing.valhalla import NoPath, Unavailable, ValhallaClient, decode_polyline6, parse_trip
+from app.schemas import Coordinate
+from test_boundary import AUTH, PUB, fixture, fresh, validate
+
+FIX = Path(__file__).parent / 'fixtures'
+def load(name):
+    return json.loads((FIX / name).read_text())
+
+ORIGIN, DEST = Coordinate(lat=33.7531, lon=-84.3853), Coordinate(lat=33.7560, lon=-84.3880)
+RING = load('exclusion-ring-a.json')['ring']
+
+class Recorded:
+    """MockTransport that answers like the recorded Valhalla; keeps every request body."""
+    def __init__(self, missing_path=False):
+        self.requests, self.no_path = [], missing_path
+        self.transport = httpx.MockTransport(self.handle)
+    def handle(self, request):
+        body = json.loads(request.content)
+        self.requests.append(body)
+        assert body['costing'] == 'pedestrian' and body['costing_options']['pedestrian'] == {'walking_speed': 16, 'step_penalty': 600}
+        if 'exclude_polygons' in body:
+            if self.no_path:
+                return httpx.Response(400, json=load('no-path.json')['body'])
+            return httpx.Response(200, json=load('alternative-a.json'))
+        return httpx.Response(200, json=load('baseline-a.json'))
+    def client(self):
+        return ValhallaClient('http://valhalla.test', httpx.AsyncClient(transport=self.transport))
+
+def hazard(id, score, ring=RING):
+    return Hazard(id, score, Polygon(ring))
+
+def run_plan(recorded, hazards, origin=ORIGIN, dest=DEST):
+    async def loader(bounds):
+        return [h for h in hazards if h.polygon.intersects(box(*bounds))]
+    return asyncio.run(planner.plan(recorded.client(), origin, dest, loader))
+
+def test_decode_precision_units_and_endpoints():
+    candidate = parse_trip(load('baseline-a.json'))
+    first, last = candidate.coordinates[0], candidate.coordinates[-1]
+    assert first == pytest.approx([-84.3853, 33.7531], abs=2e-4) and last == pytest.approx([-84.3880, 33.7560], abs=2e-4)
+    assert candidate.distance_m == pytest.approx(544) and candidate.duration_s == pytest.approx(142.675)
+
+def encode6(points):
+    out, plat, plon = '', 0, 0
+    for lon, lat in points:
+        for value, prev in ((round(lat * 1e6), plat), (round(lon * 1e6), plon)):
+            delta = value - prev
+            delta = ~(delta << 1) if delta < 0 else delta << 1
+            while delta >= 0x20:
+                out += chr((0x20 | (delta & 0x1F)) + 63)
+                delta >>= 5
+            out += chr(delta + 63)
+        plat, plon = round(lat * 1e6), round(lon * 1e6)
+    return out
+
+def test_legs_are_joined_without_duplicating_the_shared_point():
+    a, b, c = [-84.385, 33.753], [-84.386, 33.754], [-84.387, 33.755]
+    assert decode_polyline6(encode6([a, b])) == [a, b]
+    payload = {'trip': {'summary': {'length': 0.2, 'time': 30}, 'legs': [{'shape': encode6([a, b])}, {'shape': encode6([b, c])}]}}
+    assert parse_trip(payload).coordinates == [a, b, c]
+
+def test_no_hazards_gives_identical_routes_with_zero_risk():
+    result = run_plan(Recorded(), [])
+    shortest, safest = result['routes']
+    assert result['safest_available'] and shortest == dict(safest, kind='shortest')
+    assert shortest['risk_score'] == 0 and shortest['hazard_ids'] == []
+
+def test_hazard_on_baseline_is_avoided_by_safest_and_reported_on_shortest():
+    recorded = Recorded()
+    result = run_plan(recorded, [hazard('11111111-1111-1111-1111-111111111111', 0.9)])
+    shortest, safest = result['routes']
+    assert recorded.requests[1]['exclude_polygons'] == [RING]  # [lon, lat] exterior ring
+    assert shortest['hazard_ids'] == ['11111111-1111-1111-1111-111111111111'] and shortest['risk_score'] == pytest.approx(0.9)
+    assert safest['geometry'] != shortest['geometry'] and safest['hazard_ids'] == [] and safest['risk_score'] == 0
+    assert safest['distance_m'] == pytest.approx(555) and result['safest_available']
+
+def test_below_threshold_hazard_is_scored_but_not_excluded():
+    recorded = Recorded()
+    result = run_plan(recorded, [hazard('a', 0.3), hazard('b', 0.2)])
+    assert len(recorded.requests) == 1  # no exclusion request at all
+    shortest = result['routes'][0]
+    assert shortest['hazard_ids'] == ['a', 'b'] and shortest['risk_score'] == pytest.approx(1 - 0.7 * 0.8)
+
+def test_hazard_at_endpoint_is_not_excluded_but_is_scored():
+    around_dest = [[DEST.lon + dx, DEST.lat + dy] for dx, dy in [(-1e-4, -1e-4), (1e-4, -1e-4), (1e-4, 1e-4), (-1e-4, 1e-4), (-1e-4, -1e-4)]]
+    recorded = Recorded()
+    result = run_plan(recorded, [hazard('end', 0.9, around_dest)])
+    assert len(recorded.requests) == 1
+    assert result['routes'][0]['hazard_ids'] == ['end']
+
+def test_exclusions_capped_at_twenty_nearest():
+    far = lambda i: [[-84.3853 + dx, 33.7531 + 0.0001 * i + dy] for dx, dy in [(0, 0), (1e-5, 0), (1e-5, 1e-5), (0, 1e-5), (0, 0)]]
+    hazards = [hazard(f'h{i:02d}', 0.8, far(i)) for i in range(30)]
+    rings = planner.select_exclusions(hazards, ORIGIN, DEST)
+    assert len(rings) == 20
+
+def test_no_path_returns_baseline_for_both_kinds():
+    result = run_plan(Recorded(missing_path=True), [hazard('x', 0.9)])
+    shortest, safest = result['routes']
+    assert not result['safest_available'] and shortest['geometry'] == safest['geometry']
+
+def test_outage_and_misconfiguration_are_unavailable_not_no_path():
+    def failing(handler):
+        return ValhallaClient('http://v.test', httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    def boom(request):
+        raise httpx.ConnectError('down')
+    with pytest.raises(Unavailable):
+        asyncio.run(failing(boom).route(ORIGIN, DEST))
+    bad = load('bad-request.json')
+    with pytest.raises(Unavailable):  # HTTP 400 with a code other than 442
+        asyncio.run(failing(lambda r: httpx.Response(400, json=bad['body'])).route(ORIGIN, DEST))
+    with pytest.raises(NoPath):
+        asyncio.run(failing(lambda r: httpx.Response(400, json=load('no-path.json')['body'])).route(ORIGIN, DEST, [RING]))
+    with pytest.raises(Unavailable):
+        asyncio.run(failing(lambda r: httpx.Response(503)).route(ORIGIN, DEST))
+    with pytest.raises(Unavailable):
+        asyncio.run(failing(lambda r: httpx.Response(200, json={'trip': {}})).route(ORIGIN, DEST))
+
+class Scripted:
+    """Fake engine returning fixed candidates, to exercise detours outside the initial search area."""
+    def __init__(self, *candidates):
+        self.candidates = list(candidates)
+    async def route(self, origin, destination, exclusions=()):
+        return self.candidates.pop(0) if len(self.candidates) > 1 else self.candidates[0]
+
+def candidate(points):
+    from app.routing.valhalla import Candidate
+    return Candidate([list(p) for p in points], 1000, 100)
+
+def test_detour_outside_initial_bounds_loads_and_scores_those_hazards():
+    straight = candidate([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    detour = candidate([(ORIGIN.lon, ORIGIN.lat), (ORIGIN.lon - 0.01, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    blocker = hazard('mid', 0.9, [[ORIGIN.lon - 0.0005, ORIGIN.lat - 0.0005], [ORIGIN.lon - 0.0004, ORIGIN.lat - 0.0005],
+                                  [ORIGIN.lon - 0.0004, DEST.lat + 0.0005], [ORIGIN.lon - 0.0005, DEST.lat + 0.0005], [ORIGIN.lon - 0.0005, ORIGIN.lat - 0.0005]])
+    detour_hazard = hazard('far', 0.5, [[ORIGIN.lon - 0.0101, ORIGIN.lat - 0.001], [ORIGIN.lon - 0.0099, ORIGIN.lat - 0.001],
+                                        [ORIGIN.lon - 0.0099, ORIGIN.lat + 0.001], [ORIGIN.lon - 0.0101, ORIGIN.lat + 0.001], [ORIGIN.lon - 0.0101, ORIGIN.lat - 0.001]])
+    calls = []
+    async def loader(bounds):
+        calls.append(bounds)
+        return [h for h in (blocker, detour_hazard) if h.polygon.intersects(box(*bounds))]
+    result = asyncio.run(planner.plan(Scripted(straight, detour), ORIGIN, DEST, loader))
+    assert len(calls) == 2 and calls[1][0] < calls[0][0]  # widened once
+    assert 'far' in result['routes'][1]['hazard_ids'] and result['routes'][1]['risk_score'] > 0
+
+def test_route_still_outside_after_widening_is_unavailable():
+    wanderer = lambda n: candidate([(ORIGIN.lon, ORIGIN.lat), (ORIGIN.lon - 0.01 * n, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    class Growing(Scripted):
+        n = 0
+        async def route(self, origin, destination, exclusions=()):
+            self.n += 1
+            return wanderer(self.n * 3 if self.n > 1 else 0.0001)
+    blocker = hazard('b', 0.9)
+    async def loader(bounds):
+        return [blocker]
+    with pytest.raises(Unavailable):
+        asyncio.run(planner.plan(Growing(), ORIGIN, DEST, loader))
+
+
+def test_api_route_uses_manual_and_automatic_hazards_and_survives_outage(monkeypatch):
+    from fastapi.testclient import TestClient
+    recorded = Recorded()
+    monkeypatch.setenv('AUTOMATION_PUBLISH_KEY', 'test-only-key')
+    monkeypatch.setenv('VALHALLA_URL', 'http://valhalla.test')
+    app = create_app('')
+    app.state.valhalla.http = httpx.AsyncClient(transport=recorded.transport)
+    mid = [(RING[0][0] + RING[2][0]) / 2, (RING[0][1] + RING[2][1]) / 2]
+    request = {'origin': {'lat': ORIGIN.lat, 'lon': ORIGIN.lon}, 'destination': {'lat': DEST.lat, 'lon': DEST.lon}}
+    with TestClient(app) as client:
+        assert client.get('/healthz').json()['routing'] == 'valhalla'
+        empty = client.post('/v1/route', json=request)
+        assert empty.status_code == 200 and 'X-Stage-0-Stub' not in empty.headers
+        validate('RouteResponse', empty.json())
+        manual = dict(fresh()[0], lat=mid[1], lon=mid[0])
+        hazard_id = client.post('/v1/reports', json=manual).json()['hazard_id']
+        routed = client.post('/v1/route', json=request).json()
+        validate('RouteResponse', routed)
+        assert hazard_id in routed['routes'][0]['hazard_ids'] and routed['routes'][0]['risk_score'] == pytest.approx(0.5)
+        # Engine outage: 503 for routes only; reports and reads keep working.
+        app.state.valhalla.http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(503)))
+        assert client.post('/v1/route', json=request).status_code == 503
+        assert client.post('/v1/reports', json=dict(manual, id=str(__import__('uuid').uuid4()))).status_code == 201
+        assert client.get('/v1/hazards?bbox=-84.40,33.74,-84.37,33.77').status_code == 200

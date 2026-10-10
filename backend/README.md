@@ -10,7 +10,10 @@ Two storage modes, chosen by `DATABASE_URL`:
   for fixtures and quick local runs.
 
 Run a single API process: live notifications and the expiry scan are in-process (see the Lane C plan).
-Routing is still the fixed fixture until C4–C5.
+Set `VALHALLA_URL` for real routing (pedestrian costing, hazard exclusions, risk scoring from both sources;
+503 on engine outage without affecting reports). Unset, `/v1/route` returns the fixed fixture with an
+`X-Stage-0-Stub` header. Routing tests replay responses recorded from a real Valhalla
+(`tests/routing/fixtures`); they are from the public OSM instance, not our pinned engine.
 
 DB-backed tests need a disposable PostGIS database (the test tables are dropped):
 

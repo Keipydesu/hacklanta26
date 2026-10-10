@@ -1,0 +1,124 @@
+{
+ "trip": {
+  "locations": [
+   {
+    "type": "break",
+    "lat": 33.7525,
+    "lon": -84.387,
+    "side_of_street": "left",
+    "original_index": 0
+   },
+   {
+    "type": "break",
+    "lat": 33.7545,
+    "lon": -84.384,
+    "original_index": 1
+   }
+  ],
+  "legs": [
+   {
+    "maneuvers": [
+     {
+      "type": 3,
+      "instruction": "Walk northwest on the walkway.",
+      "verbal_succinct_transition_instruction": "Walk northwest.",
+      "verbal_pre_transition_instruction": "Walk northwest on the walkway.",
+      "verbal_post_transition_instruction": "Continue for 80 meters.",
+      "bearing_after": 311,
+      "time": 20.384,
+      "length": 0.082,
+      "cost": 20.384,
+      "begin_shape_index": 0,
+      "end_shape_index": 3,
+      "rough": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 10,
+      "instruction": "Turn right onto the crosswalk.",
+      "verbal_transition_alert_instruction": "Turn right onto the crosswalk.",
+      "verbal_succinct_transition_instruction": "Turn right.",
+      "verbal_pre_transition_instruction": "Turn right onto the crosswalk.",
+      "verbal_post_transition_instruction": "Continue for 200 meters.",
+      "bearing_before": 312,
+      "bearing_after": 40,
+      "time": 47.83,
+      "length": 0.202,
+      "cost": 47.83,
+      "begin_shape_index": 3,
+      "end_shape_index": 18,
+      "rough": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 10,
+      "instruction": "Turn right onto Edgewood Avenue Northeast.",
+      "verbal_transition_alert_instruction": "Turn right onto Edgewood Avenue Northeast.",
+      "verbal_succinct_transition_instruction": "Turn right.",
+      "verbal_pre_transition_instruction": "Turn right onto Edgewood Avenue Northeast.",
+      "verbal_post_transition_instruction": "Continue for 200 meters.",
+      "street_names": [
+       "Edgewood Avenue Northeast"
+      ],
+      "bearing_before": 37,
+      "bearing_after": 82,
+      "time": 45.972,
+      "length": 0.217,
+      "cost": 51.843,
+      "begin_shape_index": 18,
+      "end_shape_index": 29,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 4,
+      "instruction": "You have arrived at your destination.",
+      "verbal_transition_alert_instruction": "You will arrive at your destination.",
+      "verbal_pre_transition_instruction": "You have arrived at your destination.",
+      "bearing_before": 91,
+      "time": 0.0,
+      "length": 0.0,
+      "cost": 0.0,
+      "begin_shape_index": 29,
+      "end_shape_index": 29,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     }
+    ],
+    "summary": {
+     "has_time_restrictions": false,
+     "has_toll": false,
+     "has_highway": false,
+     "has_ferry": false,
+     "min_lat": 33.752539,
+     "min_lon": -84.387626,
+     "max_lat": 33.754503,
+     "max_lon": -84.384,
+     "time": 114.186,
+     "length": 0.501,
+     "cost": 120.057
+    },
+    "shape": "u|ak_A|gq}_DuG`KsArBiR~X_B_BuByAeUuRqQuNwAiAsAgAiCuB_TqQkCsDcA{A_Ae@OKw@a@e@a@GG@{H{@qC@a[@cORgj@BiEB}EAoJ@yC@}@ByK"
+   }
+  ],
+  "summary": {
+   "has_time_restrictions": false,
+   "has_toll": false,
+   "has_highway": false,
+   "has_ferry": false,
+   "min_lat": 33.752539,
+   "min_lon": -84.387626,
+   "max_lat": 33.754503,
+   "max_lon": -84.384,
+   "time": 114.186,
+   "length": 0.501,
+   "cost": 120.057
+  },
+  "status_message": "Found route between points",
+  "status": 0,
+  "units": "kilometers",
+  "language": "en-US"
+ }
+}

@@ -177,3 +177,33 @@ def test_health_is_503_when_database_is_down():
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
                 return (await client.get('/healthz')).status_code
     assert asyncio.run(go()) == 503
+
+def test_live_hint_arrives_after_commit_and_stalled_socket_is_dropped():
+    manual, _ = fresh()
+    async def scenario(client, app):
+        live = next(route.endpoint for route in app.routes if route.path == '/v1/live')
+        got, hold, closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        seen = {}
+        class Good:
+            async def accept(self): pass
+            async def receive_text(self): await hold.wait(); raise __import__('fastapi').WebSocketDisconnect()
+            async def send_json(self, message):
+                # By the time a hint is sent, the hazard must already be committed and visible.
+                seen['rows'] = sql('SELECT count(*) FROM hazards')[0][0]
+                seen['id'] = message['data']['hazard_id']
+                got.set()
+            async def close(self): hold.set()
+        class Stalled(Good):
+            async def send_json(self, message): await asyncio.sleep(60)
+            async def close(self): closed.set(); hold.set()
+        tasks = [asyncio.create_task(live(Good())), asyncio.create_task(live(Stalled()))]
+        await asyncio.sleep(0.1)
+        started = asyncio.get_running_loop().time()
+        response = await client.post('/v1/reports', json=manual)
+        assert asyncio.get_running_loop().time() - started < 3  # a stalled phone cannot hold the writer
+        await asyncio.wait_for(got.wait(), 3)
+        assert seen == {'rows': 1, 'id': response.json()['hazard_id']}
+        await asyncio.wait_for(closed.wait(), 3)
+        hold.set()
+        await asyncio.gather(*tasks, return_exceptions=True)
+    run(scenario)
