@@ -5,12 +5,14 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "org.hacklanta.campuscollector"
     },
     "android": {
       "permissions": []
     },
     "plugins": [
+      "./plugins/withCollectorTests",
       [
         "expo-location",
         {

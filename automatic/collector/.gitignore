@@ -1,0 +1,5 @@
+# Expo continuous native generation; the test source of truth is ios-tests/.
+ios/
+android/
+artifacts/
+.test-ios-export/

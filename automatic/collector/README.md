@@ -95,7 +95,55 @@ npm run build --prefix automatic/collector
 EXPO_PUBLIC_AUTOMATION_API_URL=http://YOUR_LAN_IP:8001 npm start --prefix automatic/collector
 ```
 
-`npm test` compiles the pure modules and the detector to `.test-dist/` and runs 44 Node tests:
+### Native iOS test harness
+
+Checked-in `ios-tests/` Swift sources and plans are the source of truth. The local Expo config
+plugin `plugins/withCollectorTests.js` recreates the `CollectorUITests` UI-testing target, its
+dependency on `CampusCollector`, and a shared scheme during `expo prebuild`. `ios/`, `android/`,
+and `artifacts/` are generated and ignored. Stable bundle IDs are
+`org.hacklanta.campuscollector` and `org.hacklanta.campuscollector.uitests`. Do not edit the
+generated Xcode project to add tests.
+
+On a Mac with full Xcode selected, CocoaPods, a bootable simulator, and Node 22:
+
+```sh
+npm ci --prefix automatic/collector
+cd automatic/collector
+./scripts/test-ios.sh CollectorSimulator 'platform=iOS Simulator,id=SIMULATOR_UDID'
+```
+
+For a paired iPhone with Developer Mode and signing configured:
+
+```sh
+cd automatic/collector
+DEVELOPMENT_TEAM=YOUR_TEAM_ID ./scripts/test-ios.sh CollectorDevice 'platform=iOS,id=DEVICE_UDID'
+```
+
+The script runs a clean iOS prebuild, installs pods, and tests a Release build with an embedded JS
+bundle, so Metro is not needed. It writes a `.xcresult`, `xcodebuild.log`, and `pod-install.log`
+under `artifacts/ios/`; a third argument selects another artifact directory. The simulator plan
+sets `EXPO_PUBLIC_COLLECTOR_UI_TEST=1` **at bundle build time**. Its visible test panel uses a
+deterministic sensor seam, isolated AsyncStorage keys, and a local in-app observation stub that
+records exact request paths and bodies and can emulate an unknown outcome, 409, and 422. It never
+contacts a shared observation API. Reset controls and fixture injection are inaccessible in the
+normal/device build, where the real Expo sensor bindings remain enabled. Do not reuse a generated
+`ios/` or JS bundle between plans.
+
+The simulator suite checks opt-in/lifecycle, mocked denial and unavailable sensors, the simulated
+demo label/event-only request, and retry of identical bytes after relaunch. The device plan runs
+only a signed launch/consent smoke. Real permission prompts, sample rates, units, gravity,
+keep-awake, endpoint trimming and ride tuning require the operator-assisted
+[device checklist](ios-tests/DEVICE-CHECKLIST.md) and [evidence record](ios-tests/EVIDENCE-TEMPLATE.md).
+The two PR #7 TypeScript regressions remain in `tests/controller.cjs` and `tests/queue.cjs`:
+rejected GPS jumps cannot place an uploaded event at a private endpoint, and a concurrent drain
+cannot send until persistence succeeds.
+
+**Validation status (2026-10-10):** a clean prebuild recreated the target, scheme and plans;
+TypeScript typecheck and all 52 Node tests passed. Full Xcode is absent on this Mac, so neither
+XCTest plan nor an iPhone hardware session has run here. Treat those results as unverified until
+their `.xcresult` and device-specific evidence are recorded.
+
+`npm test` compiles the pure modules and the detector to `.test-dist/` and runs 52 Node tests:
 adapter units and timestamps, privacy trimming, queue/transport retry and rejection, recorder
 format, and the ride controller end to end with fake sensors.
 

@@ -205,6 +205,14 @@ and persistence barriers during concurrent drains. Preserve public API compatibi
 on changed behavior; physical sensor/replay evidence belongs in the handoff. Verify the manual app
 can still build without this tree in a disposable checkout, not by deleting a shared workspace.
 
+The collector's checked-in `ios-tests/` now supplies a generated XCTest UI target and separate
+simulator/device plans. `scripts/test-ios.sh` prepares a clean native project and captures an
+`.xcresult`. Simulator fixtures are marked simulated and use an isolated in-app observation stub;
+the device plan keeps real sensor bindings and runs a launch/consent smoke. Native XCTest and the
+operator-assisted hardware checklist remain **unverified** until full Xcode and a paired iPhone
+are available; neither bundle export nor Node tests satisfies that gate. See the collector README
+and `ios-tests/DEVICE-CHECKLIST.md` for commands and evidence fields.
+
 Handoff: tested device/OS and sample rates, configuration, units, detector event counts versus labels,
 privacy eligibility proof, replay commands, observation retry receipts and known limitations. No
 sensor integration in the manual app, continuous background tracking, raw motion upload or product

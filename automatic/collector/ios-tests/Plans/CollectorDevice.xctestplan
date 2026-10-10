@@ -1,0 +1,21 @@
+{
+  "configurations": [{ "name": "Signed iPhone", "options": {} }],
+  "defaultOptions": {
+    "targetForVariableExpansion": {
+      "containerPath": "container:CampusCollector.xcodeproj",
+      "identifier": "__APP_TARGET_ID__",
+      "name": "CampusCollector"
+    },
+    "testTimeoutsEnabled": true
+  },
+  "testTargets": [{
+    "parallelizable": false,
+    "selectedTests": ["DeviceSmokeTests"],
+    "target": {
+      "containerPath": "container:CampusCollector.xcodeproj",
+      "identifier": "__TEST_TARGET_ID__",
+      "name": "CollectorUITests"
+    }
+  }],
+  "version": 1
+}

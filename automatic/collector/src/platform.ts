@@ -15,8 +15,10 @@ import { createUploadQueue, type QueueStats } from './queue/store';
 import { createTransport } from './queue/sender';
 import { createRecorder, type FileSink } from './recording/csv';
 import { createRideController, type Platform, type RideSnapshot } from './ride/controller';
+import { createTestCollector } from './testing/harness';
 
-export const automationUrl = process.env.EXPO_PUBLIC_AUTOMATION_API_URL?.replace(/\/$/, '');
+export const collectorUiTest = process.env.EXPO_PUBLIC_COLLECTOR_UI_TEST === '1';
+export const automationUrl = collectorUiTest ? 'isolated-test-stub' : process.env.EXPO_PUBLIC_AUTOMATION_API_URL?.replace(/\/$/, '');
 const KEEP_AWAKE_TAG = 'campus-collector-ride';
 
 const platform: Platform = {
@@ -53,6 +55,7 @@ const fileSink: FileSink = {
 };
 
 export function createCollector(listeners: { onRide(snapshot: RideSnapshot): void; onQueue(stats: QueueStats): void }) {
+  if (collectorUiTest) return createTestCollector(listeners);
   const send = automationUrl
     ? createTransport(automationUrl, (url, init) => fetch(url, init))
     : async () => { throw new Error('Set EXPO_PUBLIC_AUTOMATION_API_URL to upload.'); };

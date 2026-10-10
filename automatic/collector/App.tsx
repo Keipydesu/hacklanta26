@@ -3,7 +3,8 @@ import { AppState, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text
 import type { components } from './src/api/schema';
 import eventFixture from './src/events.json';
 import pointFixture from './src/points.json';
-import { automationUrl, createCollector } from './src/platform';
+import { automationUrl, collectorUiTest, createCollector } from './src/platform';
+import { testControls } from './src/testing/harness';
 import type { Batch, QueueStats } from './src/queue/store';
 import type { Mode, RideSnapshot } from './src/ride/controller';
 
@@ -20,6 +21,10 @@ export default function App() {
   const [consent, setConsent] = useState(false);
   const [record, setRecord] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [testRequests, setTestRequests] = useState(0);
+  const [testRequestLog, setTestRequestLog] = useState('[]');
+  const [testOutcome, setTestOutcome] = useState('accept');
   const collector = useRef<ReturnType<typeof createCollector> | null>(null);
   if (!collector.current) {
     collector.current = createCollector({
@@ -31,7 +36,13 @@ export default function App() {
 
   useEffect(() => {
     // Earlier rides may have left trimmed batches behind; sending them never restarts sensing.
-    controller.resumeUploads().catch(e => setNote(String(e))).then(() => { const error = queue.loadError(); if (error) setNote(error); });
+    // Test readiness must not wait on a deliberately unresolved stub response.
+    const initial = collectorUiTest ? queue.load() : controller.resumeUploads();
+    initial.catch(e => setNote(String(e))).then(() => {
+      const error = queue.loadError(); if (error) setNote(error);
+      setReady(true);
+      if (collectorUiTest) void queue.drain();
+    });
     const timer = setInterval(() => { void queue.drain(); }, DRAIN_EVERY_MS);
     const subscription = AppState.addEventListener('change', state => {
       // No background tracking: leaving the foreground ends the ride.
@@ -50,7 +61,7 @@ export default function App() {
   const demo = liveMode === 'demo';
 
   async function sendFixture() {
-    if (!automationUrl) return;
+    if (!automationUrl || collectorUiTest) return;
     try {
       let last = '';
       for (const [path, body] of [['/v1/events', fixtureEvents], [`/v1/rides/${FIXTURE_RIDE}/points`, fixturePoints]] as const) {
@@ -65,9 +76,10 @@ export default function App() {
   return (
     <SafeAreaView style={styles.page}>
       <ScrollView contentContainerStyle={styles.content}>
+        {ready && <Text testID="collector.ready" style={styles.hint}>Collector ready</Text>}
         <View style={styles.header}>
           <Text style={styles.title} accessibilityRole="header">Collector</Text>
-          {demo && <Text style={styles.badge} accessibilityLabel="Demo mode. Evidence is simulated.">DEMO</Text>}
+          {demo && <Text testID="collector.demoBadge" style={styles.badge} accessibilityLabel="Demo mode. Evidence is simulated.">DEMO</Text>}
         </View>
         <Text style={styles.body}>
           Separate opt-in test app. It detects hard braking and bumps on this phone and uploads only the detected
@@ -76,8 +88,8 @@ export default function App() {
 
         <Text style={styles.section}>Mode</Text>
         <View style={styles.row}>
-          <Choice label="Device ride" selected={mode === 'device'} disabled={collecting || busy} onPress={() => setMode('device')} />
-          <Choice label="Indoor demo" selected={mode === 'demo'} disabled={collecting || busy} onPress={() => setMode('demo')} />
+          <Choice id="collector.deviceMode" label="Device ride" selected={mode === 'device'} disabled={collecting || busy} onPress={() => setMode('device')} />
+          <Choice id="collector.demoMode" label="Indoor demo" selected={mode === 'demo'} disabled={collecting || busy} onPress={() => setMode('demo')} />
         </View>
         <Text style={styles.hint}>
           {mode === 'device'
@@ -87,30 +99,30 @@ export default function App() {
 
         <View style={styles.toggle}>
           <Text style={styles.toggleLabel}>I agree to collect {mode === 'device' ? 'motion and location' : 'motion'} for this ride</Text>
-          <Switch value={consent} onValueChange={setConsent} disabled={collecting || busy} accessibilityLabel="Agree to collect for this ride" />
+          <Switch testID="collector.consent" value={consent} onValueChange={setConsent} disabled={collecting || busy} accessibilityLabel="Agree to collect for this ride" />
         </View>
         <View style={styles.toggle}>
           <Text style={styles.toggleLabel}>Also record raw sensors on this phone (diagnostic, never uploaded)</Text>
-          <Switch value={record} onValueChange={setRecord} disabled={collecting || busy} accessibilityLabel="Record raw sensors locally" />
+          <Switch testID="collector.record" value={record} onValueChange={setRecord} disabled={collecting || busy} accessibilityLabel="Record raw sensors locally" />
         </View>
 
         {collecting
-          ? <Action label="Stop ride" tone="stop" onPress={() => void controller.stopRide()} />
-          : <Action label={busy ? 'Working…' : mode === 'demo' ? 'Start indoor demo' : 'Start ride'} disabled={busy || !consent}
+          ? <Action id="collector.stop" label="Stop ride" tone="stop" onPress={() => void controller.stopRide()} />
+          : <Action id="collector.start" label={busy ? 'Working…' : mode === 'demo' ? 'Start indoor demo' : 'Start ride'} disabled={busy || !consent}
               onPress={() => void controller.startRide({ mode, consent, record })} />}
         {!consent && !collecting && <Text style={styles.hint}>Turn on the agreement switch to start.</Text>}
 
         <Text style={styles.section}>Ride</Text>
-        <Text style={styles.status} accessibilityLiveRegion="polite">
+        <Text testID="collector.status" style={styles.status} accessibilityLiveRegion="polite">
           {collecting ? `Collecting · ${demo ? 'simulated demo' : 'device'}${ride?.recording ? ' · recording locally' : ''}` : phase === 'idle' ? 'Not collecting' : phase}
         </Text>
-        {ride?.message && <Text style={styles.message}>{ride.message}</Text>}
+        {ride?.message && <Text testID="collector.message" style={styles.message}>{ride.message}</Text>}
         {ride && (ride.motionSamples > 0 || collecting) && (
           <View style={styles.grid}>
             <Stat label="Motion rate" value={ride.motionHz === null ? '—' : `${ride.motionHz} Hz`} />
             <Stat label="GPS fixes" value={String(ride.fixes)} />
             {!demo && <Stat label="Distance" value={`${Math.round(ride.travelledM)} m`} />}
-            <Stat label="Detected" value={String(ride.detected)} />
+            <Stat id="collector.detected" label="Detected" value={String(ride.detected)} />
             <Stat label="Saved for upload" value={`${ride.queuedEvents} events · ${ride.queuedPoints} points`} />
             {!demo && <Stat label="Held (not yet 100 m past)" value={`${ride.heldEvents} events · ${ride.heldPoints} points`} />}
             {!demo && <Stat label="Trimmed for privacy" value={`${ride.trimmedEvents} events · ${ride.trimmedPoints} points`} />}
@@ -134,37 +146,53 @@ export default function App() {
               : <Action label="Discard rejected batch" tone="stop" onPress={() => void queue.discardRejected(b.id)} />}
           </View>
         ))}
-        <Action label="Send fixture batch (connectivity check)" tone="quiet" disabled={!automationUrl} onPress={() => void sendFixture()} />
+        {!collectorUiTest && <Action label="Send fixture batch (connectivity check)" tone="quiet" disabled={!automationUrl} onPress={() => void sendFixture()} />}
+        {collectorUiTest && <View style={styles.grid}>
+          <Text testID="collector.testMode" style={styles.section}>ISOLATED UI TEST BUILD — SIMULATED</Text>
+          <Action id="test.reset" label="Reset isolated test storage" onPress={() => void testControls.reset().then(() => queue.load()).then(() => { setTestOutcome('reset'); setTestRequests(0); setTestRequestLog('[]'); })} />
+          <Action id="test.motionDenied" label="Mock motion denied" onPress={() => testControls.setMotionAllowed(false)} />
+          <Action id="test.locationDenied" label="Mock location denied" onPress={() => testControls.setLocationAllowed(false)} />
+          <Action id="test.noSensor" label="Mock sensor unavailable" onPress={() => testControls.setSensorAvailable(false)} />
+          <Action id="test.demoJerk" label="Inject demo jerk" onPress={() => { testControls.demoJerk(); void controller.flush().then(() => queue.drain()); }} />
+          <Action id="test.accept" label="Stub accepts" onPress={() => void testControls.setOutcome('accept').then(() => setTestOutcome('accept'))} />
+          <Action id="test.unknown" label="Stub unknown outcome" onPress={() => void testControls.setOutcome('unknown').then(() => setTestOutcome('unknown'))} />
+          <Action id="test.conflict" label="Stub 409" onPress={() => void testControls.setOutcome('409').then(() => setTestOutcome('409'))} />
+          <Action id="test.invalid" label="Stub 422" onPress={() => void testControls.setOutcome('422').then(() => setTestOutcome('422'))} />
+          <Action id="test.refresh" label="Refresh stub requests" onPress={() => void testControls.requests().then(requests => { setTestRequests(requests.length); setTestRequestLog(JSON.stringify(requests)); })} />
+          <Text testID="test.outcome" style={styles.body}>Stub outcome: {testOutcome}</Text>
+          <Text testID="test.requestCount" style={styles.body}>Stub requests: {testRequests}</Text>
+          <Text testID="test.requestLog" style={styles.hint}>{testRequestLog}</Text>
+        </View>}
         {note && <Text style={styles.hint}>{note}</Text>}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Choice(props: { label: string; selected: boolean; disabled?: boolean; onPress(): void }) {
+function Choice(props: { id?: string; label: string; selected: boolean; disabled?: boolean; onPress(): void }) {
   return (
-    <Pressable onPress={props.onPress} disabled={props.disabled} accessibilityRole="radio" accessibilityState={{ selected: props.selected, disabled: props.disabled }}
+    <Pressable testID={props.id} onPress={props.onPress} disabled={props.disabled} accessibilityRole="radio" accessibilityState={{ selected: props.selected, disabled: props.disabled }}
       style={[styles.choice, props.selected && styles.choiceSelected, props.disabled && styles.disabled]}>
       <Text style={[styles.choiceText, props.selected && styles.choiceTextSelected]}>{props.label}</Text>
     </Pressable>
   );
 }
 
-function Action(props: { label: string; tone?: 'go' | 'stop' | 'quiet'; disabled?: boolean; onPress(): void }) {
+function Action(props: { id?: string; label: string; tone?: 'go' | 'stop' | 'quiet'; disabled?: boolean; onPress(): void }) {
   const tone = props.tone ?? 'go';
   return (
-    <Pressable onPress={props.onPress} disabled={props.disabled} accessibilityRole="button" accessibilityState={{ disabled: props.disabled }}
+    <Pressable testID={props.id} onPress={props.onPress} disabled={props.disabled} accessibilityRole="button" accessibilityState={{ disabled: props.disabled }}
       style={[styles.action, tone === 'stop' && styles.actionStop, tone === 'quiet' && styles.actionQuiet, props.disabled && styles.disabled]}>
       <Text style={[styles.actionText, tone === 'quiet' && styles.actionTextQuiet]}>{props.label}</Text>
     </Pressable>
   );
 }
 
-function Stat(props: { label: string; value: string }) {
+function Stat(props: { id?: string; label: string; value: string }) {
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{props.label}</Text>
-      <Text style={styles.statValue}>{props.value}</Text>
+      <Text testID={props.id} style={styles.statValue}>{props.value}</Text>
     </View>
   );
 }
