@@ -8,9 +8,9 @@ automatic process is stopped. Follow [the architecture](../../ARCHITECTURE.md),
 
 For the UI design pass, lead with scooter/bike trip planning and use hazards as supporting trip
 context. Lime and Waze are the primary references in the [working brief](../UI-INSPIRATION.md).
-Follow [decision 010](../decisions/012-scooter-bike-first-ui.md): visual priority does not imply
+Follow [decision 014](../decisions/014-scooter-bike-first-ui.md): visual priority does not imply
 new travel modes, rental integration, continuous tracking or a change to milestone order.
-[Decision 011](../decisions/013-map-first-mobile-controls.md) makes the map the primary canvas,
+[Decision 015](../decisions/015-map-first-mobile-controls.md) makes the map the primary canvas,
 with short labeled icons and expandable details; follow the [mobile UI guide](../../mobile/docs/UI-GUIDE.md).
 
 **Owns:** `mobile/`. Consume only the product HTTP/live contract and local generated types/fixtures.

@@ -13,7 +13,7 @@ and quick reporting add useful context and community value throughout that task.
 Operator direction (2026-10-10): prioritize Waze and the Lime scooter app as inspiration, with
 scooter/bike transit first and hazard mapping as an added benefit. Here, transit means getting
 around by scooter or bike; public-transport schedules and multimodal transfers are not implied.
-See [decision 010](decisions/012-scooter-bike-first-ui.md).
+See [decision 014](decisions/014-scooter-bike-first-ui.md).
 
 A successful home screen should still be useful when there are no hazard reports: riders can
 choose endpoints and compare a trip. Hazard detail and reporting should be easy to reach without
@@ -185,7 +185,7 @@ Large headings and introductory paragraphs have been removed.
 
 The user-provided Exhibitionist guide supplies consistency principles only: visual cues before
 words, shared primitives, semantic states and contextual feedback. Its web colors, type and
-layout are explicitly excluded. See [decision 011](decisions/013-map-first-mobile-controls.md)
+layout are explicitly excluded. See [decision 015](decisions/015-map-first-mobile-controls.md)
 and the [mobile adaptation](../mobile/docs/UI-GUIDE.md).
 
 The current map renderer remains in place for the separate OSM migration. Report pins and the
@@ -211,7 +211,7 @@ Visual hypotheses: a quiet basemap, prominent paths and route geometry, large la
 and an energetic accent for the main action. Reserve hazard colors and source/evidence badges
 for their meaning. Avoid filling the resting screen with warning colors or a long report feed.
 The operator selected silver/cyan-blue accents with white and charcoal surfaces; see
-[decision 012](decisions/014-silver-cyan-mobile-palette.md). Typography and panel details remain
+[decision 016](decisions/016-silver-cyan-mobile-palette.md). Typography and panel details remain
 open for refinement.
 
 | Surface | Proposed hierarchy | States the design must include |

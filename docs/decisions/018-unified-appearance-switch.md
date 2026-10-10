@@ -1,8 +1,8 @@
-# 016. Unified light and dark appearance
+# 018. Unified light and dark appearance
 
 - Status: Accepted
 - Date: 2026-10-10
-- Supersedes: Decision 011's independent map switch and decision 014's system-only interface appearance.
+- Supersedes: Decision 011's independent map switch and decision 016's system-only interface appearance.
 
 The header sun/moon switch changes the interface, status bar and MapLibre style together.
 Start with device appearance; a manual choice lasts for this app session. A new launch follows

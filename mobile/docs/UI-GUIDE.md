@@ -36,7 +36,7 @@ in expanded details; fixture warnings, failures and delivery states remain expli
 ## Light and dark color roles
 
 Source: [selected Coolors palette](https://coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63).
-See [decision 014](../../docs/decisions/014-silver-cyan-mobile-palette.md).
+See [decision 016](../../docs/decisions/016-silver-cyan-mobile-palette.md).
 
 | Color | Role |
 | --- | --- |
@@ -49,9 +49,9 @@ See [decision 014](../../docs/decisions/014-silver-cyan-mobile-palette.md).
 
 Dark-mode panels and controls have no silver outlines; colored control edges match their fill.
 
-Device appearance supplies the initial mode; the header switch overrides UI and map together for this session (decision 016). Silver secondary buttons and unselected hazard categories use the operator-supplied metal
+Device appearance supplies the initial mode; the header switch overrides UI and map together for this session (decision 018). Silver secondary buttons and unselected hazard categories use the operator-supplied metal
 grain as a 32% tonal sweep plus a 22% grain layer at the reference’s native dimensions over white, with charcoal labels in both appearances. Keep the map,
-text, cyan selections and blue primary actions untextured. See [decision 015](../../docs/decisions/015-metallic-silver-texture.md). Selected controls retain accessible selected state and short labels.
+text, cyan selections and blue primary actions untextured. See [decision 017](../../docs/decisions/017-metallic-silver-texture.md). Selected controls retain accessible selected state and short labels.
 White on cyan is 5.74:1; white on blue 9.22:1; charcoal on white 12.27:1; silver on charcoal
 8.69:1. These are computed solid-color text pairs, not a full accessibility certification.
 Error foregrounds remain red exceptions (`#a00020` light / `#ffb4ab` dark). Existing hazard
