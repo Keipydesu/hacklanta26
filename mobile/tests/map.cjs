@@ -53,6 +53,15 @@ test('shifted dateline views still clip at the canonical seam without reversing 
   }
 });
 
+test('views centered exactly on the dateline select the same clipped side in every world copy', () => {
+  for (const midpoint of [-180, 180]) {
+    for (const turns of [-3, -2, -1, 0, 1, 2, 3]) {
+      assert.deepEqual(normalizeBounds({ west: midpoint - 10 + turns * 360, east: midpoint + 10 + turns * 360, south: 0, north: 1 }),
+        { west: -180, east: -170, south: 0, north: 1 });
+    }
+  }
+});
+
 // ---- messages --------------------------------------------------------------------------------
 
 test('web messages are validated; malformed or out-of-range input is ignored', () => {

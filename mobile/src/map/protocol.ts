@@ -48,7 +48,9 @@ export function normalizeBounds(raw: Bounds): Bounds | null {
   if (raw.west >= raw.east) return null;
   const wide = raw.east - raw.west >= 360;
   const midpoint = raw.west + (raw.east - raw.west) / 2;
-  const offset = wide ? 0 : midpoint - wrapLongitude(midpoint);
+  const wrappedMidpoint = wrapLongitude(midpoint);
+  // At the exact seam, consistently choose the -180 side in every world copy.
+  const offset = wide ? 0 : midpoint - (wrappedMidpoint === 180 ? -180 : wrappedMidpoint);
   const west = wide ? -180 : clamp(raw.west - offset, 180);
   const east = wide ? 180 : clamp(raw.east - offset, 180);
   const south = clamp(raw.south, 90), north = clamp(raw.north, 90);

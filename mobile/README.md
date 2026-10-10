@@ -45,6 +45,7 @@ scripts run that step first. Nothing loads from a CDN at runtime.
   covered by `tests/map.cjs` in Node. Dependency review: [MAPLIBRE-REVIEW.md](MAPLIBRE-REVIEW.md).
   Repeated world copies normalize pin longitudes and shift viewport bounds together into WGS84.
   Dateline-crossing views still clip at ±180 because the API does not support crossing bounds.
+  A viewport centered exactly on the dateline consistently selects the -180 side in every copy.
 
 With no `EXPO_PUBLIC_API_URL`, the app opens in visibly labeled offline fixture preview mode.
 Map source/evidence labels and expiry are shown; timestamps shift once per app session. Report
