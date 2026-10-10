@@ -1,3 +1,4 @@
+import { createContext, createElement, useContext, useState, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
 /** Operator palette: coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63 */
@@ -22,6 +23,22 @@ const dark: Theme = {
   selectedEdge: palette.silver, primaryEdge: palette.silver,
   warning: palette.silver, danger: '#ffb4ab', routeShortest: palette.silver,
 };
+type Appearance = 'light' | 'dark';
+const AppearanceContext = createContext<{ scheme: Appearance; toggle(): void } | null>(null);
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const system = useColorScheme();
+  const [override, setOverride] = useState<Appearance | null>(null);
+  const scheme = override ?? (system === 'dark' ? 'dark' : 'light');
+  return createElement(AppearanceContext.Provider, {
+    value: { scheme, toggle: () => setOverride(scheme === 'dark' ? 'light' : 'dark') },
+  }, children);
+}
+export function useAppearance() {
+  const appearance = useContext(AppearanceContext);
+  if (!appearance) throw new Error('ThemeProvider is required');
+  return appearance;
+}
 export function useTheme(): Theme {
-  return useColorScheme() === 'dark' ? dark : light;
+  return useAppearance().scheme === 'dark' ? dark : light;
 }

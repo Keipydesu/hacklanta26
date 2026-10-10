@@ -1,5 +1,14 @@
 # UI concept screenshots
 
+Current OSM layout with unified appearance switch (verified both directions on iPhone 17):
+
+| Light UI and Positron | Dark UI and Dark Matter |
+| --- | --- |
+| ![Unified light](ui-unified-light.png) | ![Unified dark](ui-unified-dark.png) |
+
+The blue gear is Expo development chrome; the app appearance switch sits beneath it in these captures.
+
+
 Latest metallic texture revision (iPhone 17, same fixture setup):
 
 | Light metallic controls | Dark metallic controls |

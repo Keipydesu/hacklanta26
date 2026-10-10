@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar, useColorScheme } from 'react-native';
+import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
 import { SilverTexture } from './src/ui/SilverTexture';
 import { Icon } from './src/ui/Icon';
-import { palette, useTheme, type Theme } from './src/ui/theme';
+import { palette, useTheme, useAppearance, ThemeProvider, type Theme } from './src/ui/theme';
 import { MapLibreView } from './src/map/MapLibreView';
 import { buildOverlay } from './src/map/overlay';
-import { bboxParam, boundsAround, Bounds, LngLat, MapTheme } from './src/map/protocol';
+import { bboxParam, boundsAround, Bounds, LngLat } from './src/map/protocol';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -26,7 +26,10 @@ const INITIAL_BOUNDS = boundsAround(CENTER, 0.012, 0.012);
 const center = { latitude: CENTER[1], longitude: CENTER[0] };
 const toLatLng = ([longitude, latitude]: LngLat) => ({ latitude, longitude });
 export default function App() {
-  const colorScheme = useColorScheme();
+  return <ThemeProvider><CampusApp /></ThemeProvider>;
+}
+function CampusApp() {
+  const { scheme: colorScheme, toggle: toggleAppearance } = useAppearance();
   const theme = useTheme();
   const styles = createStyles(theme);
 
@@ -34,7 +37,7 @@ export default function App() {
   const [expanded, setExpanded] = useState(false);
   const [dockHeight, setDockHeight] = useState(220);
   function openScreen(next: 'map' | 'report' | 'route') { setScreen(next); setExpanded(false); }
-  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+  const mapTheme = colorScheme;
   const ROUTE_COLORS = { ...routeColors(theme), shortest: mapTheme === 'dark' ? palette.silver : palette.charcoal };
   // One object per settled viewport (moveend): the hazard refresh compares it by identity.
   const [region, setRegion] = useState<Bounds>(INITIAL_BOUNDS);
@@ -164,7 +167,10 @@ export default function App() {
     <View pointerEvents="box-none" style={styles.overlay}>
       <View style={styles.header}>
         <Text style={styles.title}>Campus</Text>
-        <Text style={styles.headerMeta}>{fixtureMode ? 'DEMO · Fixture preview' : 'Scooter + bike'}</Text>
+        <Text style={styles.headerMeta}>{fixtureMode ? 'DEMO' : 'Scooter + bike'}</Text>
+        <Pressable accessibilityRole="switch" accessibilityLabel="Dark mode" accessibilityState={{ checked: colorScheme === 'dark' }} onPress={toggleAppearance} style={styles.iconButton}>
+          <Icon name={colorScheme === 'dark' ? 'moon' : 'sun'} />
+        </Pressable>
       </View>
       {server?.storage === 'memory' && <Text style={styles.notice}>Test server · reports reset on restart</Text>}
       <View style={styles.space} pointerEvents="none" />
@@ -188,7 +194,6 @@ export default function App() {
             <Text style={styles.heading}>{h.properties.label}</Text>
             <Text style={styles.caption}>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
           </View>)}
-          <Button title={mapTheme === 'light' ? 'Dark map' : 'Light map'} onPress={() => setMapTheme(mapTheme === 'light' ? 'dark' : 'light')} />
           <Button title="Refresh reports" onPress={() => void refresh()} />
         </>}
       </>}
