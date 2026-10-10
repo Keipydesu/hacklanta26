@@ -81,8 +81,14 @@ class Run:
         self.manifest.save()
         return entry
 
-    def send(self, key: str, method: str, target: str, path: str, body=None, expect=(200,), auth: bool | str = False, step: str | None = None) -> Reply:
+    def send(self, key: str, method: str, target: str, path: str, body=None, expect=(200,), auth: bool | str = False, step: str | None = None, skip_done: bool = False) -> Reply:
         entry = self.record(key, method, target, path, body)
+        done = next((e for e in reversed(self.manifest.evidence) if e.get('key') == key and e.get('ok') and e.get('status') in expect), None) if skip_done else None
+        if done is not None:
+            # Only for steps that are not safe to repeat (an old revision is a 409 once a newer one is stored):
+            # reuse the recorded answer. Idempotent uploads are simply re-sent and answered as duplicates.
+            self.log(json.dumps({'step': step or key, 'skipped': 'already completed in this run', 'key': key}, sort_keys=True))
+            return Reply(done['status'], done.get('response'), {})
         headers = {}
         if auth:
             token = auth if isinstance(auth, str) else self.publish_key
