@@ -1,9 +1,9 @@
-name: Stage 0 skeletons
+name: Lane checks
 on:
   push:
-    paths: ['backend/**', 'automatic/**', 'mobile/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
+    paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
   pull_request:
-    paths: ['backend/**', 'automatic/**', 'mobile/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
+    paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
 concurrency:
   group: skeletons-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -20,6 +20,8 @@ jobs:
       collector: ${{ steps.paths.outputs.collector }}
       detector: ${{ steps.paths.outputs.detector }}
       contracts: ${{ steps.paths.outputs.contracts }}
+      simulator: ${{ steps.paths.outputs.simulator }}
+      stack: ${{ steps.paths.outputs.stack }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -31,6 +33,8 @@ jobs:
             mobile: ['mobile/**', 'contracts/**', '.github/workflows/skeletons.yml']
             collector: ['automatic/collector/**', 'contracts/**', '.github/workflows/skeletons.yml']
             detector: ['automatic/detector/**', '.github/workflows/skeletons.yml']
+            simulator: ['simulator/**', 'automatic/detector/**', '.github/workflows/skeletons.yml']
+            stack: ['infra/**', 'backend/**', 'automatic/service/**', 'automatic/Dockerfile', 'contracts/**', '.dockerignore', '.github/workflows/skeletons.yml']
             contracts: ['contracts/**', 'mobile/src/api/schema.d.ts', 'automatic/collector/src/api/schema.d.ts', 'automatic/service/product-api.d.ts', 'mobile/src/fixtures/**', 'automatic/collector/src/*.json', '.github/workflows/skeletons.yml']
   backend:
     needs: changes
@@ -93,6 +97,7 @@ jobs:
         with: {node-version: '22'}
       - run: npm ci --prefix automatic/collector
       - run: npm run typecheck --prefix automatic/collector
+      - run: npm test --if-present --prefix automatic/collector
       - run: npm run build --prefix automatic/collector
         env: {CI: '1', EXPO_NO_TELEMETRY: '1'}
   detector:
@@ -105,6 +110,85 @@ jobs:
         with: {node-version: '22'}
       - run: npm ci --prefix automatic/detector
       - run: npm test --prefix automatic/detector
+  simulator:
+    needs: changes
+    if: needs.changes.outputs.simulator == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: present
+        # Lane F's simulator arrives in its own PR; until then there is nothing here to run.
+        run: test -f simulator/pyproject.toml && echo "yes=true" >> "$GITHUB_OUTPUT" || echo "simulator/ is not in this checkout yet"
+      - uses: actions/setup-python@v5
+        if: steps.present.outputs.yes == 'true'
+        with: {python-version: '3.13'}
+      - uses: actions/setup-node@v4
+        if: steps.present.outputs.yes == 'true'
+        with: {node-version: '22'}
+      - if: steps.present.outputs.yes == 'true'
+        run: python3 -m unittest discover -s simulator/tests -t simulator
+        env: {PYTHONPATH: simulator/src}
+      - if: steps.present.outputs.yes == 'true'
+        run: |
+          npm ci --prefix automatic/detector
+          npm run build --prefix automatic/detector
+          node --test simulator/replay-detector/
+  stack:
+    needs: changes
+    if: needs.changes.outputs.stack == 'true'
+    runs-on: ubuntu-latest
+    env:
+      ENV_FILE: infra/.env.ci
+      DEMO_ENVIRONMENT: 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Throwaway CI settings (never real credentials)
+        run: |
+          sed -e 's/^PRODUCT_DB_PASSWORD=.*/PRODUCT_DB_PASSWORD=ci-product-only/' \
+              -e 's/^AUTOMATION_PUBLISH_KEY=.*/AUTOMATION_PUBLISH_KEY=ci-publisher-only/' \
+              -e 's/^OBSERVATIONS_DB_PASSWORD=.*/OBSERVATIONS_DB_PASSWORD=ci-observations-only/' infra/.env.example > infra/.env.ci
+      - name: Every profile parses
+        run: docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile routing --profile https --profile automation config --quiet
+      - name: Proxy configuration is valid, with and without the observation site
+        run: |
+          image="$(grep -E '^CADDY_IMAGE=' "$ENV_FILE" | cut -d= -f2-)"
+          docker run --rm -e PRODUCT_HOSTNAME=localhost -e OBSERVATION_HOSTNAME=observations.localhost \
+            -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$PWD/infra/caddy/enabled:/etc/caddy/extra:ro" "$image" caddy validate --config /etc/caddy/Caddyfile
+          docker run --rm -e PRODUCT_HOSTNAME=localhost -e OBSERVATION_HOSTNAME=observations.localhost \
+            -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$PWD/infra/caddy:/etc/caddy/extra:ro" "$image" caddy validate --config /etc/caddy/Caddyfile
+      - name: Routing engine image tag exists
+        run: docker manifest inspect "$(grep -E '^VALHALLA_IMAGE=' "$ENV_FILE" | cut -d= -f2-)" > /dev/null
+      - name: Manual stack starts healthy with automation absent
+        run: |
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml up -d --build --wait
+          test "$(docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml ps --services | sort | tr '\n' ' ')" = "api db "
+          infra/check_stack.sh http://localhost:8000
+      - name: Backup restores into a throwaway database
+        run: |
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml exec -T db psql -U product -d product -c 'CREATE TABLE IF NOT EXISTS ci_restore_probe AS SELECT 1 AS id'
+          infra/restore_check.sh "$(infra/backup.sh product /tmp/backups)"
+      - name: Optional automation starts separately with its own database role
+        run: |
+          infra/provision_observation_db.sh
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation up -d --build --wait automatic
+          infra/check_stack.sh http://localhost:8000 --automation-url http://localhost:8001
+      - name: Each side keeps running while the other is stopped
+        run: |
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml stop api
+          curl -fsS --max-time 10 http://localhost:8001/healthz
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml up -d --wait api
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation stop automatic
+          infra/check_stack.sh http://localhost:8000
+      - name: Demo reset empties one dataset and the API comes back
+        run: |
+          infra/reset_db.sh product --yes-delete-demo-data
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml up -d --wait api
+          infra/check_stack.sh http://localhost:8000
+      - name: Shell scripts parse
+        run: for f in infra/*.sh infra/db/init/*.sh infra/valhalla/*.sh infra/vultr/*.sh; do bash -n "$f"; done
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation logs --no-color --tail 200
   generated-types:
     needs: changes
     if: needs.changes.outputs.contracts == 'true'

@@ -1,0 +1,40 @@
+#cloud-config
+# First-boot setup for an Ubuntu 24.04 demo host: Docker with Compose, a deploy user, and a
+# firewall that allows only SSH, HTTP and HTTPS. PostgreSQL, Valhalla and the app ports are never
+# opened to the internet. Replace the SSH key before use. NOT YET RUN on a real instance.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - ufw
+users:
+  - default
+  - name: deploy
+    groups: [docker]
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - REPLACE_WITH_YOUR_PUBLIC_SSH_KEY
+groups:
+  - docker
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {"log-driver": "json-file", "log-opts": {"max-size": "20m", "max-file": "3"}}
+runcmd:
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  - install -d -o deploy -g deploy -m 0750 /opt/campus /opt/campus/releases /opt/campus/shared /opt/campus/backups
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw allow 443/udp
+  - ufw --force enable
