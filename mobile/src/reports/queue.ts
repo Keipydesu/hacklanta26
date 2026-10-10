@@ -56,21 +56,32 @@ export const backoffMs = (attempts: number, random: number) => jitteredBackoffMs
 export function createReportQueue(deps: QueueDeps) {
   let items: Submission[] = [];
   let loadError: string | undefined;
-  let writes: Promise<void> = Promise.resolve();
+  let mutations: Promise<void> = Promise.resolve();
+  let loading: Promise<void> | undefined;
   let draining: Promise<void> | undefined;
   let again = false;
 
   const emit = () => deps.onChange?.(items.map(item => ({ ...item })));
+  // Serialize hydration and durable mutations, but never hold this lock across HTTP.
+  function exclusive<T>(action: () => Promise<T> | T): Promise<T> {
+    const result = mutations.then(action);
+    mutations = result.then(() => undefined, () => undefined);
+    return result;
+  }
   // A send in flight has unknown outcome after a restart, so it is stored as queued.
-  const serialize = () => JSON.stringify({ version: VERSION, items: items.map(i => i.state === 'sending' ? { ...i, state: 'queued' } : i) });
-  function persist(): Promise<void> {
-    const write = writes.then(() => deps.storage.setItem(STORAGE_KEY, serialize()));
-    writes = write.catch(() => undefined);
-    return write;
+  function persist(snapshot = items): Promise<void> {
+    return deps.storage.setItem(STORAGE_KEY, JSON.stringify({ version: VERSION,
+      items: snapshot.map(i => i.state === 'sending' ? { ...i, state: 'queued' } : i),
+    }));
   }
   const find = (id: string) => items.find(i => i.id === id);
 
-  async function load() {
+  function load(): Promise<void> {
+    if (!loading) loading = exclusive(hydrate).catch(error => { loading = undefined; throw error; });
+    return loading;
+  }
+
+  async function hydrate() {
     const raw = await deps.storage.getItem(STORAGE_KEY);
     if (raw === null) { items = []; emit(); return; }
     try {
@@ -89,39 +100,58 @@ export function createReportQueue(deps: QueueDeps) {
 
   /** Persists before any network I/O. If storage fails this throws and nothing is queued. */
   async function enqueue(body: Report): Promise<string> {
-    if (find(body.id)) return body.id;
-    items = [...items, { id: body.id, body, state: 'queued', attempts: 0, nextAttemptAt: deps.now(), retryable: true }];
-    try { await persist(); } catch (e) { items = items.filter(i => i.id !== body.id); throw e; }
-    emit();
-    return body.id;
+    await load();
+    return exclusive(async () => {
+      if (find(body.id)) return body.id;
+      const next: Submission[] = [...items, { id: body.id, body, state: 'queued', attempts: 0, nextAttemptAt: deps.now(), retryable: true }];
+      await persist(next);
+      // Publish to the sender and UI only after the new report is durable.
+      items = next;
+      emit();
+      return body.id;
+    });
   }
 
   async function sendOne(item: Submission) {
-    item.state = 'sending'; item.attempts += 1; emit();
+    const ready = await exclusive(() => {
+      if (!items.includes(item) || item.state !== 'queued' || item.nextAttemptAt > deps.now()) return false;
+      item.state = 'sending'; item.attempts += 1; emit();
+      return true;
+    });
+    if (!ready) return;
+    let receipt: Receipt;
     try {
-      const receipt = await deps.send(item.body);
+      receipt = await deps.send(item.body);
       if (receipt.report_id !== item.id) throw Object.assign(new Error('Server receipt did not match this report.'), { permanent: true });
+    } catch (e) {
+      await exclusive(async () => {
+        item.error = String(e);
+        if (isPermanent(e)) { item.state = 'failed'; item.retryable = false; }
+        else if (item.attempts >= MAX_ATTEMPTS) { item.state = 'failed'; item.retryable = true; }
+        else { item.state = 'queued'; item.nextAttemptAt = deps.now() + (retryAfterMs(e) ?? backoffMs(item.attempts, deps.random())); }
+        await persist().catch(() => undefined);
+        emit();
+      });
+      return;
+    }
+    await exclusive(async () => {
       item.state = 'submitted'; item.receipt = receipt; item.error = undefined;
       // Local persistence failure is safe: the same body is idempotent on the server.
       await persist().catch(() => undefined);
       deps.onReceipt?.({ ...item });
-    } catch (e) {
-      item.error = String(e);
-      if (isPermanent(e)) { item.state = 'failed'; item.retryable = false; }
-      else if (item.attempts >= MAX_ATTEMPTS) { item.state = 'failed'; item.retryable = true; }
-      else { item.state = 'queued'; item.nextAttemptAt = deps.now() + (retryAfterMs(e) ?? backoffMs(item.attempts, deps.random())); }
-      await persist().catch(() => undefined);
-    }
-    emit();
+      emit();
+    });
   }
 
   /** Single flight: concurrent triggers collapse into one more pass after the current one. */
   function drain(): Promise<void> {
     if (draining) { again = true; return draining; }
     draining = (async () => {
+      await load();
       do {
         again = false;
-        for (const item of items.filter(i => i.state === 'queued' && i.nextAttemptAt <= deps.now())) await sendOne(item);
+        const due = await exclusive(() => items.filter(i => i.state === 'queued' && i.nextAttemptAt <= deps.now()));
+        for (const item of due) await sendOne(item);
       } while (again);
     })().finally(() => { draining = undefined; });
     return draining;
@@ -129,21 +159,27 @@ export function createReportQueue(deps: QueueDeps) {
 
   /** Explicit user retry of the same body, e.g. after retries were exhausted. */
   async function retry(id: string) {
-    const item = find(id);
-    if (!item || item.state !== 'failed' || !item.retryable) return;
-    item.state = 'queued'; item.attempts = 0; item.nextAttemptAt = deps.now(); item.error = undefined;
-    await persist().catch(() => undefined);
-    emit();
+    await load();
+    await exclusive(async () => {
+      const item = find(id);
+      if (!item || item.state !== 'failed' || !item.retryable) return;
+      item.state = 'queued'; item.attempts = 0; item.nextAttemptAt = deps.now(); item.error = undefined;
+      await persist().catch(() => undefined);
+      emit();
+    });
     await drain();
   }
 
   /** Remove finished or definitively rejected work. Unknown-outcome items must be retried first. */
   async function dismiss(id: string) {
-    const item = find(id);
-    if (!item || item.state === 'sending' || item.state === 'queued' || (item.state === 'failed' && item.retryable)) return;
-    items = items.filter(i => i.id !== id);
-    await persist().catch(() => undefined);
-    emit();
+    await load();
+    await exclusive(async () => {
+      const item = find(id);
+      if (!item || item.state === 'sending' || item.state === 'queued' || (item.state === 'failed' && item.retryable)) return;
+      items = items.filter(i => i.id !== id);
+      await persist().catch(() => undefined);
+      emit();
+    });
   }
 
   const nextDueAt = () => items.filter(i => i.state === 'queued').reduce<number | undefined>((t, i) => t === undefined ? i.nextAttemptAt : Math.min(t, i.nextAttemptAt), undefined);

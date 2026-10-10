@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
 import { locateOnce } from './src/location/foreground';
+import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { ApiError, apiUrl, fixtureMode, getHazards, getRoutes, submitReport, HazardCollection, Report, RouteResponse } from './src/api/client';
@@ -86,20 +87,22 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [submissions]);
   const [submitting, setSubmitting] = useState(false);
+  const [guardSubmit] = useState(createSubmitGuard);
   async function useMyLocation() {
     const result = await locateOnce(Location, Location.Accuracy.Balanced);
     if (result.ok) { setPin({ latitude: result.lat, longitude: result.lon }); setError(''); }
     else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the pin instead.' : 'Could not get your location. Tap the map to place the pin instead.');
   }
-  async function send() {
-    if (submitting) return;
-    setSubmitting(true); setError('');
-    try {
-      await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude, description }, Date.now(), Crypto.randomUUID()));
-      setDescription('');
-      void queue.drain();
-    } catch (e) { setError(`Report was not saved: ${String(e)}`); }
-    finally { setSubmitting(false); }
+  function send() {
+    return guardSubmit(async () => {
+      setSubmitting(true); setError('');
+      try {
+        await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude, description }, Date.now(), Crypto.randomUUID()));
+        setDescription('');
+        void queue.drain();
+      } catch (e) { setError(`Report was not saved: ${String(e)}`); }
+      finally { setSubmitting(false); }
+    });
   }
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   return <SafeAreaView style={styles.page}>
