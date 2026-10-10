@@ -36,11 +36,17 @@ attribution control already credits the basemap.
 
 **Origin.** A new trip's From field is Current location. Opening Trip, through Where to? or the
 Trip tab, resolves it with one foreground fix (`locateOnce`); permission is requested only in this
-trip context, never for browsing. There is no watching or background location. A late fix never
+trip context, never for browsing. The trip origin uses no watching or background location. A late fix never
 replaces an origin the rider chose meanwhile. If location is denied or unavailable, the From field
 says so and offers "Try again" and "Search for a start". The app never substitutes a fixture
 point or the map centre as the rider's position. The map centre only biases search ranking when
 no origin is known.
+
+**Nearby feedback integration (decision 013).** Its foreground watcher only checks existing
+permission; it never opens the permission prompt on launch or foreground return. Trip planning or
+Report's explicit location action requests permission through `locateOnce`. A successful grant
+immediately rechecks the nearby watcher, without waiting for the one-shot GPS fix or an app restart.
+Backgrounding removes the watch and invalidates pending permission checks, subscriptions and fixes.
 
 **Flow.** Typing in a field clears its resolved point until a result is chosen. Late search
 answers are discarded. Choosing a result dismisses the keyboard, and once both endpoints are valid

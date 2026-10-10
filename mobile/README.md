@@ -156,7 +156,9 @@ refreshes on live hints, accepted feedback, foreground return and every five sec
 Removal disables new answers but retains the details and receipt; a failed lookup shows a stale
 notice, and local expiry still disables new answers.
 
-While the app is open with location permission, coming within 40 m of a hazard opens its panel
+The nearby watcher checks existing permission without prompting on launch or foreground return.
+Opening Trip or using Report's location action can request permission; granting it immediately
+rechecks the watcher. While the app is open with location permission, coming within 40 m of a hazard opens its panel
 once per session, wherever the map is panned. The app looks up hazards for the ~500 m grid block
 around the rider, separately from the map, so the server sees only that coarse block. This uses
 foreground location only. Precise positions are never recorded, uploaded or sent with answers, and

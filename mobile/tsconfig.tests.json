@@ -14,6 +14,7 @@
     "src/reports/queue.ts",
     "src/reports/submit.ts",
     "src/location/foreground.ts",
+    "src/location/foregroundWatch.ts",
     "src/routes/model.ts",
     "src/map/protocol.ts",
     "src/map/overlay.ts",
