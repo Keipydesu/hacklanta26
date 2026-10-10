@@ -1,9 +1,22 @@
 # Observation service · stage 0
 
-An independent FastAPI **nonpersistent in-memory stub**, with no product imports or product DB
-credentials. Ingests fixture observations, enforces atomic UUID retries/conflicts and limits;
-no clustering, decay worker, outbox, database or automatic publication runs on ingestion.
-Use one worker only. Restarting loses all observations.
+An independent FastAPI service with no product imports or product DB credentials. Two modes:
+
+- **`AUTOMATION_DATABASE_URL` set** (own PostGIS database, never the product one): durable atomic UUID
+  ingestion (`events`, `points`), a serialized worker that clusters hard brakes/bumps (DBSCAN 12 m,
+  >=3 events, >=2 rides, EPSG:32616 so Atlanta-scoped), scores with 7-day decay, keeps stable hazard
+  identities across evaluations, and writes derived state plus an **outbox** in one transaction. The outbox
+  delivers full publications to `PRODUCT_API_URL` with `AUTOMATION_PUBLISH_KEY` (server-side only), in
+  revision order per hazard, with capped jittered backoff; 401/409/422 block that hazard until an operator
+  runs `outbox.release_blocked` after reconciling. Migrations apply at startup under an advisory lock.
+  `/healthz` reports worker state and outbox backlog (pending, blocked, oldest age).
+- **Unset**: the stage 0 nonpersistent in-memory stub (no worker).
+
+Run exactly one process. Tunables live at the top of `app/worker.py` (`MIN_SCORE`, `SCORE_DELTA`,
+`REFRESH_MARGIN`, `MATCH_DISTANCE_M`). The product API can be completely stopped (observations keep
+landing; the outbox retries) and this service can be stopped without affecting manual reporting.
+DB tests: `TEST_AUTOMATION_DATABASE_URL=postgresql://... uv run --project automatic/service pytest ...`
+(the tables are dropped); without it `tests/test_durable.py` is skipped.
 
 From the repository root:
 
