@@ -47,8 +47,8 @@ milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md)
 | Backend | FastAPI in-memory stub |
 | Data | PostgreSQL + PostGIS Compose container; API persistence not connected |
 | Routing | Fixed fixture; planned Valhalla pedestrian costing with scooter pace/step penalty |
-| Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
-| Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
+| Automatic collector | Separate Expo app: device motion/GPS sensing (foreground only), privacy trimming, durable upload queue, indoor demo |
+| Automatic detector | Pure TypeScript hard-brake and bump detector in `automatic/detector/` |
 | Automatic service | Independent FastAPI memory ingestion + HTTP publication client; no worker/outbox |
 | Hosting | Local Compose verified; Vultr deployment remains planned |
 
