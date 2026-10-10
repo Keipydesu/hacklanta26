@@ -6,7 +6,7 @@ A manual-first mobile app: riders report hazards, see nearby reports, and compar
 
 ## Start here
 
-Read [ARCHITECTURE.md](ARCHITECTURE.md) for the API boundary and acceptance criteria, then pick an ownership lane below.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) for the API boundary and acceptance criteria, then pick an ownership lane below. See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone sequence, owners, and the MVP cut line.
 
 | Track | Plans | Responsibility |
 |---|---|---|

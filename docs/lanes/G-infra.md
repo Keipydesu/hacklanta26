@@ -39,10 +39,16 @@ Makes the whole thing run with one command locally and one command on Vultr. Sel
    - `infra/seed_demo.sh`: default to manual report fixtures against the product API. An explicit automatic-demo option seeds observation scenarios and publication fixtures against the correct separate base URLs.
    - `infra/.env.example` with every variable from ARCHITECTURE.md section 9. Keep the publication key only in API/worker environments; never use an Expo public variable for it.
 7. **README.** Quick start for local development, the deploy command, and how the phones get their API URL.
-8. **Stretch.**
+8. **CI, early, as manifests arrive — not stretch.** `.github/workflows/ci.yml` with one path-filtered
+   job per lane, including shared contract dependencies, as that lane's manifest/build lands (start with lane 0's contract/fixture check),
+   superseded runs auto-cancelling on the same branch. Per [decision
+   001](../decisions/001-mvp-delivery-workflow.md) and the [roadmap](../ROADMAP.md), CI is the
+   routine validation gate — get it running early rather than deferring it. Add deploy-from-`main`
+   to the workflow once step 5 above is working and `main` is passing; never deploy a feature
+   branch.
+9. **Stretch.**
    - Vultr Object Storage (S3 compatible) for the raw recorded rides.
    - Database redundancy proposal: Vultr Managed PostgreSQL with a primary and failover replica, replacing the deployed `db` container. Keep local Compose unchanged. This option is not yet selected or provisioned; follow the checks in ARCHITECTURE.md section 9 before adopting it.
-   - `.github/workflows/ci.yml` running product tests and independent automation tests in separate jobs.
 
 ## Watch out for
 

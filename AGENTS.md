@@ -11,12 +11,14 @@ edit this file, never create a second copy of its rules.
    routing design, environment variables, and acceptance criteria — the actual product contract.
 2. **Read [README.md](README.md)** for scope, the delivery checklist, and the scope decisions
    (what is explicitly out: no dashboard, no continuous ride tracking, no selected DB redundancy).
-3. **Read your lane's plan under `docs/lanes/`** before touching its paths — see the ownership
+3. **Read [docs/ROADMAP.md](docs/ROADMAP.md)** for milestone sequence, owners, dependencies, and
+   the MVP cut line.
+4. **Read your lane's plan under `docs/lanes/`** before touching its paths — see the ownership
    table below.
-4. **Check `docs/decisions/` for anything touching your change.** No index — search it:
+5. **Check `docs/decisions/` for anything touching your change.** No index — search it:
    `rg -il "<topic>" docs/decisions/`.
 
-A plan that has not done all four is not ready to propose.
+A plan that has not done all five is not ready to propose.
 
 ## Decisions
 

@@ -237,8 +237,9 @@ References: [Vultr high availability](https://docs.vultr.com/support/products/ma
 You are working on Lane <X> of the repository. Read ARCHITECTURE.md fully first,
 then docs/lanes/<your lane file>.md.
 You own: <paths from section 3>. Do not edit anything else.
-Goal: build every numbered item in your lane file.
-Done when: the "Done when" list in your lane file passes.
+Goal: deliver the assigned milestone from docs/ROADMAP.md within your lane.
+Done when: that milestone's demo gate and applicable lane acceptance checks pass.
+Defer later milestones and stretch items; do not expand the MVP to the whole lane backlog.
 Use contracts/fixtures/ for any upstream that is not built yet.
 Finish with a hand-off note: what works, how to run it, what is stubbed.
 ```
