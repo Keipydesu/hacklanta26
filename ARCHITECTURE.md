@@ -151,7 +151,7 @@ Live message: `{ "type": "hazards.changed", "data": { "hazard_id": "uuid" } }`. 
 
 Request: `{ "origin": {"lat":33.7531,"lon":-84.3853}, "destination": {"lat":33.7560,"lon":-84.3880} }`.
 
-Response: `{ "routes": [...], "safest_available": true }`. Each route has `kind` (`shortest | safest`), GeoJSON LineString `geometry`, `distance_m`, `duration_s`, `risk_score`, and `hazard_ids`. UI copy always says “lower-risk.” If hazard exclusion leaves no route, return the shortest under both kinds with `safest_available: false`. Return 503 if routing itself is unavailable; reporting and map reads continue working.
+Response: `{ "routes": [...], "safest_available": true }`. Each route has `kind` (`shortest | safest`), GeoJSON LineString `geometry`, `distance_m`, `duration_s`, `risk_score`, and `hazard_ids`. UI copy always says “lower-risk.” If hazard exclusion leaves no route, return the shortest under both kinds with `safest_available: false`. An optional `alternatives` array carries up to two other roads (`kind: alternative`), scored the same way ([decision 012](docs/decisions/012-route-alternatives.md)). Return 503 if routing itself is unavailable; reporting and map reads continue working.
 
 ## 6. Automatic subsystem contracts
 

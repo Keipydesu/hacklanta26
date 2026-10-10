@@ -112,6 +112,10 @@ class Route(Model):
     risk_score: Annotated[float, Field(ge=0, le=1, strict=True)]
     hazard_ids: list[UUID]
 
+class AlternativeRoute(Route):
+    kind: Literal['alternative']
+
 class RouteResponse(Model):
     routes: Annotated[list[Route], Field(min_length=2, max_length=2)]
     safest_available: bool
+    alternatives: Annotated[list[AlternativeRoute], Field(max_length=2)] = []

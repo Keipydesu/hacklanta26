@@ -218,10 +218,22 @@ export interface components {
             risk_score: number;
             hazard_ids: string[];
         };
+        /** @description Another road for the same trip; same fields as Route. */
+        AlternativeRoute: {
+            /** @enum {string} */
+            kind: "alternative";
+            geometry: components["schemas"]["LineString"];
+            distance_m: number;
+            duration_s: number;
+            risk_score: number;
+            hazard_ids: string[];
+        };
         /** @description One shortest and one safest route; UI calls safest lower-risk. When no alternative exists, duplicate shortest under both kinds and set safest_available=false. */
         RouteResponse: {
             routes: components["schemas"]["Route"][];
             safest_available: boolean;
+            /** @description Optional other roads, scored against the same hazards. Excludes duplicates, routes riskier and no faster than one shown, and routes leaving the area hazards were loaded for. Ordered by risk, then duration. */
+            alternatives?: components["schemas"]["AlternativeRoute"][];
         };
         HazardsChanged: {
             /** @constant */

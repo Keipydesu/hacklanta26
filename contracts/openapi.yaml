@@ -551,6 +551,40 @@ components:
       - risk_score
       - hazard_ids
       additionalProperties: false
+    AlternativeRoute:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - alternative
+        geometry:
+          $ref: '#/components/schemas/LineString'
+        distance_m:
+          type: number
+          minimum: 0
+        duration_s:
+          type: number
+          minimum: 0
+        risk_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        hazard_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          uniqueItems: true
+      required:
+      - kind
+      - geometry
+      - distance_m
+      - duration_s
+      - risk_score
+      - hazard_ids
+      additionalProperties: false
+      description: Another road for the same trip; same fields as Route.
     RouteResponse:
       type: object
       properties:
@@ -562,6 +596,14 @@ components:
           maxItems: 2
         safest_available:
           type: boolean
+        alternatives:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlternativeRoute'
+          maxItems: 2
+          description: Optional other roads, scored against the same hazards. Excludes
+            duplicates, routes riskier and no faster than one shown, and routes leaving
+            the area hazards were loaded for. Ordered by risk, then duration.
       required:
       - routes
       - safest_available

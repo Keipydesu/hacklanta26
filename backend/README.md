@@ -16,6 +16,7 @@ Set `VALHALLA_URL` for real routing (pedestrian costing, hazard exclusions, risk
 (`tests/routing/fixtures`); they were recorded from a local Valhalla 3.9.1 built from a campus-area OSM extract.
 To reproduce: fetch the bbox from Overpass (`-84.40,33.74,-84.37,33.77`), run `valhalla_build_config` +
 `valhalla_build_tiles` in the `ghcr.io/valhalla/valhalla` image, serve on :8002, and re-run the recorder.
+`alternates-a.json` was recorded the same way with `infra/valhalla/build_tiles.sh` and `"alternates": 2` (Valhalla 3.9.1).
 
 DB-backed tests need a disposable PostGIS database (the test tables are dropped):
 
