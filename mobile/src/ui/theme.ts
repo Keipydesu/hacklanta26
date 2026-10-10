@@ -1,11 +1,10 @@
 import { createContext, createElement, useContext, useState, type ReactNode } from 'react';
 import { useFonts } from 'expo-font';
 import { useColorScheme } from 'react-native';
+import { mapRouteColors, palette } from './mapColors';
 
 /** Operator palette: coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63 */
-export const palette = {
-  nearBlack: '#101114', charcoal: '#353535', cyan: '#3c6e71', white: '#ffffff', silver: '#d9d9d9', blue: '#284b63',
-} as const;
+export { palette } from './mapColors';
 
 const light = {
   ink: palette.charcoal as string, muted: palette.charcoal as string,
@@ -14,7 +13,7 @@ const light = {
   selected: palette.cyan as string, selectedEdge: palette.cyan as string,
   primary: palette.blue as string, primaryEdge: palette.blue as string,
   inverse: palette.white as string, warning: palette.blue as string, danger: '#a00020',
-  routeShortest: palette.charcoal as string, routeLowerRisk: palette.cyan as string,
+  routeShortest: mapRouteColors.light.shortest as string, routeLowerRisk: mapRouteColors.light.lowerRisk as string,
   fontBody: undefined as string | undefined, fontLight: undefined as string | undefined,
   radius: 14, touch: 48,
 };
@@ -23,7 +22,8 @@ const dark: Theme = {
   ...light, ink: palette.white, muted: palette.silver, surface: palette.nearBlack,
   canvas: palette.nearBlack, quiet: palette.silver, line: 'transparent',
   selectedEdge: palette.cyan, primaryEdge: palette.blue,
-  warning: palette.silver, danger: '#ffb4ab', routeShortest: palette.silver,
+  warning: palette.silver, danger: '#ffb4ab', routeShortest: mapRouteColors.dark.shortest,
+  routeLowerRisk: mapRouteColors.dark.lowerRisk,
 };
 type Appearance = 'light' | 'dark';
 const AppearanceContext = createContext<{ scheme: Appearance; fontsReady: boolean; toggle(): void } | null>(null);

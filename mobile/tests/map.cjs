@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const { normalizeBounds, bboxParam, boundsAround, parseFromWeb, injection, navigationDecision, readyMessages } = require('../.test-dist/map/protocol.js');
 const { buildOverlay, MARKER_COLORS } = require('../.test-dist/map/overlay.js');
 const { renderMapPage, scriptLiteral } = require('../.test-dist/map/html.js');
+const { BIKE_LANES, BIKE_LANE_SEGMENT_COUNT } = require('../.test-dist/map/bikeLanes.generated.js');
+const { bikeLaneColors, mapRouteColors } = require('../.test-dist/ui/mapColors.js');
 const { startCampusMap } = require('../map-web/page.js');
 
 // ---- bounds ----------------------------------------------------------------------------------
@@ -156,17 +158,18 @@ function fakeMapLibre() {
     fire(name, event) { (this.handlers[name] || []).forEach(fn => fn(event)); }
   }
   class Map extends Emitter {
-    constructor(options) { super(); this.options = options; this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; this.styles = [options.style]; this.canvas = { canvas: true }; made.maps.push(this); }
+    constructor(options) { super(); this.options = options; this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; this.layerBefore = {}; this.styles = [options.style]; this.styleLayers = [{ id: 'land', type: 'fill' }, { id: 'road-label', type: 'symbol' }]; this.canvas = { canvas: true }; made.maps.push(this); }
     getZoom() { return 14; }
     easeTo(target) { (this.cameraMoves ||= []).push(target); this.fire('movestart', {}); }
     isStyleLoaded() { return this.loaded; }
-    setStyle(style) { this.styles.push(style); this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; }
+    setStyle(style) { this.styles.push(style); this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; this.layerBefore = {}; this.styleLayers = typeof style === 'string' ? [{ id: 'land', type: 'fill' }, { id: 'road-label', type: 'symbol' }] : style.layers.slice(); }
     // Real MapLibre fires style.load while isStyleLoaded() is still false if the style's own tile
     // sources are loading; `sourcesPending` reproduces that.
     loadStyle({ sourcesPending = false } = {}) { this.loaded = !sourcesPending; this.fire('style.load'); }
+    getStyle() { return { layers: this.styleLayers }; }
     getSource(id) { return this.sources[id]; }
-    addSource(id) { const source = { data: null, setData(d) { this.data = d; } }; this.sources[id] = source; }
-    addLayer(layer) { this.layers.push(layer.id); this.layerDefs[layer.id] = layer; }
+    addSource(id, options) { const source = { data: options.data, attribution: options.attribution, setData(d) { this.data = d; } }; this.sources[id] = source; }
+    addLayer(layer, beforeId) { this.layers.push(layer.id); this.layerDefs[layer.id] = layer; this.layerBefore[layer.id] = beforeId; const index = this.styleLayers.findIndex(item => item.id === beforeId); this.styleLayers.splice(index < 0 ? this.styleLayers.length : index, 0, layer); }
     getCanvas() { return this.canvas; }
     getBounds() { return { getWest: () => -84.4, getSouth: () => 33.7, getEast: () => -84.3, getNorth: () => 33.8 }; }
   }
@@ -192,7 +195,7 @@ function startPage() {
   const document = { createElement: () => ({ children: [], textContent: '', style: {}, setAttribute() {}, appendChild(c) { this.children.push(c); } }) };
   const api = startCampusMap(ml, { container: 'map', document, post: t => posted.push(JSON.parse(t)), notice: t => notices.push(t),
     setTimeout: fn => timers.push(fn), styleUrl: 'https://tiles.example/positron', darkStyleUrl: 'https://tiles.example/dark',
-    center: [-84.38, 33.75], zoom: 14, styleTimeoutMs: 12000 });
+    center: [-84.38, 33.75], zoom: 14, styleTimeoutMs: 12000, bikeLanes: BIKE_LANES, bikeLaneColors });
   return { api, map: made.maps[0], made, posted, notices, timers };
 }
 const overlay = {
@@ -210,9 +213,49 @@ test('overlay sent before the basemap loads shows markers at once and layers on 
   assert.equal(page.map.getSource('hazards'), undefined);
   page.map.loadStyle();
   assert.deepEqual(page.posted.at(-1), { type: 'basemap', status: 'loaded' });
-  assert.deepEqual(page.map.layers, ['hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
+  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
   assert.equal(page.map.getSource('hazards').data.features[0].geometry.type, 'Polygon');
   assert.equal(page.map.getSource('routes').data.features[0].properties.width, 4);
+});
+
+test('bundled confirmed OSM bike lanes stay beneath dynamic overlays in every style', () => {
+  assert.equal(BIKE_LANES.geometry.type, 'MultiLineString');
+  assert.equal(BIKE_LANES.geometry.coordinates.length, BIKE_LANE_SEGMENT_COUNT);
+  assert.equal(BIKE_LANE_SEGMENT_COUNT, 239);
+  const page = startPage();
+  page.map.loadStyle();
+  assert.equal(page.map.layers[0], 'bike-lanes');
+  assert.equal(page.map.layerBefore['bike-lanes'], 'road-label', 'road names remain above lane lines');
+  assert.deepEqual(page.map.getSource('bike-lanes').data, BIKE_LANES);
+  assert.equal(page.map.getSource('bike-lanes').attribution, '© OpenStreetMap contributors');
+  assert.equal(page.map.layerDefs['bike-lanes'].paint['line-opacity'], 0.48);
+  assert.deepEqual(page.map.layerDefs['bike-lanes'].paint['line-width'], ['interpolate', ['linear'], ['zoom'], 12, 1, 16, 2.5]);
+  assert.equal(page.map.handlers.click.length, 1, 'the static lane layer adds no click handler');
+  const lightColor = page.map.layerDefs['bike-lanes'].paint['line-color'];
+  assert.equal(lightColor, bikeLaneColors.light);
+  page.api.receive({ type: 'theme', theme: 'dark' });
+  page.map.loadStyle();
+  assert.equal(page.map.layers[0], 'bike-lanes');
+  assert.equal(page.map.layerBefore['bike-lanes'], 'road-label');
+  assert.notEqual(page.map.layerDefs['bike-lanes'].paint['line-color'], lightColor);
+  page.map.fire('error', { error: { message: 'tile failed' } });
+  assert.equal(page.map.styles.length, 2, 'a settled tile error does not remove the lanes');
+  page.api.receive({ type: 'theme', theme: 'light' });
+  page.map.fire('error', { error: { message: 'offline' } });
+  page.map.loadStyle();
+  assert.equal(page.map.layers[0], 'bike-lanes', 'the local blank fallback restores the lanes');
+  assert.equal(page.map.layerBefore['bike-lanes'], undefined, 'blank style has no symbol layer');
+});
+
+test('bike-lane lines remain distinct from both route colors in light and dark maps', () => {
+  const distance = (a, b) => {
+    const channels = color => [1, 3, 5].map(index => Number.parseInt(color.slice(index, index + 2), 16));
+    return Math.hypot(...channels(a).map((value, index) => value - channels(b)[index]));
+  };
+  for (const theme of ['light', 'dark']) {
+    assert.ok(distance(bikeLaneColors[theme], mapRouteColors[theme].lowerRisk) > 70, `${theme} lower-risk route`);
+    assert.ok(distance(bikeLaneColors[theme], mapRouteColors[theme].shortest) > 70, `${theme} shortest route`);
+  }
 });
 
 test('basemap failure falls back to a local blank style and still draws overlays', () => {
@@ -280,7 +323,7 @@ test('overlay layers are added when a remote style loads even before its tile so
   page.api.receive({ type: 'overlay', overlay });
   page.map.loadStyle({ sourcesPending: true });
   assert.equal(page.map.isStyleLoaded(), false);
-  assert.deepEqual(page.map.layers, ['hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
+  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
   assert.equal(page.map.getSource('hazards').data.features.length, 1);
   page.map.fire('error', { error: { message: 'one tile failed' } });
   assert.equal(page.map.styles.length, 1, 'a tile error after the style loaded is not a basemap failure');
@@ -299,7 +342,7 @@ test('switching to Dark Matter keeps viewport and markers and re-adds overlays w
   assert.equal(marker.removed, false);
   assert.equal(page.made.maps.length, 1, 'the viewport stays on the same map instance');
   page.map.loadStyle();
-  assert.deepEqual(page.map.layers, ['hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
+  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
   assert.equal(page.map.getSource('hazards').data.features.length, 1);
   assert.equal(page.map.getSource('routes').data.features.length, 1);
   assert.equal(page.map.layerDefs['hazard-line'].paint['line-color'].at(-1), '#b7a7ff');

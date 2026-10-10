@@ -4,6 +4,8 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "bike-lanes:generate": "node scripts/generate-bike-lanes.mjs",
+    "bike-lanes:check": "node scripts/generate-bike-lanes.mjs --check",
     "map:bundle": "node scripts/build-map-bundle.mjs",
     "prestart": "npm run fonts:fetch && npm run map:bundle",
     "start": "expo start",
@@ -11,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "prebuild": "npm run fonts:fetch && npm run map:bundle",
     "build": "expo export --platform ios --platform android",
-    "pretest": "npm run map:bundle",
+    "pretest": "npm run bike-lanes:check && npm run map:bundle",
     "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs",
     "fonts:fetch": "python3 scripts/fetch-fonts.py"
   },

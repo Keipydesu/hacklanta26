@@ -1,5 +1,7 @@
 /** Builds the self-contained WebView page: pinned MapLibre, the page script and the basemap style URL. */
 import type { LngLat } from './protocol';
+import { BIKE_LANES } from './bikeLanes.generated';
+import { bikeLaneColors } from '../ui/mapColors';
 
 export type PageAssets = { main: string; shared: string; worker: string; css: string; sharedImport: string; pageScript: string };
 export type PageOptions = { styleUrl: string; darkStyleUrl: string | Record<string, unknown>; center: LngLat; zoom: number; styleTimeoutMs?: number };
@@ -27,6 +29,7 @@ const BOOTSTRAP = `
     var api = startCampusMap(ml, { container: 'map', document: document, post: post, notice: setNotice,
       setTimeout: function (fn, ms) { return window.setTimeout(fn, ms); },
       styleUrl: A.options.styleUrl, darkStyleUrl: A.options.darkStyleUrl, center: A.options.center, zoom: A.options.zoom,
+      bikeLanes: A.bikeLanes, bikeLaneColors: A.bikeLaneColors,
       styleTimeoutMs: A.options.styleTimeoutMs });
     window.__campusMap = api;
     api.ready();
@@ -39,6 +42,7 @@ const BOOTSTRAP = `
 
 export function renderMapPage(assets: PageAssets, options: PageOptions): string {
   const data = { css: assets.css, shared: assets.shared, worker: assets.worker, main: assets.main, sharedImport: assets.sharedImport,
+    bikeLanes: BIKE_LANES, bikeLaneColors,
     options: { ...options, styleTimeoutMs: options.styleTimeoutMs ?? 12_000 } };
   return '<!doctype html><html><head><meta charset="utf-8">'
     + '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">'
