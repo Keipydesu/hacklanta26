@@ -16,6 +16,7 @@
     "src/feedback/selection.ts",
     "src/location/foreground.ts",
     "src/location/foregroundWatch.ts",
+    "src/location/livePosition.ts",
     "src/map/html.ts",
     "src/map/overlay.ts",
     "src/map/protocol.ts",

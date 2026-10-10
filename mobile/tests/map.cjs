@@ -157,6 +157,8 @@ function fakeMapLibre() {
   }
   class Map extends Emitter {
     constructor(options) { super(); this.options = options; this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; this.styles = [options.style]; this.canvas = { canvas: true }; made.maps.push(this); }
+    getZoom() { return 14; }
+    easeTo(target) { (this.cameraMoves ||= []).push(target); this.fire('movestart', {}); }
     isStyleLoaded() { return this.loaded; }
     setStyle(style) { this.styles.push(style); this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; }
     // Real MapLibre fires style.load while isStyleLoaded() is still false if the style's own tile
@@ -187,7 +189,7 @@ function fakeMapLibre() {
 function startPage() {
   const { ml, made } = fakeMapLibre();
   const posted = [], notices = [], timers = [];
-  const document = { createElement: () => ({ children: [], textContent: '', appendChild(c) { this.children.push(c); } }) };
+  const document = { createElement: () => ({ children: [], textContent: '', style: {}, setAttribute() {}, appendChild(c) { this.children.push(c); } }) };
   const api = startCampusMap(ml, { container: 'map', document, post: t => posted.push(JSON.parse(t)), notice: t => notices.push(t),
     setTimeout: fn => timers.push(fn), styleUrl: 'https://tiles.example/positron', darkStyleUrl: 'https://tiles.example/dark',
     center: [-84.38, 33.75], zoom: 14, styleTimeoutMs: 12000 });
@@ -412,4 +414,38 @@ test('hazard pins carry their hazard id and the selected one is highlighted', ()
 test('no report marker is shown without a fresh device fix', () => {
   const overlay = buildOverlay({ ...base, screen: 'report', hazards: [], pin: null });
   assert.deepEqual(overlay.markers, []);
+});
+
+
+test('live position is a separate non-draggable dot and never moves selected route endpoints', () => {
+  const input = { ...base, screen: 'route', hazards: [], origin: { lat: 33.75, lon: -84.38 }, destination: { lat: 33.76, lon: -84.39 } };
+  const first = buildOverlay({ ...input, livePosition: { lat: 33.751, lon: -84.381 } });
+  const second = buildOverlay({ ...input, livePosition: { lat: 33.752, lon: -84.382 } });
+  const dot = second.markers.find(m => m.id === 'live-position');
+  assert.deepEqual(dot.position, [-84.382, 33.752]);
+  assert.equal(dot.draggable, false);
+  assert.equal(dot.dot, true);
+  assert.deepEqual(first.markers.filter(m => m.id !== 'live-position'), second.markers.filter(m => m.id !== 'live-position'));
+  assert.equal(buildOverlay({ ...input, livePosition: null }).markers.some(m => m.id === 'live-position'), false);
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay: second });
+  assert.equal(page.made.markers[0].options.anchor, 'center');
+});
+
+test('camera follows fresh positions; manual pan stops it immediately until explicit recenter', () => {
+  const page = startPage();
+  const camera = { position: [-84.38, 33.75], follow: true, revision: 1 };
+  page.api.receive({ type: 'camera', camera });
+  assert.equal(page.map.cameraMoves.length, 1);
+  assert.equal(page.map.cameraMoves[0].zoom, 16);
+  assert.equal(page.posted.some(m => m.type === 'gesture'), false, 'programmatic motion must not cancel follow');
+  page.map.fire('movestart', { originalEvent: {} });
+  assert.equal(page.posted.at(-1).type, 'gesture');
+  page.api.receive({ type: 'camera', camera: { ...camera, position: [-84.381, 33.751] } });
+  assert.equal(page.map.cameraMoves.length, 1, 'even an in-flight bridge update cannot undo a pan');
+  page.api.receive({ type: 'camera', camera: { ...camera, revision: 2 } });
+  assert.equal(page.map.cameraMoves.length, 2);
+  page.api.receive({ type: 'camera', camera: { ...camera, follow: false, revision: 2 } });
+  page.api.receive({ type: 'camera', camera: { ...camera, position: null, revision: 2 } });
+  assert.equal(page.map.cameraMoves.length, 2, 'background/stale/disabled updates do not move the camera');
 });

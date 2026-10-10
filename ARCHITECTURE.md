@@ -23,7 +23,7 @@ sensor collector → detector → hazard worker ──┘
                          own observation storage
 ```
 
-- **Track 1 ships first:** obtain current device location, submit a hazard, see it on the map, compare routes. No sensor collection or ride tracking is required.
+- **Track 1 ships first:** obtain current device location, submit a hazard, see it on the map, compare routes. Trip includes foreground live position and camera follow (decision 024); no motion sensing or ride recording is required.
 - **Track 2 develops independently:** record or replay sensor data, detect events, cluster them into hazards, publish those hazards through the shared API.
 - **One display contract:** the app reads manual and automatic hazards from the same endpoint and labels their origin. It does not import detection code.
 - **One integration boundary:** automatic workers use HTTP to publish; they never write directly to the product database. A sample HTTP request must demonstrate this connection before real detection exists.
@@ -159,7 +159,7 @@ Live message: `{ "type": "hazards.changed", "data": { "hazard_id": "uuid" } }`. 
 
 Request: `{ "origin": {"lat":33.7531,"lon":-84.3853}, "destination": {"lat":33.7560,"lon":-84.3880} }`.
 
-Response: `{ "routes": [...], "safest_available": true }`. Each route has `kind` (`shortest | safest`), GeoJSON LineString `geometry`, `distance_m`, `duration_s`, `risk_score`, and `hazard_ids`. UI copy always says “lower-risk.” If hazard exclusion leaves no route, return the shortest under both kinds with `safest_available: false`. Return 503 if routing itself is unavailable; reporting and map reads continue working.
+Response: `{ "routes": [...], "safest_available": true }`. Each route has `kind` (`shortest | safest`), GeoJSON LineString `geometry`, `distance_m`, `duration_s`, `risk_score`, and `hazard_ids`. UI copy always says “lower-risk.” Offline/example route geometry is never shown as directions for selected endpoints (decision 024). If hazard exclusion leaves no route, return the shortest under both kinds with `safest_available: false`. Return 503 if routing itself is unavailable; reporting and map reads continue working.
 
 ## 6. Automatic subsystem contracts
 
@@ -204,7 +204,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 ## 8. Privacy and source labeling
 
 - The manual app requires a one-shot foreground device location for each new report, requested automatically when the rider opens Report ([decision 023](docs/decisions/023-report-flow-defaults.md)). Denied or unavailable location blocks new reports with retry/settings guidance; there is no manual report-pin fallback. Submission sends that point and report, not a ride trace. Saved submissions retain their original coordinates on retry. Route endpoint pins remain available independently. See [decision 021](docs/decisions/021-required-report-location.md).
-- Trip planning takes one foreground fix for the Current location origin, asking permission only when a trip is opened (decision 020). Place searches go to the product API, which forwards the query and a ~100 m-rounded ranking point to Photon; no account or device ID is sent.
+- Trip planning takes one foreground fix for the Current location origin, asking permission only when a trip is opened (decision 020). The independent live trip dot reuses foreground permission, follows fresh GPS updates and supports camera recenter without changing endpoints ([decision 024](docs/decisions/024-foreground-trip-tracking.md)). Only the latest position is held in memory; backgrounding clears it. Place searches go to the product API, which forwards the query and a ~100 m-rounded ranking point to Photon; no account or device ID is sent.
 - While the app is open with location permission, the app compares the rider's position with nearby hazards on the phone to ask "Is this hazard still there?" within 40 m. It fetches hazards for the ~500 m grid block around the rider, so the server sees only that coarse block, as with map browsing. Nothing runs in the background, precise positions are never recorded or uploaded, and feedback carries no coordinates (decision 013).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.

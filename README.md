@@ -2,7 +2,7 @@
 
 A manual-first mobile app: riders report hazards, see nearby reports, and compare routes. An independently developed automatic system can later publish detected hazards through the same backend.
 
-**Status:** stage 0 contracts and runnable skeletons are implemented. Storage is nonpersistent, routes are fixed fixtures, and sensors/detection are not implemented. See the [stage 0 handoff](docs/STAGE-0-HANDOFF.md) for verification and remaining work.
+**Status:** the manual app supports persistent reporting, route comparison through Valhalla, and foreground live trip position. The API uses PostGIS when configured (memory otherwise); directions require a real routing engine. Physical-device validation and hosted deployment remain outstanding. See component READMEs and the historical [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
 
 ## Start here
 
@@ -43,7 +43,7 @@ The first release ends after the third item. Automatic work can proceed in paral
 ## Scope decisions
 
 - No monitoring web app or dashboard lane.
-- No continuous ride tracking or motion permission in the first user-facing app.
+- Foreground live trip position and camera follow are supported ([decision 024](docs/decisions/024-foreground-trip-tracking.md)). Background tracking, ride recording and motion permission remain out of scope.
 - Vultr database redundancy remains a proposed follow-up, not a deployed or selected configuration.
 
 ## Stage 0 quick start
@@ -64,7 +64,7 @@ EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:8000 npm start --prefix mobile
 
 Omit the API variable for offline fixture preview. Use SDK-57-compatible Expo Go or a development
 build. New reports require a current one-shot foreground location; denied/unavailable location offers retry, not manual pin placement. Route endpoint pins remain available. The stub loses
-reports on restart; offline persistence is milestone 1. The route preview is not navigation.
+reports on restart. Offline preview does not provide directions. For real routes, follow the [routing demo setup](infra/README.md); Trip shows your live position while the app is open, with no automatic rerouting.
 
 For API + PostGIS startup, optional routing/automation profiles, HTTPS and the Vultr deployment
 runbook see [infra](infra/README.md). Start optional automation separately:

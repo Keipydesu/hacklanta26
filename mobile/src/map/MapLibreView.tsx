@@ -3,7 +3,7 @@ import { Linking, type StyleProp, type ViewStyle } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { MAP_PAGE_ORIGIN, mapDarkStyleUrl, mapStyleUrl } from './config';
 import { buildMapHtml } from './page';
-import { injection, navigationDecision, parseFromWeb, readyMessages, type Bounds, type LngLat, type MapTheme, type Overlay } from './protocol';
+import { injection, navigationDecision, parseFromWeb, readyMessages, type Camera, type Bounds, type LngLat, type MapTheme, type Overlay } from './protocol';
 
 export type MapLibreViewProps = {
   style?: StyleProp<ViewStyle>;
@@ -11,6 +11,8 @@ export type MapLibreViewProps = {
   zoom: number;
   theme: MapTheme;
   overlay: Overlay;
+  camera?: Camera;
+  onGesture?(): void;
   onPress?(position: LngLat): void;
   onDragEnd?(id: string, position: LngLat): void;
   onSelect?(id: string): void;
@@ -39,6 +41,11 @@ export function MapLibreView(props: MapLibreViewProps) {
     if (ready.current) ref.current?.injectJavaScript(injection({ type: 'theme', theme: props.theme }));
   }, [props.theme]);
 
+  const cameraText = JSON.stringify(props.camera);
+  useEffect(() => {
+    if (ready.current && props.camera) ref.current?.injectJavaScript(injection({ type: 'camera', camera: props.camera }));
+  }, [cameraText]);
+
   function onMessage(event: WebViewMessageEvent) {
     const message = parseFromWeb(event.nativeEvent.data);
     if (!message) return;
@@ -47,7 +54,9 @@ export function MapLibreView(props: MapLibreViewProps) {
       case 'ready':
         ready.current = true;
         readyMessages(current.theme, current.overlay).forEach(message => ref.current?.injectJavaScript(injection(message)));
+        if (current.camera) ref.current?.injectJavaScript(injection({ type: 'camera', camera: current.camera }));
         break;
+      case 'gesture': current.onGesture?.(); break;
       case 'press': current.onPress?.(message.position); break;
       case 'drag': current.onDragEnd?.(message.id, message.position); break;
       case 'select': current.onSelect?.(message.id); break;
