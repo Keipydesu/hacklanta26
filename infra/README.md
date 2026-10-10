@@ -64,7 +64,11 @@ infra/start_routing_demo.sh            # later runs: reuse the validated tiles i
 ```
 
 It sets `VALHALLA_URL=http://valhalla:8002` for its Compose calls without editing `infra/.env`.
-Point the phone at the printed address with `EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:PORT`.
+It probes the running API's published address from Compose, including shell overrides of
+`API_PORT` and `API_BIND`. Point the phone at the printed `EXPO_PUBLIC_API_URL`; replace
+`YOUR_LAN_IP` with this machine's LAN address for a wildcard bind. A loopback-only bind must be
+changed to a LAN address before a phone can connect. Failure to resolve the published address
+stops the script instead of probing a guessed port.
 
 The same steps by hand:
 
