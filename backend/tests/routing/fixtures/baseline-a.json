@@ -1,0 +1,193 @@
+{
+ "trip": {
+  "locations": [
+   {
+    "type": "break",
+    "lat": 33.7531,
+    "lon": -84.3853,
+    "side_of_street": "left",
+    "original_index": 0
+   },
+   {
+    "type": "break",
+    "lat": 33.756,
+    "lon": -84.388,
+    "side_of_street": "right",
+    "original_index": 1
+   }
+  ],
+  "legs": [
+   {
+    "maneuvers": [
+     {
+      "type": 3,
+      "instruction": "Walk east on the walkway.",
+      "verbal_succinct_transition_instruction": "Walk east. Then Turn right onto the walkway.",
+      "verbal_pre_transition_instruction": "Walk east on the walkway. Then Turn right onto the walkway.",
+      "verbal_post_transition_instruction": "Continue for 20 meters.",
+      "bearing_after": 75,
+      "time": 4.213,
+      "length": 0.018,
+      "cost": 4.213,
+      "begin_shape_index": 0,
+      "end_shape_index": 3,
+      "rough": true,
+      "verbal_multi_cue": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 10,
+      "instruction": "Turn right onto the walkway.",
+      "verbal_transition_alert_instruction": "Turn right onto the walkway.",
+      "verbal_succinct_transition_instruction": "Turn right.",
+      "verbal_pre_transition_instruction": "Turn right onto the walkway.",
+      "verbal_post_transition_instruction": "Continue for 20 meters.",
+      "bearing_before": 45,
+      "bearing_after": 132,
+      "time": 5.174,
+      "length": 0.023,
+      "cost": 5.174,
+      "begin_shape_index": 3,
+      "end_shape_index": 7,
+      "rough": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 15,
+      "instruction": "Turn left onto the walkway.",
+      "verbal_transition_alert_instruction": "Turn left onto the walkway.",
+      "verbal_succinct_transition_instruction": "Turn left.",
+      "verbal_pre_transition_instruction": "Turn left onto the walkway.",
+      "verbal_post_transition_instruction": "Continue for 90 meters.",
+      "bearing_before": 42,
+      "bearing_after": 310,
+      "time": 22.574,
+      "length": 0.087,
+      "cost": 22.574,
+      "begin_shape_index": 7,
+      "end_shape_index": 16,
+      "rough": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 23,
+      "instruction": "Keep right to take the walkway.",
+      "verbal_transition_alert_instruction": "Keep right to take the walkway.",
+      "verbal_pre_transition_instruction": "Keep right to take the walkway.",
+      "verbal_post_transition_instruction": "Continue for 100 meters.",
+      "bearing_before": 311,
+      "bearing_after": 311,
+      "time": 31.475,
+      "length": 0.131,
+      "cost": 31.475,
+      "begin_shape_index": 16,
+      "end_shape_index": 20,
+      "rough": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 10,
+      "instruction": "Turn right onto the crosswalk.",
+      "verbal_transition_alert_instruction": "Turn right onto the crosswalk.",
+      "verbal_succinct_transition_instruction": "Turn right.",
+      "verbal_pre_transition_instruction": "Turn right onto the crosswalk.",
+      "verbal_post_transition_instruction": "Continue for 20 meters.",
+      "bearing_before": 327,
+      "bearing_after": 36,
+      "time": 8.4,
+      "length": 0.024,
+      "cost": 8.4,
+      "begin_shape_index": 20,
+      "end_shape_index": 23,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 22,
+      "instruction": "Keep straight to take the walkway.",
+      "verbal_transition_alert_instruction": "Keep straight to take the walkway.",
+      "verbal_pre_transition_instruction": "Keep straight to take the walkway.",
+      "verbal_post_transition_instruction": "Continue for 100 meters.",
+      "bearing_before": 39,
+      "bearing_after": 37,
+      "time": 29.675,
+      "length": 0.123,
+      "cost": 29.675,
+      "begin_shape_index": 23,
+      "end_shape_index": 32,
+      "rough": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 15,
+      "instruction": "Turn left onto the walkway.",
+      "verbal_transition_alert_instruction": "Turn left onto the walkway.",
+      "verbal_succinct_transition_instruction": "Turn left.",
+      "verbal_pre_transition_instruction": "Turn left onto the walkway.",
+      "verbal_post_transition_instruction": "Continue for 200 meters.",
+      "bearing_before": 4,
+      "bearing_after": 286,
+      "time": 42.801,
+      "length": 0.181,
+      "cost": 42.801,
+      "begin_shape_index": 32,
+      "end_shape_index": 44,
+      "rough": true,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     },
+     {
+      "type": 5,
+      "instruction": "Your destination is on the right.",
+      "verbal_transition_alert_instruction": "Your destination will be on the right.",
+      "verbal_pre_transition_instruction": "Your destination is on the right.",
+      "bearing_before": 304,
+      "time": 0.0,
+      "length": 0.0,
+      "cost": 0.0,
+      "begin_shape_index": 44,
+      "end_shape_index": 44,
+      "travel_mode": "pedestrian",
+      "travel_type": "foot"
+     }
+    ],
+    "summary": {
+     "has_time_restrictions": false,
+     "has_toll": false,
+     "has_highway": false,
+     "has_ferry": false,
+     "min_lat": 33.753021,
+     "min_lon": -84.388052,
+     "max_lat": 33.755951,
+     "max_lon": -84.384926,
+     "time": 144.314,
+     "length": 0.588,
+     "cost": 144.314
+    },
+    "shape": "yzbk_Ad_n}_DEa@UoBwCyDh@w@dBkDZg@iBqBgCbEUZW^_@f@eK`MuBhCyA|BmBxCgC|DqLzQm[pf@cBzA}CxByBgB}@w@}CyCyFcF{DgC}DcBqDo@aEIaZAgBIu@CaAEy@`BKjBO~o@?tAQhLs@bL}@~Fo@zC}AzA}BxBi@hD}BhD"
+   }
+  ],
+  "summary": {
+   "has_time_restrictions": false,
+   "has_toll": false,
+   "has_highway": false,
+   "has_ferry": false,
+   "min_lat": 33.753021,
+   "min_lon": -84.388052,
+   "max_lat": 33.755951,
+   "max_lon": -84.384926,
+   "time": 144.314,
+   "length": 0.588,
+   "cost": 144.314
+  },
+  "status_message": "Found route between points",
+  "status": 0,
+  "units": "kilometers",
+  "language": "en-US"
+ }
+}
