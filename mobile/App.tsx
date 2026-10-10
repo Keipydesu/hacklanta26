@@ -171,8 +171,6 @@ function CampusApp() {
       onLayout={e => { const { y, height } = e.nativeEvent.layout; setSafeFrame({ y, height }); }}>
     <View pointerEvents="box-none" style={styles.overlay}>
       <View style={styles.header}>
-        <Text style={styles.title}>Campus</Text>
-        <Text style={styles.headerMeta}>{fixtureMode ? 'DEMO' : 'Scooter + bike'}</Text>
         <Pressable accessibilityRole="switch" accessibilityLabel="Dark mode" accessibilityState={{ checked: colorScheme === 'dark' }} onPress={toggleAppearance} style={styles.iconButton}>
           <Icon name={colorScheme === 'dark' ? 'moon' : 'sun'} />
         </Pressable>
@@ -181,7 +179,7 @@ function CampusApp() {
       <View style={styles.space} pointerEvents="none" />
       <View style={[styles.dock, expanded && styles.dockExpanded]} onLayout={e => setDockHeight(e.nativeEvent.layout.height)}>
         <View style={styles.sheetHeader}>
-          <Text style={styles.sheetLabel}>{screen === 'map' ? `${visible.length} nearby reports` : screen === 'route' ? 'Your trip' : pendingCount ? `Report hazard · ${pendingCount} pending` : 'Report hazard'}</Text>
+          <Text style={styles.sheetLabel}>{fixtureMode ? 'DEMO · ' : ''}{screen === 'map' ? `${visible.length} nearby reports` : screen === 'route' ? 'Your trip' : pendingCount ? `Report hazard · ${pendingCount} pending` : 'Report hazard'}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Collapse details' : 'Expand details'}
             accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={styles.iconButton}>
             <Icon name={expanded ? 'collapse' : 'expand'} />
@@ -244,11 +242,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   page: { flex: 1, backgroundColor: theme.canvas }, canvas: { flex: 1 }, safeControls: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   overlay: { flex: 1, paddingTop: 8 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap',
-    gap: 6, alignSelf: 'stretch', marginHorizontal: 12, backgroundColor: theme.surface,
-    borderRadius: theme.radius, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: theme.line },
-  title: { fontFamily: theme.fontBody, fontSize: 18, color: theme.ink },
-  headerMeta: { fontFamily: theme.fontLight, fontSize: 12, color: theme.muted },
+  header: { alignSelf: 'flex-end', marginRight: 12 },
   notice: { fontFamily: theme.fontBody, padding: 8, marginHorizontal: 12, backgroundColor: theme.surface, color: theme.warning },
   space: { flex: 1 },
   dock: { maxHeight: '36%', backgroundColor: theme.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,

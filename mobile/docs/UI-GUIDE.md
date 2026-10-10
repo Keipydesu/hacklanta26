@@ -8,7 +8,8 @@ desktop density and legal-workbench layout do not apply to this app.
 
 The map extends behind the status bar to the top screen edge. Only the interactive controls
 use the safe area, keeping them below the camera cutout and above the home indicator.
-The measured bottom inset keeps map attribution above the task panel. A compact header and bottom task panel support it.
+The measured bottom inset keeps map attribution above the task panel. A floating appearance icon and bottom task panel support it. The top icon has no card or
+wordmark behind it; fixture mode stays explicitly labeled in the bottom panel.
 The default panel occupies at most 36% of available height; details may expand to 65%
 only by user action. Keep the map touchable around overlays. Provider attribution must
 remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Fiord together without resetting the camera.
