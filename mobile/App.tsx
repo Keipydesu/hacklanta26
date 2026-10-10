@@ -10,10 +10,10 @@ import { createReportQueue, freezeReport, Submission } from './src/reports/queue
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
-import { ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
+import { DARK_ROUTE_COLORS, ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
 import { MapLibreView } from './src/map/MapLibreView';
 import { buildOverlay } from './src/map/overlay';
-import { bboxParam, boundsAround, Bounds, LngLat } from './src/map/protocol';
+import { bboxParam, boundsAround, Bounds, LngLat, MapTheme } from './src/map/protocol';
 
 const CENTER: LngLat = [-84.3853, 33.7531];
 const INITIAL_ZOOM = 14.5;
@@ -23,6 +23,7 @@ const center = { latitude: CENTER[1], longitude: CENTER[0] };
 const toLatLng = ([longitude, latitude]: LngLat) => ({ latitude, longitude });
 export default function App() {
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
+  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
   // One object per settled viewport (moveend): the hazard refresh compares it by identity.
   const [region, setRegion] = useState<Bounds>(INITIAL_BOUNDS);
   const currentRegion = useRef<Bounds>(INITIAL_BOUNDS);
@@ -113,6 +114,7 @@ export default function App() {
     else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the start pin instead.' : 'Could not get your location. Tap the map to place the start pin instead.');
   }
   const presented = routeState.result ? presentRoutes(routeState.result) : null;
+  const routeColors = mapTheme === 'dark' ? DARK_ROUTE_COLORS : ROUTE_COLORS;
   function send() {
     return guardSubmit(async () => {
       setSubmitting(true); setError('');
@@ -127,7 +129,7 @@ export default function App() {
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   const overlay = buildOverlay({
     screen, hazards: visible, submissions, pin: { lat: pin.latitude, lon: pin.longitude },
-    routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors: ROUTE_COLORS,
+    routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors,
   });
   function onMapPress(position: LngLat) {
     if (screen === 'report') setPin(toLatLng(position));
@@ -141,7 +143,9 @@ export default function App() {
     <Text style={styles.title}>Campus hazards</Text>
     <Text style={styles.notice}>{fixtureMode ? 'DEMO · Offline fixture preview' : server?.storage === 'memory' ? 'Test server · reports are not kept when it restarts' : ''}</Text>
     <View style={styles.tabs}>{(['map','report','route'] as const).map(tab => <Button key={tab} title={tab} onPress={() => setScreen(tab)} />)}</View>
-    <MapLibreView style={styles.map} center={CENTER} zoom={INITIAL_ZOOM} overlay={overlay}
+    <Button title={mapTheme === 'light' ? 'Map: Positron (switch to Dark Matter)' : 'Map: Dark Matter (switch to Positron)'}
+      onPress={() => setMapTheme(mapTheme === 'light' ? 'dark' : 'light')} />
+    <MapLibreView style={styles.map} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
       onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} />
     <ScrollView style={styles.content}>
       {screen === 'map' && <>
@@ -170,7 +174,7 @@ export default function App() {
         </View>)}
         {fixtureMode && <Text>Fixture preview only. Configure the product API URL to submit.</Text>}
       </>}
-      {screen === 'route' && <RouteScreen state={routeState} target={routeTarget} offlinePreview={fixtureMode}
+      {screen === 'route' && <RouteScreen state={routeState} target={routeTarget} offlinePreview={fixtureMode} routeColors={routeColors}
         onTarget={setRouteTarget} onUseLocation={() => void useMyLocationAsStart()} onCompare={() => void comparison.request()}
         onSwap={() => comparison.swap()} onClear={() => { comparison.clear(); setRouteTarget('origin'); }} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}

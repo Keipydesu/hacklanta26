@@ -1,7 +1,7 @@
 # Manual mobile app
 
 Expo SDK 57 + TypeScript. The map is MapLibre GL JS in a WebView with OpenFreeMap OSM vector tiles
-([decision 010](../docs/decisions/010-osm-maplibre-basemap.md)). No sensor imports or motion permissions. Uses only
+([decisions 010](../docs/decisions/010-osm-maplibre-basemap.md) and [011](../docs/decisions/011-positron-and-dark-matter-map-themes.md)). No sensor imports or motion permissions. Uses only
 its local generated product types and copied fixtures; the automatic tree is not a dependency.
 SDK versions follow the [Expo 57 compatibility table](https://docs.expo.dev/versions/v57.0.0/).
 
@@ -27,13 +27,17 @@ ships in Expo Go. The page runs MapLibre GL JS 6.11.2, inlined from `node_module
 `src/map/maplibreBundle.generated.ts` by `npm run map:bundle`. The start, typecheck, test and build
 scripts run that step first. Nothing loads from a CDN at runtime.
 
-- **Basemap:** OpenFreeMap's OSM-derived `liberty` style, free with no key. Override it with
-  `EXPO_PUBLIC_MAP_STYLE_URL` (a public value, never a secret). MapLibre shows the required
-  OpenFreeMap/OpenMapTiles/OpenStreetMap attribution. Its links open in the browser.
+- **Basemap:** OpenFreeMap's OSM-derived Positron style is the default light map. The map button
+  switches to OpenFreeMap Dark, a fork of Dark Matter, without resetting the viewport or overlays.
+  The choice resets to Positron on launch. Override the light and dark styles with
+  `EXPO_PUBLIC_MAP_STYLE_URL` and `EXPO_PUBLIC_MAP_DARK_STYLE_URL` (public values, never secrets).
+  MapLibre shows the required OpenFreeMap/OpenMapTiles/OpenStreetMap attribution; its links open in
+  the browser.
 - **Routing consistency:** Valhalla also routes over OSM, but over a dated Georgia extract rather
   than OpenFreeMap's build, so small drift between drawn and routed paths is expected (issue #27).
-- **Offline:** if the style can't load within 12 s, the page switches to a local blank background
-  with a notice. Hazards, pins and routes still draw, so the fixture preview works without network.
+- **Offline:** if the selected style can't load within 12 s, the page switches to a light or dark
+  local blank background with a notice. Hazards, pins and routes still draw, so the fixture preview
+  works without network. Switching themes retries the remote style.
 - **Privacy:** tile requests reveal the viewed area to OpenFreeMap. Reports and routes go only to
   the product API.
 - **Bridge:** app-to-page messages and their validation live in `src/map/protocol.ts`, and the

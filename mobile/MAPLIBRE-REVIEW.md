@@ -1,7 +1,7 @@
 # MapLibre basemap dependency review
 
 Review date: 2026-10-10. Scope: the manual mobile app's map engine
-([decision 010](../docs/decisions/010-osm-maplibre-basemap.md), issue #27). No backend, contract
+([decisions 010](../docs/decisions/010-osm-maplibre-basemap.md) and [011](../docs/decisions/011-positron-and-dark-matter-map-themes.md), issue #27). No backend, contract
 or collector changes.
 
 ## Selected versions
@@ -59,20 +59,25 @@ build-time only: only maplibre-gl's own prebuilt `dist` files reach the app.
 OpenFreeMap ([openfreemap.org](https://openfreemap.org/)): free public instance with no key,
 registration, cookies or request limits, and commercial use allowed. There is no SLA. The
 attribution "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" is shown by MapLibre's attribution
-control from the style. To self-host later, point `EXPO_PUBLIC_MAP_STYLE_URL` at another style.
+control from the style. Positron is the default light style; OpenFreeMap Dark is its Dark Matter
+fork. To self-host later, point the light and dark style variables at another provider.
 
 ## Verification
 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck --prefix mobile` | Pass |
-| `npm test --prefix mobile` | 57/57 pass, including 18 map tests |
+| `npm test --prefix mobile` | 63/63 pass, including 24 map tests |
 | `npm run build --prefix mobile` | iOS and Android Hermes bundles exported |
 | Headless Chrome, real generated page served over HTTP, OpenFreeMap reachable | Basemap loaded (1,441 rendered features); hazard and route sources populated; pin marker in the DOM |
 | Same page with an unreachable style | Blank-style fallback and notice; hazards, routes and pin still rendered |
 | Same page from a `file://` (opaque) origin | Worker refused. Fixed by giving the WebView the base URL `https://campus-map.invalid/` |
+| Headless Chrome theme switch, Positron to OpenFreeMap Dark (decision 011) | Dark background rgb(12,12,12), all 4 overlay layers re-added, hazards and routes populated, pin marker kept |
+| Dark then light sent back to back | Ended on Positron with overlays; the stale dark load was ignored |
+| Switch to an unreachable dark style | Dark blank fallback (#11151b) and notice; overlays and pin still rendered |
 
 **Not yet verified:** a physical iPhone and Android phone in Expo Go for SDK 57. Check that the
 basemap, pan/zoom, tap-to-place and drag for the report and route pins, hazard popups, attribution
-link opening in the browser, and airplane-mode fallback all work. Desktop Chrome does not prove
+link opening in the browser, Positron/Dark Matter switching without losing overlays or camera, and
+airplane-mode fallback for both themes all work. Desktop Chrome does not prove
 WebKit or Android WebView behavior for Blob module workers and WebGL.

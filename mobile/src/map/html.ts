@@ -2,7 +2,7 @@
 import type { LngLat } from './protocol';
 
 export type PageAssets = { main: string; shared: string; worker: string; css: string; sharedImport: string; pageScript: string };
-export type PageOptions = { styleUrl: string; center: LngLat; zoom: number; styleTimeoutMs?: number };
+export type PageOptions = { styleUrl: string; darkStyleUrl: string; center: LngLat; zoom: number; styleTimeoutMs?: number };
 
 const LINE_SEPARATOR = new RegExp(String.fromCharCode(0x2028), 'g');
 const PARAGRAPH_SEPARATOR = new RegExp(String.fromCharCode(0x2029), 'g');
@@ -26,7 +26,8 @@ const BOOTSTRAP = `
     ml.setWorkerUrl(workerUrl);
     var api = startCampusMap(ml, { container: 'map', document: document, post: post, notice: setNotice,
       setTimeout: function (fn, ms) { return window.setTimeout(fn, ms); },
-      styleUrl: A.options.styleUrl, center: A.options.center, zoom: A.options.zoom, styleTimeoutMs: A.options.styleTimeoutMs });
+      styleUrl: A.options.styleUrl, darkStyleUrl: A.options.darkStyleUrl, center: A.options.center, zoom: A.options.zoom,
+      styleTimeoutMs: A.options.styleTimeoutMs });
     window.__campusMap = api;
     api.ready();
   }).catch(function (error) {

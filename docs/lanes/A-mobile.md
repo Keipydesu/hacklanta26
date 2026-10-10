@@ -187,8 +187,9 @@ Keep refresh regression tests. Cover reconnect refetch and route stale-response/
 without live upstreams. Run typecheck plus the changed behavior checks locally; CI remains the
 routine full lane gate. Bundle export writes output and requires the stick in a shared room.
 
-Run device checks on SDK-57-compatible Expo Go/development builds. Verify the MapLibre basemap and its
-airplane-mode fallback, map gestures, pin drag, attribution links opening in the browser, keyboard/form,
+Run device checks on SDK-57-compatible Expo Go/development builds. Verify both Positron and Dark Matter
+map themes (decision 011), switching without losing the viewport or overlays, airplane-mode fallback,
+map gestures, pin drag, attribution links opening in the browser, keyboard/form,
 permission denial, screen reader/status text, connection recovery and both platform renderings where
 devices are available. `npm run build` produces JS/Hermes exports, not signed binaries or proof that
 permissions work on-device. Use phone-reachable LAN URLs locally and G's HTTPS URL for hosted tests.

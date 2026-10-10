@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeBounds, bboxParam, boundsAround, parseFromWeb, injection, navigationDecision } = require('../.test-dist/map/protocol.js');
+const { normalizeBounds, bboxParam, boundsAround, parseFromWeb, injection, navigationDecision, readyMessages } = require('../.test-dist/map/protocol.js');
 const { buildOverlay, MARKER_COLORS } = require('../.test-dist/map/overlay.js');
 const { renderMapPage, scriptLiteral } = require('../.test-dist/map/html.js');
 const { startCampusMap } = require('../map-web/page.js');
@@ -45,6 +45,11 @@ test('injected overlay script calls the page API with the message as a JSON lite
   let received;
   new Function('window', script)({ __campusMap: { receive: m => { received = m; } } });
   assert.deepEqual(received, { type: 'overlay', overlay: { hazards: [], markers: [], routes: [] } });
+});
+
+test('a ready or reloaded page receives the current theme before its overlay', () => {
+  const overlay = { hazards: [], markers: [], routes: [] };
+  assert.deepEqual(readyMessages('dark', overlay), [{ type: 'theme', theme: 'dark' }, { type: 'overlay', overlay }]);
 });
 
 // ---- overlay parity --------------------------------------------------------------------------
@@ -94,7 +99,7 @@ const fakeAssets = { main: 'export const x = "</script><script>alert(1)</script>
   css: '.a{}</style><script>alert(2)</script>', sharedImport: '"./maplibre-gl-shared.mjs"', pageScript: 'function startCampusMap() {}' };
 
 test('embedded library text and labels cannot close the page script elements', () => {
-  const html = renderMapPage(fakeAssets, { styleUrl: 'https://example.test/style?a=</script>', center: [-84.38, 33.75], zoom: 14 });
+  const html = renderMapPage(fakeAssets, { styleUrl: 'https://example.test/style?a=</script>', darkStyleUrl: 'https://example.test/dark', center: [-84.38, 33.75], zoom: 14 });
   assert.equal(html.match(/<\/script>/g).length, 3, 'only the three real script elements close');
   assert.ok(!html.includes('alert(1)</script>') && !html.includes('</style><script>'));
   const data = html.slice(html.indexOf('window.__campusAssets = ') + 24, html.indexOf(';</script>'));
@@ -110,18 +115,19 @@ function fakeMapLibre() {
   class Emitter {
     constructor() { this.handlers = {}; }
     on(name, fn) { (this.handlers[name] ||= []).push(fn); return this; }
+    off(name, fn) { this.handlers[name] = (this.handlers[name] || []).filter(handler => handler !== fn); return this; }
     fire(name, event) { (this.handlers[name] || []).forEach(fn => fn(event)); }
   }
   class Map extends Emitter {
-    constructor(options) { super(); this.options = options; this.loaded = false; this.sources = {}; this.layers = []; this.styles = [options.style]; this.canvas = { canvas: true }; made.maps.push(this); }
+    constructor(options) { super(); this.options = options; this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; this.styles = [options.style]; this.canvas = { canvas: true }; made.maps.push(this); }
     isStyleLoaded() { return this.loaded; }
-    setStyle(style) { this.styles.push(style); this.loaded = false; this.sources = {}; this.layers = []; }
+    setStyle(style) { this.styles.push(style); this.loaded = false; this.sources = {}; this.layers = []; this.layerDefs = {}; }
     // Real MapLibre fires style.load while isStyleLoaded() is still false if the style's own tile
     // sources are loading; `sourcesPending` reproduces that.
     loadStyle({ sourcesPending = false } = {}) { this.loaded = !sourcesPending; this.fire('style.load'); }
     getSource(id) { return this.sources[id]; }
     addSource(id) { const source = { data: null, setData(d) { this.data = d; } }; this.sources[id] = source; }
-    addLayer(layer) { this.layers.push(layer.id); }
+    addLayer(layer) { this.layers.push(layer.id); this.layerDefs[layer.id] = layer; }
     getCanvas() { return this.canvas; }
     getBounds() { return { getWest: () => -84.4, getSouth: () => 33.7, getEast: () => -84.3, getNorth: () => 33.8 }; }
   }
@@ -144,7 +150,8 @@ function startPage() {
   const posted = [], notices = [], timers = [];
   const document = { createElement: () => ({ children: [], textContent: '', appendChild(c) { this.children.push(c); } }) };
   const api = startCampusMap(ml, { container: 'map', document, post: t => posted.push(JSON.parse(t)), notice: t => notices.push(t),
-    setTimeout: fn => timers.push(fn), styleUrl: 'https://tiles.example/style', center: [-84.38, 33.75], zoom: 14, styleTimeoutMs: 12000 });
+    setTimeout: fn => timers.push(fn), styleUrl: 'https://tiles.example/positron', darkStyleUrl: 'https://tiles.example/dark',
+    center: [-84.38, 33.75], zoom: 14, styleTimeoutMs: 12000 });
   return { api, map: made.maps[0], made, posted, notices, timers };
 }
 const overlay = {
@@ -238,6 +245,82 @@ test('overlay layers are added when a remote style loads even before its tile so
   assert.equal(page.map.styles.length, 1, 'a tile error after the style loaded is not a basemap failure');
   page.api.receive({ type: 'overlay', overlay: { ...overlay, hazards: [] } });
   assert.equal(page.map.getSource('hazards').data.features.length, 0, 'later overlays update while tiles still load');
+});
+
+test('switching to Dark Matter keeps viewport and markers and re-adds overlays with dark contrast', () => {
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay });
+  page.map.loadStyle();
+  const marker = page.made.markers[0];
+  page.api.receive({ type: 'theme', theme: 'dark' });
+  assert.equal(page.map.styles.at(-1), 'https://tiles.example/dark');
+  assert.equal(page.map.layers.length, 0);
+  assert.equal(marker.removed, false);
+  assert.equal(page.made.maps.length, 1, 'the viewport stays on the same map instance');
+  page.map.loadStyle();
+  assert.deepEqual(page.map.layers, ['hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
+  assert.equal(page.map.getSource('hazards').data.features.length, 1);
+  assert.equal(page.map.getSource('routes').data.features.length, 1);
+  assert.equal(page.map.layerDefs['hazard-line'].paint['line-color'].at(-1), '#b7a7ff');
+  page.api.receive({ type: 'theme', theme: 'invalid' });
+  page.api.receive({ type: 'theme', theme: 'dark' });
+  assert.equal(page.map.styles.length, 2, 'invalid or repeated theme messages do not reload the style');
+});
+
+test('a failed dark switch uses a dark blank style and a later toggle retries the remote style', () => {
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay });
+  page.map.loadStyle();
+  page.api.receive({ type: 'theme', theme: 'dark' });
+  page.map.fire('error', { error: { message: 'offline' } });
+  assert.equal(page.map.styles.at(-1).layers[0].paint['background-color'], '#11151b');
+  assert.equal(page.posted.at(-1).status, 'unavailable');
+  page.map.loadStyle();
+  assert.equal(page.map.getSource('hazards').data.features.length, 1);
+  page.api.receive({ type: 'theme', theme: 'light' });
+  assert.equal(page.map.styles.at(-1), 'https://tiles.example/positron');
+  page.map.loadStyle();
+  assert.equal(page.map.getSource('routes').data.features.length, 1);
+  assert.equal(page.notices.at(-1), '');
+});
+
+test('a timed-out dark switch keeps overlays on a dark blank style', () => {
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay });
+  page.map.loadStyle();
+  page.api.receive({ type: 'theme', theme: 'dark' });
+  page.timers.at(-1)();
+  assert.equal(page.map.styles.at(-1).layers[0].paint['background-color'], '#11151b');
+  page.map.loadStyle();
+  assert.equal(page.map.getSource('hazards').data.features.length, 1);
+  assert.equal(page.posted.at(-1).status, 'unavailable');
+});
+
+test('stale style callbacks and timeouts cannot settle a newer theme', () => {
+  const page = startPage();
+  const oldLoad = page.map.handlers['style.load'][0];
+  const oldError = page.map.handlers.error[0];
+  page.api.receive({ type: 'theme', theme: 'dark' });
+  oldLoad();
+  oldError({ error: { message: 'old style failed' } });
+  page.timers[0]();
+  assert.equal(page.map.styles.at(-1), 'https://tiles.example/dark');
+  assert.equal(page.posted.filter(message => message.type === 'basemap').length, 0);
+  page.map.loadStyle();
+  assert.equal(page.posted.at(-1).status, 'loaded');
+});
+
+test('rapid dark-to-light switch ignores the dark request timeout', () => {
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay });
+  page.api.receive({ type: 'theme', theme: 'dark' });
+  const darkTimeout = page.timers.at(-1);
+  page.api.receive({ type: 'theme', theme: 'light' });
+  darkTimeout();
+  assert.equal(page.map.styles.at(-1), 'https://tiles.example/positron');
+  page.map.loadStyle();
+  assert.equal(page.map.getSource('routes').data.features.length, 1);
+  assert.equal(page.posted.at(-1).status, 'loaded');
 });
 
 test('WebView navigation: only the page loads in place; outside http(s) opens in the browser; other schemes are blocked', () => {

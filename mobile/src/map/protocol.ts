@@ -17,7 +17,11 @@ export type MapMarker = {
 export type RouteLine = { id: string; coordinates: LngLat[]; color: string; width: number; dashed: boolean };
 export type Overlay = { hazards: HazardShape[]; markers: MapMarker[]; routes: RouteLine[] };
 
-export type ToWeb = { type: 'overlay'; overlay: Overlay };
+export type MapTheme = 'light' | 'dark';
+export type ToWeb = { type: 'overlay'; overlay: Overlay } | { type: 'theme'; theme: MapTheme };
+export const readyMessages = (theme: MapTheme, overlay: Overlay): ToWeb[] => [
+  { type: 'theme', theme }, { type: 'overlay', overlay },
+];
 export type FromWeb =
   | { type: 'ready' }
   | { type: 'press'; position: LngLat }

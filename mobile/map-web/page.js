@@ -6,10 +6,13 @@
  * (re)added on every style load, including the local blank style used when tiles are unreachable.
  */
 function startCampusMap(ml, env) {
-  var BLANK_STYLE = { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e9e7e1' } }] };
   var EMPTY = { type: 'FeatureCollection', features: [] };
   var overlay = { hazards: [], markers: [], routes: [] };
   var markers = {};
+  var currentTheme = 'light';
+  var styleGeneration = 0;
+  var styleLoadHandler = null;
+  var styleErrorHandler = null;
   var basemapSettled = false;
   // Set on style.load; map.isStyleLoaded() stays false until every basemap tile source loads.
   var styleReady = false;
@@ -24,8 +27,33 @@ function startCampusMap(ml, env) {
     basemapSettled = true;
     notice('Basemap unavailable · hazards, pins and routes are still shown');
     styleReady = false;
-    map.setStyle(BLANK_STYLE, { diff: false });
+    map.setStyle({ version: 8, sources: {}, layers: [{ id: 'background', type: 'background',
+      paint: { 'background-color': currentTheme === 'dark' ? '#11151b' : '#e9e7e1' } }] }, { diff: false });
     post({ type: 'basemap', status: 'unavailable', detail: String(detail || 'unknown error') });
+  }
+
+  function beginStyle(url) {
+    var generation = ++styleGeneration;
+    if (styleLoadHandler) map.off('style.load', styleLoadHandler);
+    if (styleErrorHandler) map.off('error', styleErrorHandler);
+    basemapSettled = false;
+    styleReady = false;
+    notice('');
+    styleLoadHandler = function () {
+      if (generation !== styleGeneration) return;
+      styleReady = true;
+      if (!basemapSettled) { basemapSettled = true; post({ type: 'basemap', status: 'loaded' }); }
+      renderLayers();
+    };
+    styleErrorHandler = function (event) {
+      if (generation === styleGeneration && !basemapSettled && !styleReady) fallback(event && event.error && event.error.message);
+    };
+    map.on('style.load', styleLoadHandler);
+    map.on('error', styleErrorHandler);
+    env.setTimeout(function () {
+      if (generation === styleGeneration && !basemapSettled) fallback('basemap style timed out');
+    }, env.styleTimeoutMs);
+    if (url) map.setStyle(url, { diff: false });
   }
 
   function ensureLayers() {
@@ -34,7 +62,8 @@ function startCampusMap(ml, env) {
       map.addLayer({ id: 'hazard-fill', type: 'fill', source: 'hazards',
         paint: { 'fill-color': ['match', ['get', 'source'], 'manual', '#fa9f42', '#7777dd'], 'fill-opacity': 0.4 } });
       map.addLayer({ id: 'hazard-line', type: 'line', source: 'hazards',
-        paint: { 'line-color': ['match', ['get', 'source'], 'manual', '#af4d00', '#5555bb'], 'line-width': 2 } });
+        paint: { 'line-color': ['match', ['get', 'source'], 'manual', currentTheme === 'dark' ? '#ffad66' : '#af4d00',
+          currentTheme === 'dark' ? '#b7a7ff' : '#5555bb'], 'line-width': 2 } });
     }
     if (!map.getSource('routes')) {
       map.addSource('routes', { type: 'geojson', data: EMPTY });
@@ -106,14 +135,6 @@ function startCampusMap(ml, env) {
     post({ type: 'bounds', bounds: { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() } });
   }
 
-  map.on('style.load', function () {
-    styleReady = true;
-    if (!basemapSettled) { basemapSettled = true; post({ type: 'basemap', status: 'loaded' }); }
-    renderLayers();
-  });
-  map.on('error', function (event) {
-    if (!basemapSettled && !styleReady) fallback(event && event.error && event.error.message);
-  });
   map.on('click', function (event) {
     var target = event.originalEvent && event.originalEvent.target;
     if (target && target !== map.getCanvas()) return; // a marker or popup tap is not a map tap
@@ -121,11 +142,15 @@ function startCampusMap(ml, env) {
   });
   map.on('moveend', postBounds);
   map.on('load', postBounds);
-  env.setTimeout(function () { if (!basemapSettled) fallback('basemap style timed out'); }, env.styleTimeoutMs);
+  beginStyle(null);
 
   return {
     receive: function (message) {
       if (message && message.type === 'overlay' && message.overlay) { overlay = message.overlay; render(); }
+      if (message && message.type === 'theme' && (message.theme === 'light' || message.theme === 'dark') && message.theme !== currentTheme) {
+        currentTheme = message.theme;
+        beginStyle(currentTheme === 'dark' ? env.darkStyleUrl : env.styleUrl);
+      }
     },
     ready: function () { post({ type: 'ready' }); postBounds(); },
   };

@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Linking, type StyleProp, type ViewStyle } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import { MAP_PAGE_ORIGIN, mapStyleUrl } from './config';
+import { MAP_PAGE_ORIGIN, mapDarkStyleUrl, mapStyleUrl } from './config';
 import { buildMapHtml } from './page';
-import { injection, navigationDecision, parseFromWeb, type Bounds, type LngLat, type Overlay } from './protocol';
+import { injection, navigationDecision, parseFromWeb, readyMessages, type Bounds, type LngLat, type MapTheme, type Overlay } from './protocol';
 
 export type MapLibreViewProps = {
   style?: StyleProp<ViewStyle>;
   center: LngLat;
   zoom: number;
+  theme: MapTheme;
   overlay: Overlay;
   onPress?(position: LngLat): void;
   onDragEnd?(id: string, position: LngLat): void;
@@ -26,13 +27,16 @@ export function MapLibreView(props: MapLibreViewProps) {
   const latest = useRef(props);
   latest.current = props;
   // Center/zoom are initial values only, like react-native-maps' initialRegion.
-  const html = useMemo(() => buildMapHtml({ styleUrl: mapStyleUrl, center: props.center, zoom: props.zoom }), []);
+  const html = useMemo(() => buildMapHtml({ styleUrl: mapStyleUrl, darkStyleUrl: mapDarkStyleUrl, center: props.center, zoom: props.zoom }), []);
 
   // The app rebuilds the overlay every render; only changed content crosses the bridge.
   const overlayText = JSON.stringify(props.overlay);
   useEffect(() => {
     if (ready.current) ref.current?.injectJavaScript(injection({ type: 'overlay', overlay: props.overlay }));
   }, [overlayText]);
+  useEffect(() => {
+    if (ready.current) ref.current?.injectJavaScript(injection({ type: 'theme', theme: props.theme }));
+  }, [props.theme]);
 
   function onMessage(event: WebViewMessageEvent) {
     const message = parseFromWeb(event.nativeEvent.data);
@@ -41,7 +45,7 @@ export function MapLibreView(props: MapLibreViewProps) {
     switch (message.type) {
       case 'ready':
         ready.current = true;
-        ref.current?.injectJavaScript(injection({ type: 'overlay', overlay: current.overlay }));
+        readyMessages(current.theme, current.overlay).forEach(message => ref.current?.injectJavaScript(injection(message)));
         break;
       case 'press': current.onPress?.(message.position); break;
       case 'drag': current.onDragEnd?.(message.id, message.position); break;
