@@ -1,5 +1,24 @@
 # Manual mobile app
 
+## UI concept branch
+
+The first `lane/a-ui` concept opens with a destination-led Explore screen, a scooter/bike
+identity, and Explore / Plan a trip / Report controls. “Choose destination” opens the existing
+route flow in destination-pin mode; select “Set start” or use foreground location to complete
+the endpoints. Existing route and report state survives switching between these views.
+Route cards emphasize time and distance while retaining hazard counts and the risk explanation.
+The shared controls use native primitives with selected/disabled accessibility states.
+
+Run `npm start --prefix mobile` for the labeled fixture preview, or set
+`EXPO_PUBLIC_API_URL` for the existing live flows. This concept preserves the current map renderer
+for the separate OSM work in issue #27. Reporting still uses the current pin/description flow;
+issues #23 and #24 remain separate implementation work. No rental integration, destination search,
+mode-specific bicycle routing or turn-by-turn navigation is added.
+
+Verified locally: TypeScript and all 39 existing mobile tests pass. Device layout, larger text,
+screen-reader interaction and physical-device smoke checks remain pending. See the
+[working UI brief](../docs/UI-INSPIRATION.md) for the design rationale.
+
 Expo SDK 57 + TypeScript. The map is MapLibre GL JS in a WebView with OpenFreeMap OSM vector tiles
 ([decisions 010](../docs/decisions/010-osm-maplibre-basemap.md) and [011](../docs/decisions/011-positron-and-dark-matter-map-themes.md)). No sensor imports or motion permissions. Uses only
 its local generated product types and copied fixtures; the automatic tree is not a dependency.

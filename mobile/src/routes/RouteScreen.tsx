@@ -1,5 +1,6 @@
 import React from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { ActionButton as Button } from '../ui/ActionButton';
 import { canRequest, presentRoutes, type Point, type RouteLine, type RouteState } from './model';
 
 export type Target = 'origin' | 'destination';
@@ -15,8 +16,9 @@ function RouteCard({ line, routeColors }: { line: RouteLine; routeColors: { shor
         <View style={[styles.swatch, { backgroundColor: routeColors[line.kind] }, line.kind === 'shortest' && styles.swatchDashed]} />
         <Text style={styles.heading}>{line.label}</Text>
       </View>
-      <Text>{line.distance} · {line.duration} · {line.risk}</Text>
+      <Text style={styles.metrics}>{line.duration} <Text style={styles.distance}>· {line.distance}</Text></Text>
       <Text>{line.hazardCount === 0 ? 'Crosses no reported hazards' : `Crosses ${line.hazardCount} reported hazard${line.hazardCount === 1 ? '' : 's'}`}</Text>
+      <Text style={styles.fine}>{line.risk}</Text>
     </View>
   );
 }
@@ -38,11 +40,12 @@ export function RouteScreen(props: {
   const loading = state.status === 'loading';
   return (
     <>
-      <Text style={styles.heading}>Compare routes</Text>
+      <Text style={styles.title}>A better way across campus.</Text>
+      <Text style={styles.heading}>Plan your trip</Text>
       <Text>Tap the map to place the {target === 'origin' ? 'start' : 'destination'} pin, or drag a pin to move it. No location permission needed.</Text>
       <View style={styles.row}>
-        <Button title={`${target === 'origin' ? '✓ ' : ''}Set start`} onPress={() => props.onTarget('origin')} />
-        <Button title={`${target === 'destination' ? '✓ ' : ''}Set destination`} onPress={() => props.onTarget('destination')} />
+        <Button selected={target === 'origin'} title="Set start" onPress={() => props.onTarget('origin')} />
+        <Button selected={target === 'destination'} title="Set destination" onPress={() => props.onTarget('destination')} />
       </View>
       <Text>Start (A): {where(state.origin)}</Text>
       <Text>Destination (B): {where(state.destination)}</Text>
@@ -53,7 +56,7 @@ export function RouteScreen(props: {
         <Button title="Swap" disabled={!state.origin && !state.destination} onPress={props.onSwap} />
         <Button title="Clear" disabled={!state.origin && !state.destination} onPress={props.onClear} />
       </View>
-      <Button title={loading ? 'Comparing…' : presented ? 'Refresh comparison' : 'Compare routes'} disabled={!ready || loading} onPress={props.onCompare} />
+      <Button primary title={loading ? 'Comparing…' : presented ? 'Refresh comparison' : 'Compare routes'} disabled={!ready || loading} onPress={props.onCompare} />
       {!ready && <Text>Place both pins to compare routes.</Text>}
 
       {!!state.error && <Text accessibilityRole="alert" style={styles.error}>{state.error}</Text>}
@@ -66,7 +69,7 @@ export function RouteScreen(props: {
         <>
           {presented.illustrative && (
             <Text style={styles.notice}>
-              {props.offlinePreview ? 'Offline preview.' : 'This server has no routing engine.'} These are fixed example lines: they do not follow your pins or respond to reports.
+              {props.offlinePreview ? 'Offline preview.' : 'Example routes only.'} These are fixed example lines: they do not follow your pins or respond to reports.
             </Text>
           )}
           <Text style={styles.summary}>{presented.summary}</Text>
@@ -82,9 +85,12 @@ export function RouteScreen(props: {
 }
 
 const styles = StyleSheet.create({
-  heading: { fontSize: 17, fontWeight: '600', marginVertical: 6 },
+  title: { fontSize: 26, fontWeight: '700', color: '#173f35', marginBottom: 8 },
+  heading: { fontSize: 17, fontWeight: '600', color: '#173f35', marginVertical: 6 },
+  metrics: { fontSize: 24, fontWeight: '700', color: '#173f35', marginVertical: 8 },
+  distance: { fontSize: 16, fontWeight: '400' },
   row: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', marginVertical: 4 },
-  card: { paddingVertical: 10, borderBottomWidth: 1, borderColor: '#ddd' },
+  card: { padding: 18, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e6d8', marginVertical: 6 },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   swatch: { width: 28, height: 5, borderRadius: 2 },
   swatchDashed: { width: 28, height: 5, opacity: 0.85 },

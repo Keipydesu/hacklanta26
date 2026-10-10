@@ -6,6 +6,11 @@ Deliver a phone app that reports hazards, shows nearby reports and compares rout
 automatic process is stopped. Follow [the architecture](../../ARCHITECTURE.md),
 [roadmap](../ROADMAP.md) and [delivery workflow](../decisions/001-mvp-delivery-workflow.md).
 
+For the UI design pass, lead with scooter/bike trip planning and use hazards as supporting trip
+context. Lime and Waze are the primary references in the [working brief](../UI-INSPIRATION.md).
+Follow [decision 010](../decisions/010-scooter-bike-first-ui.md): visual priority does not imply
+new travel modes, rental integration, continuous tracking or a change to milestone order.
+
 **Owns:** `mobile/`. Consume only the product HTTP/live contract and local generated types/fixtures.
 No imports from `automatic/`, sensor libraries, motion permissions, continuous location, ride
 start/stop or recording belong in this release. Publication credentials never enter the app.
