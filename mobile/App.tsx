@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, SafeAreaView, ScrollView, View, Text, Button, TextInput, StyleSheet } from 'react-native';
-import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -11,22 +10,24 @@ import { createReportQueue, freezeReport, Submission } from './src/reports/queue
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
 import { createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
-import { ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
+import { DARK_ROUTE_COLORS, ROUTE_COLORS, RouteScreen, Target } from './src/routes/RouteScreen';
+import { MapLibreView } from './src/map/MapLibreView';
+import { buildOverlay } from './src/map/overlay';
+import { bboxParam, boundsAround, Bounds, LngLat, MapTheme } from './src/map/protocol';
 
-const center = { latitude: 33.7531, longitude: -84.3853, latitudeDelta: 0.012, longitudeDelta: 0.012 };
-const toPoint = ([longitude, latitude]: number[]) => ({ latitude, longitude });
-const clamp = (value: number, limit: number) => Math.min(limit, Math.max(-limit, value));
-// The API rejects bounds outside WGS84, which a zoomed-out map easily produces.
-const bounds = (r: Region) => {
-  const wide = r.longitudeDelta >= 360;
-  return [wide ? -180 : clamp(r.longitude-r.longitudeDelta/2, 180), clamp(r.latitude-r.latitudeDelta/2, 90),
-    wide ? 180 : clamp(r.longitude+r.longitudeDelta/2, 180), clamp(r.latitude+r.latitudeDelta/2, 90)].join(',');
-};
+const CENTER: LngLat = [-84.3853, 33.7531];
+const INITIAL_ZOOM = 14.5;
+// Same area the old initial region covered; replaced by the map's real bounds once it settles.
+const INITIAL_BOUNDS = boundsAround(CENTER, 0.012, 0.012);
+const center = { latitude: CENTER[1], longitude: CENTER[0] };
+const toLatLng = ([longitude, latitude]: LngLat) => ({ latitude, longitude });
 export default function App() {
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
-  const [region, setRegion] = useState(center);
-  const currentRegion = useRef<Region>(center);
-  function changeRegion(next: Region) {
+  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+  // One object per settled viewport (moveend): the hazard refresh compares it by identity.
+  const [region, setRegion] = useState<Bounds>(INITIAL_BOUNDS);
+  const currentRegion = useRef<Bounds>(INITIAL_BOUNDS);
+  function changeRegion(next: Bounds) {
     currentRegion.current = next;
     setRegion(next);
   }
@@ -46,7 +47,7 @@ export default function App() {
   // A delayed submit keeps this same function, which reads the current viewport.
   const [refresh] = useState(() => createHazardRefresh(
     () => currentRegion.current,
-    region => getHazards(bounds(region)),
+    region => getHazards(bboxParam(region)),
     result => { setHazards(result.features); setHazardError(''); },
     error => setHazardError(String(error)),
   ));
@@ -113,6 +114,7 @@ export default function App() {
     else setError(result.reason === 'denied' ? 'Location permission denied. Tap the map to place the start pin instead.' : 'Could not get your location. Tap the map to place the start pin instead.');
   }
   const presented = routeState.result ? presentRoutes(routeState.result) : null;
+  const routeColors = mapTheme === 'dark' ? DARK_ROUTE_COLORS : ROUTE_COLORS;
   function send() {
     return guardSubmit(async () => {
       setSubmitting(true); setError('');
@@ -125,29 +127,26 @@ export default function App() {
     });
   }
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
+  const overlay = buildOverlay({
+    screen, hazards: visible, submissions, pin: { lat: pin.latitude, lon: pin.longitude },
+    routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors,
+  });
+  function onMapPress(position: LngLat) {
+    if (screen === 'report') setPin(toLatLng(position));
+    else if (screen === 'route') placeRouteEndpoint(toLatLng(position));
+  }
+  function onMarkerDrag(id: string, position: LngLat) {
+    if (id === 'pin') setPin(toLatLng(position));
+    else if (id === 'origin' || id === 'destination') placeRouteEndpoint(toLatLng(position), id);
+  }
   return <SafeAreaView style={styles.page}>
     <Text style={styles.title}>Campus hazards</Text>
     <Text style={styles.notice}>{fixtureMode ? 'DEMO · Offline fixture preview' : server?.storage === 'memory' ? 'Test server · reports are not kept when it restarts' : ''}</Text>
     <View style={styles.tabs}>{(['map','report','route'] as const).map(tab => <Button key={tab} title={tab} onPress={() => setScreen(tab)} />)}</View>
-    <MapView style={styles.map} initialRegion={center} onRegionChangeComplete={changeRegion}
-      onPress={e => { if (screen === 'report') setPin(e.nativeEvent.coordinate); else if (screen === 'route') placeRouteEndpoint(e.nativeEvent.coordinate); }}>
-      {visible.map(h => <Polygon key={h.properties.id} coordinates={h.geometry.coordinates[0].map(toPoint)}
-        holes={h.geometry.coordinates.slice(1).map(r => r.map(toPoint))}
-        strokeColor={h.properties.source === 'manual' ? '#af4d00' : '#5555bb'} fillColor={h.properties.source === 'manual' ? '#fa9f4266' : '#7777dd66'} />)}
-      {visible.map(h => <Marker key={`marker-${h.properties.id}`} coordinate={toPoint(h.geometry.coordinates[0][0])}
-        title={h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}
-        description={h.properties.label} />)}
-      {submissions.filter(sub => sub.state !== 'submitted').map(sub => <Marker key={`pending-${sub.id}`} coordinate={{ latitude: sub.body.lat, longitude: sub.body.lon }}
-        pinColor="blue" title="Pending report (not yet accepted)" description={sub.body.kind} />)}
-      {screen === 'report' && <Marker coordinate={pin} draggable title="Report location"
-        onDragEnd={e => setPin(e.nativeEvent.coordinate)} />}
-      {screen === 'route' && presented?.lowerRisk && <Polyline coordinates={presented.lowerRisk.coordinates.map(toPoint)} strokeWidth={6} strokeColor={ROUTE_COLORS.safest} />}
-      {screen === 'route' && presented && <Polyline coordinates={presented.shortest.coordinates.map(toPoint)} strokeWidth={4} strokeColor={ROUTE_COLORS.shortest} lineDashPattern={presented.lowerRisk ? [10, 8] : undefined} />}
-      {screen === 'route' && routeState.origin && <Marker coordinate={{ latitude: routeState.origin.lat, longitude: routeState.origin.lon }} pinColor="green" draggable
-        title="Start (A)" onDragEnd={e => placeRouteEndpoint(e.nativeEvent.coordinate, 'origin')} />}
-      {screen === 'route' && routeState.destination && <Marker coordinate={{ latitude: routeState.destination.lat, longitude: routeState.destination.lon }} pinColor="purple" draggable
-        title="Destination (B)" onDragEnd={e => placeRouteEndpoint(e.nativeEvent.coordinate, 'destination')} />}
-    </MapView>
+    <Button title={mapTheme === 'light' ? 'Map: Positron (switch to Dark Matter)' : 'Map: Dark Matter (switch to Positron)'}
+      onPress={() => setMapTheme(mapTheme === 'light' ? 'dark' : 'light')} />
+    <MapLibreView style={styles.map} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
+      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} />
     <ScrollView style={styles.content}>
       {screen === 'map' && <>
         <Button title="Refresh hazards" onPress={() => void refresh()} />
@@ -175,7 +174,7 @@ export default function App() {
         </View>)}
         {fixtureMode && <Text>Fixture preview only. Configure the product API URL to submit.</Text>}
       </>}
-      {screen === 'route' && <RouteScreen state={routeState} target={routeTarget} offlinePreview={fixtureMode}
+      {screen === 'route' && <RouteScreen state={routeState} target={routeTarget} offlinePreview={fixtureMode} routeColors={routeColors}
         onTarget={setRouteTarget} onUseLocation={() => void useMyLocationAsStart()} onCompare={() => void comparison.request()}
         onSwap={() => comparison.swap()} onClear={() => { comparison.clear(); setRouteTarget('origin'); }} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}

@@ -4,14 +4,15 @@ import { canRequest, presentRoutes, type Point, type RouteLine, type RouteState 
 
 export type Target = 'origin' | 'destination';
 export const ROUTE_COLORS = { shortest: '#5f5f5f', safest: '#005f73' } as const;
+export const DARK_ROUTE_COLORS = { shortest: '#ffe083', safest: '#69f0d1' } as const;
 
 const where = (p: Point | null) => (p ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : 'not set');
 
-function RouteCard({ line }: { line: RouteLine }) {
+function RouteCard({ line, routeColors }: { line: RouteLine; routeColors: { shortest: string; safest: string } }) {
   return (
     <View style={styles.card} accessible accessibilityLabel={`${line.label} route: ${line.distance}, ${line.duration}, ${line.risk}, crosses ${line.hazardCount} reported hazards`}>
       <View style={styles.legend}>
-        <View style={[styles.swatch, { backgroundColor: ROUTE_COLORS[line.kind] }, line.kind === 'shortest' && styles.swatchDashed]} />
+        <View style={[styles.swatch, { backgroundColor: routeColors[line.kind] }, line.kind === 'shortest' && styles.swatchDashed]} />
         <Text style={styles.heading}>{line.label}</Text>
       </View>
       <Text>{line.distance} · {line.duration} · {line.risk}</Text>
@@ -24,6 +25,7 @@ export function RouteScreen(props: {
   state: RouteState;
   target: Target;
   offlinePreview: boolean;
+  routeColors: { shortest: string; safest: string };
   onTarget(target: Target): void;
   onUseLocation(): void;
   onCompare(): void;
@@ -68,8 +70,8 @@ export function RouteScreen(props: {
             </Text>
           )}
           <Text style={styles.summary}>{presented.summary}</Text>
-          <RouteCard line={presented.shortest} />
-          {presented.lowerRisk && <RouteCard line={presented.lowerRisk} />}
+          <RouteCard line={presented.shortest} routeColors={props.routeColors} />
+          {presented.lowerRisk && <RouteCard line={presented.lowerRisk} routeColors={props.routeColors} />}
           <Text style={styles.fine}>
             A comparison, not turn-by-turn navigation. “Lower-risk” avoids currently reported hazards where it can; the risk number is a 0–1 routing heuristic, not a probability or a guarantee.
           </Text>
