@@ -42,7 +42,7 @@ export function RouteScreen(props: {
       {!expanded && <Button title="Refresh routes" onPress={props.onCompare} disabled={loading} />}
     </View>}
     {presented && <>
-      {presented.illustrative && <Text style={styles.notice}>Example routes · do not follow your pins</Text>}
+      {presented.illustrative && <Text style={styles.notice}>Offline preview · example routes, not your trip</Text>}
       <View style={styles.row}>
         <RouteCard colors={props.colors} line={presented.shortest} expanded={expanded} />
         {presented.lowerRisk && <RouteCard colors={props.colors} line={presented.lowerRisk} expanded={expanded} />}

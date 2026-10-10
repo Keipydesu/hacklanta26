@@ -66,13 +66,15 @@ export const submitFeedback = (hazardId: string, body: HazardFeedback) => {
 };
 export type Coordinate = components['schemas']['Coordinate'];
 /**
- * Routes for the selected pair. `illustrative` is true for the offline preview and when the server
- * reports that it has no routing engine and answered with its fixed example (X-Stage-0-Stub).
+ * Routes for the selected pair. Only the explicitly offline preview may show fixture routes.
  */
 export async function getRoutes(origin: Coordinate, destination: Coordinate): Promise<{ response: RouteResponse; illustrative: boolean }> {
   if (fixtureMode) return { response: routeFixture as RouteResponse, illustrative: true };
   const response = await call<RouteResponse>('/v1/route', { origin, destination });
-  return { response: response.data, illustrative: response.headers.get('X-Stage-0-Stub') !== null };
+  if (response.headers.get('X-Stage-0-Stub') !== null) {
+    throw new ApiError(503, 'Routing is unavailable right now.');
+  }
+  return { response: response.data, illustrative: false };
 }
 export type Health = components['schemas']['Health'];
 export const getHealth = () => request<Health>('/healthz');

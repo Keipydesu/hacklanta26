@@ -28,7 +28,7 @@ test('report and route deadlines cover stalled success bodies, then allow retry'
     let calls = 0;
     const h = client(async (_url, { signal }) => ({
       ok: true,
-      headers: new Headers({ 'X-Stage-0-Stub': 'true' }),
+      headers: new Headers(),
       json: () => ++calls > 1 ? Promise.resolve({ ok: true }) : new Promise((_, reject) => {
         signal.addEventListener('abort', () => reject(new Error('aborted body')), { once: true });
       }),
@@ -45,7 +45,17 @@ test('report and route deadlines cover stalled success bodies, then allow retry'
     assert.equal(h.timers.size, 0);
     const result = await send();
     assert.equal(method === 'report' ? result.ok : result.response.ok, true);
-    if (method === 'route') assert.equal(result.illustrative, true, 'preserve stub header');
+    if (method === 'route') assert.equal(result.illustrative, false);
     assert.equal(h.timers.size, 0, 'successful parse cleans up deadline');
   }
+});
+
+test('a live server fixture is an outage, never a route for the selected pins', async () => {
+  const h = client(async () => ({
+    ok: true, headers: new Headers({ 'X-Stage-0-Stub': 'fixed-route-fixture-not-navigation' }),
+    json: async () => ({ routes: [], safest_available: true }),
+  }));
+  await assert.rejects(h.api.getRoutes({ lat: 33.7531, lon: -84.3853 }, { lat: 33.7560, lon: -84.3880 }),
+    error => error.status === 503);
+  assert.equal(h.timers.size, 0);
 });

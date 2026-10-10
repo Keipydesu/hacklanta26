@@ -137,7 +137,8 @@ test('other failures and unroutable points are explained', async () => {
   h.calls[1].reject(new Error('Aborted'));
   await pending;
   assert.equal(h.comparison.state().status, 'failed');
-  assert.match(h.comparison.state().error, /Aborted/);
+  assert.match(h.comparison.state().error, /Could not compare routes right now/);
+  assert.doesNotMatch(h.comparison.state().error, /Aborted/, 'no internal error text in rider copy');
   pending = h.comparison.request();
   h.calls[2].resolve({ response: { routes: [], safest_available: false }, illustrative: false });
   await pending;

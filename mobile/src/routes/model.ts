@@ -69,7 +69,7 @@ export function createRouteComparison(deps: RouteDeps) {
         // Keep previous geometry and its hint-based staleness if a refresh fails.
         if (status === 503) set({ status: 'unavailable', error: 'Routing is unavailable right now. The map and reporting still work.' });
         else if (status === 422) set({ status: 'failed', error: 'These points cannot be routed. Move the pins and try again.', result: null, outdated: false });
-        else set({ status: 'failed', error: `Could not compare routes: ${e instanceof Error ? e.message : String(e)}` });
+        else set({ status: 'failed', error: 'Could not compare routes right now. Check your connection and try again.' });
       }
     })().finally(() => { if (inFlight?.promise === promise) inFlight = undefined; });
     inFlight = { generation: mine, promise };
