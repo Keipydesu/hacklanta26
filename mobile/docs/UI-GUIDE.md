@@ -46,7 +46,7 @@ See [decision 014](../../docs/decisions/014-silver-cyan-mobile-palette.md).
 Dark-mode panels and controls have no silver outlines; colored control edges match their fill.
 
 Device appearance supplies the initial mode; the header switch overrides UI and map together for this session (decision 016). Silver secondary buttons and unselected hazard categories use the operator-supplied metal
-grain at 22% opacity over silver, with charcoal labels in both appearances. Keep the map,
+grain as a 32% tonal sweep plus a 22% grain layer at the reference’s native dimensions over white, with charcoal labels in both appearances. Keep the map,
 text, cyan selections and blue primary actions untextured. See [decision 015](../../docs/decisions/015-metallic-silver-texture.md). Selected controls retain accessible selected state and short labels.
 White on cyan is 5.74:1; white on blue 9.22:1; charcoal on white 12.27:1; silver on charcoal
 8.69:1. These are computed solid-color text pairs, not a full accessibility certification.
