@@ -10,6 +10,8 @@ dependencies = [
     "pyproj>=3.7,<4",
     "pyyaml>=6,<7",
     "psycopg[binary]==3.3.3", "psycopg-pool==3.3.0",
+    # Imported by app/routing/valhalla.py at startup, so it must be a runtime dependency.
+    "httpx>=0.28,<1",
 ]
 [dependency-groups]
 dev = ["pytest>=8,<10", "httpx>=0.28,<1", "jsonschema>=4.23,<5", "rfc3339-validator>=0.1.4,<1"]
