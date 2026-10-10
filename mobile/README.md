@@ -2,22 +2,24 @@
 
 ## UI concept branch
 
-The first `lane/a-ui` concept opens with a destination-led Explore screen, a scooter/bike
-identity, and Explore / Plan a trip / Report controls. “Choose destination” opens the existing
-route flow in destination-pin mode; select “Set start” or use foreground location to complete
-the endpoints. Existing route and report state survives switching between these views.
-Route cards emphasize time and distance while retaining hazard counts and the risk explanation.
-The shared controls use native primitives with selected/disabled accessibility states.
+The `lane/a-ui` concept uses a full map canvas with a compact header, an expandable bottom
+panel and Map / Trip / Report controls. “Where to?” opens destination-pin placement;
+select Set start or expand details for foreground location. Expanding reveals additional
+controls and evidence; changing tasks collapses the panel while preserving trip/draft state.
+The shared icon and control system is described in the [mobile UI guide](docs/UI-GUIDE.md).
 
 Run `npm start --prefix mobile` for the labeled fixture preview, or set
-`EXPO_PUBLIC_API_URL` for the existing live flows. This concept preserves the current map renderer
-for the separate OSM work in issue #27. Reporting still uses the current pin/description flow;
-issues #23 and #24 remain separate implementation work. No rental integration, destination search,
-mode-specific bicycle routing or turn-by-turn navigation is added.
+`EXPO_PUBLIC_API_URL` for live flows. The existing renderer remains for the separate OSM work.
+Report pins and optional descriptions remain pending #23/#24. This is route comparison, not
+turn-by-turn navigation; no text search, rental integration or separate bicycle costing is added.
 
-Verified locally: TypeScript and all 39 existing mobile tests pass. Device layout, larger text,
-screen-reader interaction and physical-device smoke checks remain pending. See the
-[working UI brief](../docs/UI-INSPIRATION.md) for the design rationale.
+Verified: TypeScript and all 39 mobile tests; iPhone 17 Pro / iOS 26.1 Simulator with Expo Go
+57.0.9 renders Map, route-pin selection, fixture comparison, details and reporting.
+[Screenshots](docs/screenshots/README.md) use fixture data. Physical-device, Android, larger-text
+and full screen-reader checks remain pending. For Metro binding only to IPv6 localhost, use
+`NODE_OPTIONS=--dns-result-order=ipv4first npm start --prefix mobile -- --localhost --clear`.
+The screenshot session needed a clean Metro/Expo Go restart after an initial ExpoAsset error;
+no package change was required.
 
 Expo SDK 57 + TypeScript. The map is MapLibre GL JS in a WebView with OpenFreeMap OSM vector tiles
 ([decisions 010](../docs/decisions/010-osm-maplibre-basemap.md) and [011](../docs/decisions/011-positron-and-dark-matter-map-themes.md)). No sensor imports or motion permissions. Uses only

@@ -177,12 +177,21 @@ campus zoom levels, including where their geometry overlaps?
 
 ### First runnable concept
 
-The initial implementation retains the existing map component while the OSM switch proceeds
-separately. Its scope is the surrounding experience: a destination-led Explore card, labeled
-Explore / Plan a trip / Report controls, a forest-green and pale-lime control treatment, and
-route cards emphasizing time and distance. This is a working first option, not a final visual
-selection. Report pins and free text stay as implemented until #23/#24 land.
-TypeScript and 39 existing mobile tests pass; visual/device review is still required.
+Operator feedback supersedes the first stacked-screen concept: the map fills the working
+screen, with a compact header and an expandable bottom task panel. The resting home shows
+Where to?, a report count and compact icon/label navigation. Route cards show time, distance
+and hazard counts side by side. Reporting uses a single row of labeled category pictograms.
+Large headings and introductory paragraphs have been removed.
+
+The user-provided Exhibitionist guide supplies consistency principles only: visual cues before
+words, shared primitives, semantic states and contextual feedback. Its web colors, type and
+layout are explicitly excluded. See [decision 011](decisions/011-map-first-mobile-controls.md)
+and the [mobile adaptation](../mobile/docs/UI-GUIDE.md).
+
+The current map renderer remains in place for the separate OSM migration. Report pins and the
+optional description remain pending #23/#24; the description is in expanded details. TypeScript
+and 39 mobile tests pass. The revised screens have been inspected in iOS Simulator; physical
+hardware, Android, large text and full accessibility review remain outstanding.
 
 Use Lime as the anchor for scooter/bike identity and a focused map task, and Waze as the anchor
 for contributing and understanding community reports. The proposed journey is:
@@ -210,10 +219,8 @@ Exact palette, typography, icons and panel behavior remain open for visual explo
 | Hazard detail | Category → source/evidence → observed time and expiry | Community, automatic, simulated/replayed/mixed evidence, expired selection |
 | Compare | Endpoints → route cards → selected route details | Incomplete endpoints, loading, comparison, identical routes, outdated result, outage |
 
-Prototype two arrangements before choosing: retain explicit Map/Report/Route tabs with better
-hierarchy, or use a map home with task panels. Compare them using the same content and states;
-otherwise a prettier mockup can conceal a less usable flow. Begin with sketches rather than
-adding a navigation or bottom-sheet dependency.
+The selected first arrangement is a map home with compact task panels. Keep the implementation
+on native primitives while exploring; no navigation or bottom-sheet dependency is required.
 
 Some copy to test:
 
@@ -248,7 +255,7 @@ continuous tracking or unsupported API fields through a design concept.
    in our visual identity?
 2. Which destination-selection treatment makes map-pin planning obvious without suggesting
    text search already exists?
-3. Are tabs easier to understand than task panels for this small feature set?
+3. Are the compact task controls and expand/collapse affordance clear without instruction?
 4. How much information should a hazard show before opening details?
 5. What should the app show if a rider is offline and cannot obtain a fresh location for a new
    report? Resolve this alongside #23 without altering already-frozen queued submissions.
@@ -264,11 +271,11 @@ Next working steps:
 
 - [x] Prioritize Lime and Waze from operator feedback; keep other references as supporting studies.
 - [ ] Inspect current mobile screens and collect annotated reference screenshots.
-- [ ] Sketch both navigation arrangements using identical content.
+- [x] Replace the stacked concept with a map canvas and compact expandable task panel.
 - [ ] Walk through reporting, stale data, permission denial and route failure before polishing.
 - [ ] Check small screens, larger text, screen-reader labels, touch targets and color-independent cues.
 - [ ] Choose a direction and record the reasoning, then split implementation into small Lane A changes.
 
 Research validation so far: repository brief and related issues reviewed; first-party sources
-consulted. The first runnable concept is described above. No dependency change, device test or
-usability study is claimed.
+consulted. The first runnable concept is described above. No dependency change, physical-device test or
+usability study is claimed; simulator evidence is recorded in the mobile guide.

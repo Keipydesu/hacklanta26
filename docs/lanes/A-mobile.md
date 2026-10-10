@@ -10,6 +10,8 @@ For the UI design pass, lead with scooter/bike trip planning and use hazards as 
 context. Lime and Waze are the primary references in the [working brief](../UI-INSPIRATION.md).
 Follow [decision 010](../decisions/010-scooter-bike-first-ui.md): visual priority does not imply
 new travel modes, rental integration, continuous tracking or a change to milestone order.
+[Decision 011](../decisions/011-map-first-mobile-controls.md) makes the map the primary canvas,
+with short labeled icons and expandable details; follow the [mobile UI guide](../../mobile/docs/UI-GUIDE.md).
 
 **Owns:** `mobile/`. Consume only the product HTTP/live contract and local generated types/fixtures.
 No imports from `automatic/`, sensor libraries, motion permissions, continuous location, ride

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet } from 'react-native';
+import { AppState, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
+import { Icon } from './src/ui/Icon';
+import { theme } from './src/ui/theme';
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +27,9 @@ const bounds = (r: Region) => {
 };
 export default function App() {
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
+  const [expanded, setExpanded] = useState(false);
+  const [dockHeight, setDockHeight] = useState(220);
+  function openScreen(next: 'map' | 'report' | 'route') { setScreen(next); setExpanded(false); }
   const [region, setRegion] = useState(center);
   const currentRegion = useRef<Region>(center);
   function changeRegion(next: Region) {
@@ -126,16 +131,11 @@ export default function App() {
     });
   }
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
+  const latestSubmission = submissions[submissions.length - 1];
   const pendingCount = submissions.filter(sub => sub.state !== 'submitted').length;
   return <SafeAreaView style={styles.page}>
-    <View style={styles.header}>
-      <View style={styles.brand}><Text style={styles.eyebrow}>SCOOTER + BIKE</Text><Text style={styles.title}>Campus, connected.</Text></View>
-      <View style={styles.badge}><Text style={styles.badgeText}>UI CONCEPT</Text></View>
-    </View>
-    {(fixtureMode || server?.storage === 'memory') && <Text style={styles.notice}>{fixtureMode ? 'DEMO · Offline fixture preview' : 'Test server · reports are not kept when it restarts'}</Text>}
-    <View style={styles.tabs}>{(['map','route','report'] as const).map(tab => <Button key={tab}
-      selected={screen === tab} title={tab === 'map' ? 'Explore' : tab === 'route' ? 'Plan a trip' : 'Report'} onPress={() => setScreen(tab)} />)}</View>
-    <MapView style={styles.map} initialRegion={center} onRegionChangeComplete={changeRegion}
+    <KeyboardAvoidingView style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <MapView style={styles.map} initialRegion={center} legalLabelInsets={{ top: 0, left: 8, right: 8, bottom: dockHeight + 8 }} onRegionChangeComplete={changeRegion}
       onPress={e => { if (screen === 'report') setPin(e.nativeEvent.coordinate); else if (screen === 'route') placeRouteEndpoint(e.nativeEvent.coordinate); }}>
       {visible.map(h => <Polygon key={h.properties.id} coordinates={h.geometry.coordinates[0].map(toPoint)}
         holes={h.geometry.coordinates.slice(1).map(r => r.map(toPoint))}
@@ -154,71 +154,100 @@ export default function App() {
       {screen === 'route' && routeState.destination && <Marker coordinate={{ latitude: routeState.destination.lat, longitude: routeState.destination.lon }} pinColor="purple" draggable
         title="Destination (B)" onDragEnd={e => placeRouteEndpoint(e.nativeEvent.coordinate, 'destination')} />}
     </MapView>
-    <ScrollView style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
-      {screen === 'map' && <>
-        <View style={styles.hero}>
-          <Text style={styles.eyebrow}>YOUR NEXT CAMPUS TRIP</Text>
-          <Text style={styles.heroTitle}>Where are you headed?</Text>
-          <Text style={styles.body}>Compare a trip across campus, with reported hazards along the way.</Text>
-          <Button primary title={routeState.origin || routeState.destination ? 'Continue planning your trip' : 'Choose destination'}
-            onPress={() => { setRouteTarget('destination'); setScreen('route'); }} />
-          <Text style={styles.caption}>Choose your destination on the map, then set your start.</Text>
+    <View pointerEvents="box-none" style={styles.overlay}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Campus</Text>
+        <Text style={styles.headerMeta}>{fixtureMode ? 'DEMO · Fixture preview' : 'Scooter + bike'}</Text>
+      </View>
+      {server?.storage === 'memory' && <Text style={styles.notice}>Test server · reports reset on restart</Text>}
+      <View style={styles.space} pointerEvents="none" />
+      <View style={[styles.dock, expanded && styles.dockExpanded]} onLayout={e => setDockHeight(e.nativeEvent.layout.height)}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetLabel}>{screen === 'map' ? `${visible.length} nearby reports` : screen === 'route' ? 'Your trip' : pendingCount ? `Report hazard · ${pendingCount} pending` : 'Report hazard'}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Collapse details' : 'Expand details'}
+            accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={styles.iconButton}>
+            <Icon name={expanded ? 'collapse' : 'expand'} />
+          </Pressable>
         </View>
-        <View style={styles.sectionHeading}><Text style={styles.heading}>Along the way</Text>
-          <Text style={styles.caption}>{visible.length} active in view</Text></View>
-        <Text style={styles.body}>Community knowledge for your next trip.</Text>
-        {visible.length === 0 && <View style={styles.card}><Text style={styles.heading}>No active reports here</Text>
-          <Text style={styles.body}>You can still plan a trip. An empty map does not mean a hazard-free route.</Text></View>}
-        {visible.map(h => <View key={h.properties.id} style={styles.card}>
-          <Text style={styles.source}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
-          <Text style={styles.heading}>{h.properties.label}</Text><Text style={styles.caption}>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
-        </View>)}
-        <Button title="Report a hazard" onPress={() => setScreen('report')} />
-        {pendingCount > 0 && <Text style={styles.caption}>{pendingCount} local report{pendingCount === 1 ? '' : 's'} not yet accepted. Open Report for status.</Text>}
-        <Button title="Refresh nearby reports" onPress={() => void refresh()} />
+        <ScrollView key={screen} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
+      {screen === 'map' && <>
+        <Button primary icon="route" title={routeState.origin || routeState.destination ? 'Continue trip' : 'Where to?'}
+          onPress={() => { setRouteTarget('destination'); openScreen('route'); }} />
+        {pendingCount > 0 && <Text style={styles.caption}>{pendingCount} pending · not yet accepted</Text>}
+        {expanded && <>
+          {visible.length === 0 && <Text style={styles.caption}>No reports here. Unreported hazards may still exist.</Text>}
+          {visible.map(h => <View key={h.properties.id} style={styles.card}>
+            <Text style={styles.source}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
+            <Text style={styles.heading}>{h.properties.label}</Text>
+            <Text style={styles.caption}>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
+          </View>)}
+          <Button title="Refresh reports" onPress={() => void refresh()} />
+        </>}
       </>}
       {screen === 'report' && <>
-        <Text style={styles.heading}>Place a pin to report a hazard</Text>
-        <Text>Tap the map or drag the pin. No location permission needed.</Text>
-        <Text>{pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}</Text>
-        <Button title="Use my location (optional)" onPress={() => void useMyLocation()} />
-        <View style={styles.tabs}>{(['pothole','obstruction','closure','other'] as const).map(k => <Button key={k} title={k === kind ? `✓ ${k}` : k} onPress={() => setKind(k)} />)}</View>
-        <TextInput style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholder="Description (optional)" />
-        <Text>Reports are saved on this phone and retried with the same ID until the server answers. Pending reports are not yet accepted hazards.</Text>
+        <Text style={styles.caption}>Tap to place · drag to adjust</Text>
+        {expanded && <Button icon="locate" title="Use my location" onPress={() => void useMyLocation()} />}
+        <View style={styles.categories}>{(['pothole','obstruction','closure','other'] as const).map(k => <Pressable key={k}
+          accessibilityRole="button" accessibilityLabel={k} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
+          style={[styles.category, k === kind && styles.categorySelected]}>
+          <Icon name={k} /><Text style={styles.categoryLabel}>{k[0].toUpperCase() + k.slice(1)}</Text>
+        </Pressable>)}</View>
+        {expanded && <TextInput accessibilityLabel="Optional report description" style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholder="Description (optional)" />}
+
         <Button primary title={submitting ? 'Saving report…' : 'Submit report'} disabled={fixtureMode || submitting} onPress={() => void send()} />
-        {submissions.map(sub => <View key={sub.id} style={styles.card}>
+        {!expanded && latestSubmission && <Text accessibilityLiveRegion="polite" style={latestSubmission.state === 'failed' ? styles.error : styles.caption}>
+          {latestSubmission.state === 'submitted' ? 'Report submitted' : latestSubmission.state === 'sending' ? 'Sending report…' : latestSubmission.state === 'queued' ? 'Queued · not yet accepted' : 'Report failed · expand for details and retry'}
+        </Text>}
+        {expanded && submissions.map(sub => <View key={sub.id} style={styles.card}>
           <Text style={styles.heading}>{sub.body.kind} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
           <Text>Observed {new Date(sub.body.observed_at).toLocaleString()}{sub.attempts ? ` · attempts ${sub.attempts}` : ''}</Text>
           {!!sub.error && <Text style={styles.error}>{sub.error}{sub.retryable ? '' : '\nThe server rejected this report; dismiss it and submit a corrected one.'}</Text>}
           {sub.state === 'failed' && sub.retryable && <Button title="Retry original report" onPress={() => void queue.retry(sub.id)} />}
           {(sub.state === 'submitted' || (sub.state === 'failed' && !sub.retryable)) && <Button title="Dismiss" onPress={() => void queue.dismiss(sub.id)} />}
         </View>)}
-        {fixtureMode && <Text>Fixture preview only. Configure the product API URL to submit.</Text>}
+        {fixtureMode && <Text style={styles.caption}>Demo · submitting is unavailable</Text>}
       </>}
-      {screen === 'route' && <RouteScreen state={routeState} target={routeTarget} offlinePreview={fixtureMode}
+      {screen === 'route' && <RouteScreen expanded={expanded} state={routeState} target={routeTarget} offlinePreview={fixtureMode}
         onTarget={setRouteTarget} onUseLocation={() => void useMyLocationAsStart()} onCompare={() => void comparison.request()}
         onSwap={() => comparison.swap()} onClear={() => { comparison.clear(); setRouteTarget('origin'); }} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazards.length ? 'Offline or stale: showing the last successful results. ' : ''}{hazardError}</Text>}
-    </ScrollView>
+        </ScrollView>
+        <View style={styles.tabs}>{(['map','route','report'] as const).map(tab => <Button key={tab}
+          icon={tab} selected={screen === tab} title={tab === 'map' ? 'Map' : tab === 'route' ? 'Trip' : 'Report'} onPress={() => openScreen(tab)} />)}</View>
+      </View>
+    </View>
+    </KeyboardAvoidingView>
   </SafeAreaView>;
 }
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#f6f7f2' },
-  header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 12, gap: 8 },
-  brand: { flexShrink: 1 }, title: { fontSize: 24, fontWeight: '700', color: '#173f35', marginTop: 4 },
-  eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.4, color: '#476328' },
-  badge: { backgroundColor: '#e3edcf', borderRadius: 8, padding: 8 }, badgeText: { fontSize: 10, fontWeight: '700', color: '#365028' },
-  notice: { paddingHorizontal: 18, paddingTop: 8, color: '#765000' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: 6, paddingHorizontal: 12, paddingVertical: 6 },
-  map: { height: '35%' }, content: { flex: 1 }, contentInner: { padding: 18, paddingBottom: 36 },
-  hero: { backgroundColor: '#fff', borderRadius: 22, padding: 18, borderWidth: 1, borderColor: '#e0e6d8' },
-  heroTitle: { fontSize: 28, lineHeight: 34, fontWeight: '700', color: '#173f35', marginVertical: 8 },
-  body: { fontSize: 15, lineHeight: 22, color: '#4a594f', marginBottom: 8 },
-  caption: { fontSize: 12, lineHeight: 18, color: '#566357' },
-  sectionHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginTop: 20 },
-  source: { color: '#476328', fontSize: 12, fontWeight: '600' },
-  card: { padding: 16, borderRadius: 16, backgroundColor: '#fff', marginVertical: 6, borderWidth: 1, borderColor: '#e0e6d8' },
-  heading: { fontSize: 17, fontWeight: '600', color: '#173f35', marginVertical: 6 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#aab8a5', borderRadius: 12, padding: 12, marginVertical: 12 }, error: { color: '#a00020', marginVertical: 8 },
+  page: { flex: 1, backgroundColor: theme.canvas }, canvas: { flex: 1 },
+  map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  overlay: { flex: 1, paddingTop: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap',
+    gap: 6, alignSelf: 'stretch', marginHorizontal: 12, backgroundColor: theme.surface,
+    borderRadius: theme.radius, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: theme.line },
+  title: { fontSize: 18, fontWeight: '700', color: theme.ink },
+  headerMeta: { fontSize: 12, color: theme.muted },
+  notice: { padding: 8, marginHorizontal: 12, backgroundColor: theme.surface, color: theme.warning },
+  space: { flex: 1 },
+  dock: { maxHeight: '36%', backgroundColor: theme.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    borderWidth: 1, borderColor: theme.line, paddingHorizontal: 14, paddingBottom: 4 },
+  dockExpanded: { maxHeight: '65%' },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  sheetLabel: { fontSize: 13, fontWeight: '600', color: theme.muted },
+  iconButton: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: 6 },
+  categories: { flexDirection: 'row', gap: 6, marginVertical: 6 },
+  category: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64, paddingVertical: 8, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius },
+  categorySelected: { backgroundColor: theme.selected, borderColor: theme.selectedEdge },
+  categoryLabel: { fontSize: 11, color: theme.ink, textAlign: 'center' },
+  content: { flexShrink: 1 }, contentInner: { paddingBottom: 8 },
+  caption: { fontSize: 12, lineHeight: 18, color: theme.muted },
+  source: { color: theme.selectedEdge, fontSize: 12, fontWeight: '600' },
+  card: { paddingVertical: 10, borderBottomWidth: 1, borderColor: theme.line },
+  heading: { fontSize: 16, fontWeight: '600', color: theme.ink, marginVertical: 4 },
+  input: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius,
+    padding: 12, marginVertical: 8, minHeight: theme.touch },
+  error: { color: theme.danger, marginVertical: 8 },
 });
