@@ -221,3 +221,34 @@ test('event location is the fix nearest the peak', () => {
   const nearest = Math.round(offset / 1000) * 1000;
   assert.ok(Math.abs(events[0].lat - (33.75 + nearest * 1e-7)) < 1e-12, 'uses the nearest 1 Hz fix');
 });
+
+test('a gap during a long stop does not duplicate the event', () => {
+  const samples = [];
+  const seen = [];
+  const detector = createDetector();
+  detector.onEvent((e) => seen.push(e));
+  const t0 = 1_760_000_000_000;
+  for (let ms = 0; ms <= 7000; ms += 20) {
+    if (ms >= 3200 && ms < 3400) continue; // 200 ms sensor stall mid-stop
+    detector.pushMotion({ t_ms: t0 + ms, accel: { x: 0.5 * 9.80665, y: 0, z: 0 }, gravity: { x: 0, y: 0, z: 9.80665 } });
+    if (ms % 1000 === 0) detector.pushLocation({ t_ms: t0 + ms, lat: 33.7531, lon: -84.3853, speed_mps: Math.max(0, 14 - 2 * (ms / 1000)), accuracy_m: 5 });
+  }
+  assert.equal(seen.filter((e) => e.type === 'hard_brake').length, 1);
+});
+
+test('a throwing listener neither hides the event from others nor throws into the sensor callback', () => {
+  const errors = [];
+  const detector = createDetector({}, { onListenerError: (e) => errors.push(e) });
+  const heard = [];
+  detector.onEvent(() => { throw new Error('boom'); });
+  detector.onEvent((e) => heard.push(e));
+  const events = feed(detector, cleanBrake());
+  assert.equal(heard.length, 1);
+  assert.equal(errors.length, 1);
+});
+
+test('config rejects prototype keys and windows the buffers cannot honour', () => {
+  assert.throws(() => createDetector({ constructor: 1 }), /unknown detector config key/);
+  assert.throws(() => createDetector({ speedDropWindowMs: 9000 }), /speedDropWindowMs/);
+  assert.throws(() => createDetector({ smoothingWindowMs: 10 }), /smoothingWindowMs/);
+});

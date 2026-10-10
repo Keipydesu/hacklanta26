@@ -22,7 +22,7 @@ export type DetectedEvent = { type: 'hard_brake' | 'bump'; t_ms: number; lat: nu
  */
 export const MAX_MOTION_GAP_MS = 100;
 
-export function createDetector(config: Partial<DetectorConfig> = {}) {
+export function createDetector(config: Partial<DetectorConfig> = {}, hooks: { onListenerError?: (error: unknown) => void } = {}) {
   const settings = validateConfig(config);
   const listeners = new Set<(event: DetectedEvent) => void>();
   const smoothing = new TimeWeightedWindow(settings.smoothingWindowMs, MAX_MOTION_GAP_MS);
@@ -40,7 +40,12 @@ export function createDetector(config: Partial<DetectorConfig> = {}) {
     // Detector state is already advanced past these events, so a listener that pushes more
     // samples or calls reset() cannot cause a duplicate emission.
     events.sort((a, b) => a.t_ms - b.t_ms || (a.type < b.type ? -1 : 1));
-    for (const event of events) for (const listener of [...listeners]) listener(event);
+    for (const event of events) {
+      for (const listener of [...listeners]) {
+        // One misbehaving subscriber must not lose the event for the others or throw into the sensor callback.
+        try { listener(event); } catch (error) { hooks.onListenerError?.(error); }
+      }
+    }
   }
 
   return {
@@ -51,7 +56,7 @@ export function createDetector(config: Partial<DetectorConfig> = {}) {
       const t = components.t_ms;
       if (lastMotionMs !== null) {
         if (t <= lastMotionMs) return;
-        if (t - lastMotionMs > MAX_MOTION_GAP_MS) { smoothing.clear(); brake.onGap(); bump.onGap(); }
+        if (t - lastMotionMs > MAX_MOTION_GAP_MS) { smoothing.clear(); brake.onGap(lastMotionMs); bump.onGap(); }
       }
       lastMotionMs = t;
       smoothing.push(t, components.horizontalG);

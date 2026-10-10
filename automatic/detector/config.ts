@@ -37,7 +37,7 @@ const POSITIVE_KEYS = [
 export function validateConfig(partial: Partial<DetectorConfig> = {}): DetectorConfig {
   if (partial === null || typeof partial !== 'object') throw new TypeError('detector config must be an object');
   for (const key of Object.keys(partial)) {
-    if (!(key in DEFAULT_CONFIG)) throw new RangeError(`unknown detector config key: ${key}`);
+    if (!Object.hasOwn(DEFAULT_CONFIG, key)) throw new RangeError(`unknown detector config key: ${key}`);
   }
   const defined = Object.fromEntries(Object.entries(partial).filter(([, value]) => value !== undefined));
   const config: DetectorConfig = { ...DEFAULT_CONFIG, ...defined };
@@ -51,5 +51,16 @@ export function validateConfig(partial: Partial<DetectorConfig> = {}): DetectorC
   if (config.brakeReleaseG >= config.brakeThresholdG) {
     throw new RangeError('detector config brakeReleaseG must be below brakeThresholdG');
   }
+  // The location buffer keeps 8 s and fixes more than 3 s away are unusable; a window longer than this
+  // can never see its 'before' fix, and a smoothing window under two samples never has coverage.
+  if (config.speedDropWindowMs > MAX_SPEED_WINDOW_MS) {
+    throw new RangeError(`detector config speedDropWindowMs must be at most ${MAX_SPEED_WINDOW_MS}`);
+  }
+  if (config.smoothingWindowMs < MIN_SMOOTHING_MS) {
+    throw new RangeError(`detector config smoothingWindowMs must be at least ${MIN_SMOOTHING_MS}`);
+  }
   return config;
 }
+
+export const MAX_SPEED_WINDOW_MS = 5000;
+export const MIN_SMOOTHING_MS = 40;

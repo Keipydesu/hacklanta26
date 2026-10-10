@@ -46,7 +46,7 @@ export class BumpTracker {
       return;
     }
     // Spike ended at the first sample back under the threshold.
-    const durationMs = t - c.startMs;
+    const durationMs = t - c.startMs; // inclusive of the final sample period: the spike ended at the first sample back under threshold
     this.candidate = null;
     // One physical bump rings; whatever the outcome, do not start another candidate inside it.
     this.blockedUntilMs = c.peakMs + bumpRefractoryMs;
@@ -73,7 +73,7 @@ export class BumpTracker {
       if (before && after) {
         // Stationary handling and walking fail the measured-speed gate. Demo mode bypasses only
         // this gate and still needs supplied fixes on both sides of the spike.
-        if (!demoMode && before.speed_mps < bumpMinSpeedMps) continue;
+        if (!demoMode && (before.speed_mps < bumpMinSpeedMps || after.speed_mps < bumpMinSpeedMps)) continue; // moving on both sides of the spike
         const fix = track.locatePeak(p.peakMs);
         if (!fix) continue;
         events.push({
