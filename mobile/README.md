@@ -104,3 +104,7 @@ the pinned releases match the bundled SDK 57 compatibility manifest, and TypeScr
 our existing checks. Review upgrades before running `expo install --fix`.
 Motion activity permission is explicitly disabled in the location plugin. The app still requests
 only a one-shot foreground location when the user taps the location action.
+
+## Report categories
+
+The Report screen has no free-text field. Riders pick one of four categories (pothole or rough surface, obstruction, closed path or road, other), which map one-to-one to the API's `kind` values in `src/reports/categories.ts`; "Other" needs no explanation. The API's optional `description` is unchanged, so reports queued by earlier versions still send. Adding a category beyond these four needs a coordinated contract change.

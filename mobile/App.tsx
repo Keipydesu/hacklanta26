@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, SafeAreaView, ScrollView, View, Text, Button, TextInput, StyleSheet } from 'react-native';
+import { AppState, Pressable, SafeAreaView, ScrollView, View, Text, Button, StyleSheet } from 'react-native';
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
 import { locateOnce } from './src/location/foreground';
 import { createSubmitGuard } from './src/reports/submit';
+import { CATEGORIES, categoryLabel, hazardTitle } from './src/reports/categories';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, submitReport, HazardCollection, Health, Report } from './src/api/client';
@@ -38,7 +39,6 @@ export default function App() {
   const [routeTarget, setRouteTarget] = useState<Target>('origin');
   const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind']>('pothole');
-  const [description, setDescription] = useState('');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [error, setError] = useState('');
   const [hazardError, setHazardError] = useState('');
@@ -117,8 +117,7 @@ export default function App() {
     return guardSubmit(async () => {
       setSubmitting(true); setError('');
       try {
-        await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude, description }, Date.now(), Crypto.randomUUID()));
-        setDescription('');
+        await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude }, Date.now(), Crypto.randomUUID()));
         void queue.drain();
       } catch (e) { setError(`Report was not saved: ${String(e)}`); }
       finally { setSubmitting(false); }
@@ -136,9 +135,9 @@ export default function App() {
         strokeColor={h.properties.source === 'manual' ? '#af4d00' : '#5555bb'} fillColor={h.properties.source === 'manual' ? '#fa9f4266' : '#7777dd66'} />)}
       {visible.map(h => <Marker key={`marker-${h.properties.id}`} coordinate={toPoint(h.geometry.coordinates[0][0])}
         title={h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}
-        description={h.properties.label} />)}
+        description={hazardTitle(h.properties)} />)}
       {submissions.filter(sub => sub.state !== 'submitted').map(sub => <Marker key={`pending-${sub.id}`} coordinate={{ latitude: sub.body.lat, longitude: sub.body.lon }}
-        pinColor="blue" title="Pending report (not yet accepted)" description={sub.body.kind} />)}
+        pinColor="blue" title="Pending report (not yet accepted)" description={categoryLabel(sub.body.kind)} />)}
       {screen === 'report' && <Marker coordinate={pin} draggable title="Report location"
         onDragEnd={e => setPin(e.nativeEvent.coordinate)} />}
       {screen === 'route' && presented?.lowerRisk && <Polyline coordinates={presented.lowerRisk.coordinates.map(toPoint)} strokeWidth={6} strokeColor={ROUTE_COLORS.safest} />}
@@ -154,7 +153,7 @@ export default function App() {
         {visible.length === 0 && <Text>No active reports in these bounds.</Text>}
         {visible.map(h => <View key={h.properties.id} style={styles.card}>
           <Text style={styles.heading}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
-          <Text>{h.properties.label}</Text><Text>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
+          <Text>{hazardTitle(h.properties)}</Text><Text>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
         </View>)}
       </>}
       {screen === 'report' && <>
@@ -162,12 +161,22 @@ export default function App() {
         <Text>Tap the map or drag the pin. No location permission needed.</Text>
         <Text>{pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}</Text>
         <Button title="Use my location (optional)" onPress={() => void useMyLocation()} />
-        <View style={styles.tabs}>{(['pothole','obstruction','closure','other'] as const).map(k => <Button key={k} title={k === kind ? `✓ ${k}` : k} onPress={() => setKind(k)} />)}</View>
-        <TextInput style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholder="Description (optional)" />
+        <Text style={styles.heading}>What kind of hazard?</Text>
+        <View accessibilityRole="radiogroup" accessibilityLabel="Hazard category">
+          {CATEGORIES.map(category => {
+            const selected = category.kind === kind;
+            return <Pressable key={category.kind} accessibilityRole="radio" accessibilityState={{ selected }}
+              accessibilityLabel={`${category.label}. ${category.hint}`} onPress={() => setKind(category.kind)}
+              style={[styles.category, selected && styles.categorySelected]}>
+              <Text style={styles.categoryLabel}>{selected ? '● ' : '○ '}{category.label}</Text>
+              <Text style={styles.categoryHint}>{category.hint}</Text>
+            </Pressable>;
+          })}
+        </View>
         <Text>Reports are saved on this phone and retried with the same ID until the server answers. Pending reports are not yet accepted hazards.</Text>
         <Button title="Submit report" disabled={fixtureMode || submitting} onPress={() => void send()} />
         {submissions.map(sub => <View key={sub.id} style={styles.card}>
-          <Text style={styles.heading}>{sub.body.kind} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
+          <Text style={styles.heading}>{categoryLabel(sub.body.kind)} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
           <Text>Observed {new Date(sub.body.observed_at).toLocaleString()}{sub.attempts ? ` · attempts ${sub.attempts}` : ''}</Text>
           {!!sub.error && <Text style={styles.error}>{sub.error}{sub.retryable ? '' : '\nThe server rejected this report; dismiss it and submit a corrected one.'}</Text>}
           {sub.state === 'failed' && sub.retryable && <Button title="Retry original report" onPress={() => void queue.retry(sub.id)} />}
@@ -187,5 +196,5 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#f5f4ef' }, title: { fontSize: 26, fontWeight: '700', padding: 12 },
   notice: { paddingHorizontal: 12, color: '#765000' }, tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around' },
   map: { height: '43%' }, content: { padding: 16 }, card: { paddingVertical: 12, borderBottomWidth: 1, borderColor: '#ddd' },
-  heading: { fontSize: 17, fontWeight: '600', marginVertical: 6 }, input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#aaa', padding: 12, marginVertical: 12 }, error: { color: '#a00020', marginVertical: 8 },
+  heading: { fontSize: 17, fontWeight: '600', marginVertical: 6 }, category: { borderWidth: 1, borderColor: '#aaa', borderRadius: 8, padding: 12, marginVertical: 4, backgroundColor: '#fff' }, categorySelected: { borderColor: '#0b5fff', backgroundColor: '#eaf1ff' }, categoryLabel: { fontSize: 16, fontWeight: '600' }, categoryHint: { color: '#555', marginTop: 2 }, error: { color: '#a00020', marginVertical: 8 },
 });
