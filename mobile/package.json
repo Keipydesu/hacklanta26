@@ -5,19 +5,21 @@
   "main": "index.ts",
   "scripts": {
     "map:bundle": "node scripts/build-map-bundle.mjs",
-    "prestart": "npm run map:bundle",
+    "prestart": "npm run fonts:fetch && npm run map:bundle",
     "start": "expo start",
     "pretypecheck": "npm run map:bundle",
     "typecheck": "tsc --noEmit",
-    "prebuild": "npm run map:bundle",
+    "prebuild": "npm run fonts:fetch && npm run map:bundle",
     "build": "expo export --platform ios --platform android",
     "pretest": "npm run map:bundle",
-    "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs"
+    "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs",
+    "fonts:fetch": "python3 scripts/fetch-fonts.py"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "57.0.17",
     "expo-crypto": "57.0.2",
+    "expo-font": "57.0.1",
     "expo-location": "57.0.14",
     "react": "19.2.3",
     "react-native": "0.86.3",

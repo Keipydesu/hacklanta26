@@ -85,3 +85,10 @@ report location and optional description remain pending the separate #23/#24 wor
 Known follow-up: inherited location/storage errors still share an app-level error area inside
 the panel; move each error beside its owning remedy when splitting the report/location UI.
 Do not hide those errors just to make the panel quieter.
+
+## Typography
+
+Use Satoshi Italic for headings, controls, route metrics, inputs and errors. Use Satoshi Light
+Italic for supporting captions and metadata. Select the actual font face through the shared
+theme; do not synthesize bold/italic variants. Fonts are bundled after the official download
+step; system text remains usable if font loading fails. Map-provider labels stay unchanged.

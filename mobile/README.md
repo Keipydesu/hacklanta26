@@ -154,3 +154,9 @@ the pinned releases match the bundled SDK 57 compatibility manifest, and TypeScr
 our existing checks. Review upgrades before running `expo install --fix`.
 Motion activity permission is explicitly disabled in the location plugin. The app still requests
 only a one-shot foreground location when the user taps the location action.
+
+### UI fonts
+
+Start/build automatically fetch and verify Satoshi Italic and Light Italic from Fontshare.
+A first build needs network access and Python 3; subsequent runs reuse verified local files.
+See [font setup](assets/fonts/README.md) and [dependency review](docs/FONT-DEPENDENCY-REVIEW.md).

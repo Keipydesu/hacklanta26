@@ -30,7 +30,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingVertical: 10, borderRadius: theme.radius, backgroundColor: theme.quiet, marginVertical: 4, flexShrink: 1, borderWidth: 1, borderColor: theme.line },
   primary: { backgroundColor: theme.primary, borderColor: theme.primaryEdge },
   selected: { backgroundColor: theme.selected, borderColor: theme.selectedEdge },
-  label: { color: theme.controlInk, fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  label: { fontFamily: theme.fontBody, color: theme.controlInk, fontSize: 14, textAlign: 'center' },
   primaryLabel: { color: theme.inverse },
   disabled: { opacity: 0.6, borderStyle: 'dashed' },
   pressed: { opacity: 0.75 },

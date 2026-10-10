@@ -1,4 +1,5 @@
 import { createContext, createElement, useContext, useState, type ReactNode } from 'react';
+import { useFonts } from 'expo-font';
 import { useColorScheme } from 'react-native';
 
 /** Operator palette: coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63 */
@@ -14,6 +15,7 @@ const light = {
   primary: palette.blue as string, primaryEdge: palette.blue as string,
   inverse: palette.white as string, warning: palette.blue as string, danger: '#a00020',
   routeShortest: palette.charcoal as string, routeLowerRisk: palette.cyan as string,
+  fontBody: undefined as string | undefined, fontLight: undefined as string | undefined,
   radius: 14, touch: 48,
 };
 export type Theme = typeof light;
@@ -24,14 +26,18 @@ const dark: Theme = {
   warning: palette.silver, danger: '#ffb4ab', routeShortest: palette.silver,
 };
 type Appearance = 'light' | 'dark';
-const AppearanceContext = createContext<{ scheme: Appearance; toggle(): void } | null>(null);
+const AppearanceContext = createContext<{ scheme: Appearance; fontsReady: boolean; toggle(): void } | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [fontsReady] = useFonts({
+    'Satoshi-Italic': require('../../assets/fonts/Satoshi-Italic.otf'),
+    'Satoshi-LightItalic': require('../../assets/fonts/Satoshi-LightItalic.otf'),
+  });
   const system = useColorScheme();
   const [override, setOverride] = useState<Appearance | null>(null);
   const scheme = override ?? (system === 'dark' ? 'dark' : 'light');
   return createElement(AppearanceContext.Provider, {
-    value: { scheme, toggle: () => setOverride(scheme === 'dark' ? 'light' : 'dark') },
+    value: { scheme, fontsReady, toggle: () => setOverride(scheme === 'dark' ? 'light' : 'dark') },
   }, children);
 }
 export function useAppearance() {
@@ -40,5 +46,9 @@ export function useAppearance() {
   return appearance;
 }
 export function useTheme(): Theme {
-  return useAppearance().scheme === 'dark' ? dark : light;
+  const { scheme, fontsReady } = useAppearance();
+  return { ...(scheme === 'dark' ? dark : light),
+    fontBody: fontsReady ? 'Satoshi-Italic' : undefined,
+    fontLight: fontsReady ? 'Satoshi-LightItalic' : undefined,
+  };
 }

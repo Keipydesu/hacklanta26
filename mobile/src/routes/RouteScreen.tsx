@@ -74,9 +74,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   card: { flex: 1, minWidth: 120, padding: 10, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, marginVertical: 4 },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   swatch: { width: 15, height: 3, borderRadius: 1 },
-  label: { fontSize: 13, fontWeight: '600', color: theme.ink, flexShrink: 1 },
-  metrics: { fontSize: 24, fontWeight: '700', color: theme.ink, marginVertical: 4 },
-  fine: { color: theme.muted, fontSize: 12, lineHeight: 18, marginVertical: 2 },
+  label: { fontFamily: theme.fontBody, fontSize: 13, color: theme.ink, flexShrink: 1 },
+  metrics: { fontFamily: theme.fontBody, fontSize: 24, color: theme.ink, marginVertical: 4 },
+  fine: { fontFamily: theme.fontLight, color: theme.muted, fontSize: 12, lineHeight: 18, marginVertical: 2 },
   notice: { color: theme.warning, fontSize: 12, marginVertical: 4 },
-  error: { color: theme.danger, marginVertical: 6 },
+  error: { fontFamily: theme.fontBody, color: theme.danger, marginVertical: 6 },
 });
