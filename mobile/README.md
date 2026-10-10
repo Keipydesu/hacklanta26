@@ -84,7 +84,7 @@ Use your computer's LAN address on a phone (not the phone's localhost). The phon
 must share a reachable network; use HTTPS for hosted services. The backend listens on `0.0.0.0`.
 Never put a publication key in this app or any Expo public variable.
 
-Tap Report, choose a kind, tap "Use my location" and submit after the foreground fix succeeds.
+Tap Report: the app requests one foreground fix, you choose a category, and Submit appears once a category is selected (decision 023).
 Location is required: denial offers Settings and retry; unavailable location offers retry. Report
 markers cannot be placed or dragged. Refresh a fix older than 60 seconds; saving or backgrounding
 with no lookup in flight clears it. Switching tabs preserves a fresh fix. Permission dialogs have
@@ -101,11 +101,11 @@ Live updates: the app connects to `ws(s)://<API>/v1/live`, debounces `hazards.ch
 visible-bounds refetch, refetches on every (re)connect, and reconnects with capped backoff. While
 the socket is down (or the backend does not serve it yet) it falls back to 5 s polling. Foregrounding
 refreshes the feed, re-evaluates expiry and resumes the queue; a failed refresh keeps the last results
-labeled stale. "Use my location" requests foreground permission only when tapped and reads one fix
+labeled stale. Opening Report requests foreground permission and reads one fix
 (no continuous or background updates). Denial blocks new reports; route endpoint pin placement remains available.
 
-Route comparison (slice A3): on the Route tab, tap the map to place the start (A) and destination
-(B) pins, drag them to adjust, or use "Use my location as start" (one foreground fix, optional).
+Route comparison (slice A3): choose endpoints as described under Trip search below; map points remain
+a secondary option ("Choose on map").
 "Compare routes" posts exactly those two points to `POST /v1/route` and draws the shortest route
 (grey, dashed when there is an alternative) and the lower-risk route (teal) with distance, time,
 the 0–1 risk heuristic and how many reported hazards each crosses. The contract's `safest` kind is
@@ -196,7 +196,7 @@ See [font setup](assets/fonts/README.md) and [dependency review](docs/FONT-DEPEN
 
 ## Required report location (issue #23)
 
-Run with the live API URL above, open Report, and tap "Use my location". New reports require a
+Run with the live API URL above and open Report; the location request starts automatically. New reports require a
 fresh fix; existing queued reports resume without acquiring one. Route endpoint controls are
 unchanged. No API changes or dependencies were added; fixture submissions remain disabled.
 
