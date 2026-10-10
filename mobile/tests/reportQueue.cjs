@@ -133,3 +133,84 @@ test('unreadable saved data is preserved and surfaced', async () => {
   assert.match(h.queue.loadError(), /could not be read/);
   assert.equal(h.store.get(`${STORAGE_KEY}.unreadable`), '{not json');
 });
+
+const turn = () => new Promise(resolve => setImmediate(resolve));
+const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
+
+test('concurrent drain cannot send before enqueue persistence succeeds', async () => {
+  const h = harness();
+  const write = deferred();
+  const save = h.deps.storage.setItem;
+  h.deps.storage.setItem = async (...args) => { await write.promise; await save(...args); };
+  const pending = h.queue.enqueue(freezeReport(draft, h.clock.t, UUID));
+  await turn();
+  const draining = h.queue.drain();
+  await turn();
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.queue.snapshot().length, 0);
+  write.resolve();
+  await Promise.all([pending, draining]);
+  assert.equal(h.sent.length, 1);
+});
+
+test('rejected enqueue persistence never leaks a report to a concurrent drain', async () => {
+  const h = harness();
+  const write = deferred();
+  h.deps.storage.setItem = () => write.promise;
+  const pending = assert.rejects(h.queue.enqueue(freezeReport(draft, h.clock.t, UUID)), /disk full/);
+  await turn();
+  const draining = h.queue.drain();
+  await turn();
+  write.reject(new Error('disk full'));
+  await Promise.all([pending, draining]);
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.queue.snapshot().length, 0);
+});
+
+test('enqueue and drain during hydration preserve old and new reports on disk and in memory', async () => {
+  const h = harness();
+  await h.queue.enqueue(freezeReport(draft, h.clock.t, UUID));
+  const saved = h.store.get(STORAGE_KEY);
+  const read = deferred();
+  h.deps.storage.getItem = () => read.promise;
+  const q = createReportQueue(h.deps);
+  const loading = q.load();
+  const newId = '22222222-2222-4222-8222-222222222222';
+  const pending = q.enqueue(freezeReport(draft, h.clock.t, newId));
+  const draining = q.drain();
+  await turn();
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.store.get(STORAGE_KEY), saved);
+  read.resolve(saved);
+  await Promise.all([loading, pending, draining]);
+  await q.drain();
+  await q.load(); // repeated startup cannot replace live state
+  assert.deepEqual(q.snapshot().map(i => i.id), [UUID, newId]);
+  assert.deepEqual(JSON.parse(h.store.get(STORAGE_KEY)).items.map(i => i.id), [UUID, newId]);
+  assert.deepEqual(h.sent.map(i => i.id), [UUID, newId]);
+});
+
+test('same-render submit taps mint one UUID and persist one logical submission', async () => {
+  const { createSubmitGuard } = require('../.test-dist/reports/submit.js');
+  const guard = createSubmitGuard();
+  const h = harness();
+  const write = deferred();
+  const save = h.deps.storage.setItem;
+  h.deps.storage.setItem = async (...args) => { await write.promise; await save(...args); };
+  let ids = 0;
+  const send = () => guard(async () => {
+    const id = String(++ids);
+    await h.queue.enqueue(freezeReport(draft, h.clock.t, id));
+  });
+  const first = send(), second = send();
+  assert.equal(ids, 1);
+  write.resolve();
+  await Promise.all([first, second]);
+  await h.queue.drain();
+  assert.equal(h.sent.length, 1);
+  await send();
+  assert.equal(ids, 2, 'later deliberate submission can proceed');
+  await assert.rejects(guard(async () => { throw new Error('storage failed'); }), /storage failed/);
+  await send();
+  assert.equal(ids, 3, 'guard releases after failure');
+});

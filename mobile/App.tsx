@@ -3,6 +3,7 @@ import { AppState, SafeAreaView, ScrollView, View, Text, Button, TextInput, Styl
 import MapView, { Marker, Polygon, Polyline, Region } from 'react-native-maps';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
 import { ApiError, apiUrl, fixtureMode, getHazards, getRoutes, submitReport, HazardCollection, Report, RouteResponse } from './src/api/client';
@@ -74,15 +75,17 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [submissions]);
   const [submitting, setSubmitting] = useState(false);
-  async function send() {
-    if (submitting) return;
-    setSubmitting(true); setError('');
-    try {
-      await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude, description }, Date.now(), Crypto.randomUUID()));
-      setDescription('');
-      void queue.drain();
-    } catch (e) { setError(`Report was not saved: ${String(e)}`); }
-    finally { setSubmitting(false); }
+  const [guardSubmit] = useState(createSubmitGuard);
+  function send() {
+    return guardSubmit(async () => {
+      setSubmitting(true); setError('');
+      try {
+        await queue.enqueue(freezeReport({ kind, lat: pin.latitude, lon: pin.longitude, description }, Date.now(), Crypto.randomUUID()));
+        setDescription('');
+        void queue.drain();
+      } catch (e) { setError(`Report was not saved: ${String(e)}`); }
+      finally { setSubmitting(false); }
+    });
   }
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   return <SafeAreaView style={styles.page}>
