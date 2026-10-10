@@ -6,22 +6,26 @@ Provide reproducible HTTP demonstrations of the manual product first and automat
 Follow [the architecture](../../ARCHITECTURE.md), [roadmap](../ROADMAP.md), and
 [delivery workflow](../decisions/001-mvp-delivery-workflow.md).
 
-**Owns:** `simulator/`. This directory is planned, not implemented. Stage 0 in
-[PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) supplies contract fixtures and a standalone
-publication probe under `contracts/`; PR #1 is now merged. Reuse that probe to
-validate the bridge now; the simulator adds scenarios, durable run identity and replay later.
-Do not duplicate or silently change the frozen APIs. Method names and the layout below are
-proposals for implementation, not claims about existing commands.
+**Owns:** `simulator/`. Slices F1–F4 are implemented: the scenario CLI, resumable HTTP
+probes, observation generators, recording trimming and detector replay. F5 (the combined hosted
+rehearsal), abandonment scenarios and real-ride tuning remain deferred. See the
+[simulator README](../../simulator/README.md) for commands and verification limits.
+
+Stage 0 in [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) supplied contract fixtures and
+a standalone publication probe under `contracts/`; the simulator builds on those frozen API
+semantics without changing them. The implementation uses JSON scenarios and a standard-library
+Python CLI invoked from the source tree, replacing the original YAML and `uv` proposal. No
+third-party simulator dependency, lockfile or package installation is required.
 
 The simulator uses separate product and observation HTTP URLs. It never imports product or
 observation service internals, queries their databases, or owns reset operations. A standalone
 Node replay adapter may import Lane B's public detector API; it never imports the manual app.
 
-## Proposed structure
+## Implemented structure
 
 ```text
 simulator/
-  pyproject.toml              Python CLI/dependencies owned here
+  pyproject.toml              Python CLI metadata
   src/simulator/
     cli.py                   explicit subcommands and configuration
     models.py                scenario/run manifest validation
@@ -30,20 +34,20 @@ simulator/
     transport.py             bounded HTTP batches and response checks
     manual.py                report and read scenario
     publication.py           revision lifecycle bridge
-    observations.py          baseline/braking/diversion generation
+    observations.py          braking/bump/cluster generation
     replay.py                upload detector output and GPS
     assertions.py            aggregate feed and route checks
-  scenarios/                 YAML inputs and expected outcomes
+  scenarios/                 JSON inputs and expected outcomes
   replay-detector/            Node adapter using Lane B's public interface
   recorded/README.md          CSV format, trimming and consent rules
   tests/                     pure generators and HTTP-stub scenarios
   README.md                  run commands and prerequisites
 ```
 
-Use a Python CLI for generation and HTTP requests; add dependencies only to the simulator's own
-manifest. Keep the Node adapter separately runnable for the TypeScript detector and agree its
-CSV/output interface with B before either side implements it. Scenario files contain configuration
-and expected outcomes, never secrets, raw private endpoints or database credentials.
+The Python CLI handles generation and HTTP requests using only the standard library. The
+separately runnable Node adapter uses Lane B's public detector interface and the CSV format
+documented in [recorded/README.md](../../simulator/recorded/README.md). Scenario files contain
+configuration and expected outcomes, never secrets, raw private endpoints or database credentials.
 
 ## Data flow and methods
 
@@ -57,18 +61,17 @@ scenario + seed + fixed run time → deterministic payloads → persisted run ma
 privacy-reviewed CSV → Node detector replay → derived events + trimmed GPS → observation API
 ```
 
-| Proposed method | Responsibility and implementation |
+| Implemented entry point | Responsibility |
 |---|---|
-| `load_scenario(path) -> Scenario` | Validate coordinates, relative times, counts, evidence source and expectation tolerances before any network writes. Reject missing or contradictory inputs. |
-| `new_run(scenario, seed, now) -> RunManifest` | Freeze an aware UTC clock once; allocate a run UUID namespace and persist scenario version/hash, endpoints, IDs, payloads and next publication revision. Do not persist credentials. |
-| `item_id(run_id, scenario, item_key) -> UUID` | Use UUIDv5 over stable logical item keys. An explicit resume reuses the namespace and exact body; a fresh run gets a new namespace and may rebase timestamps. |
-| `generate_manual(run) -> Report` | Produce a current GSU report with a description explicitly identifying demo data. Generate ID and observation time once. |
-| `generate_observations(run, scenario) -> ObservationSet` | Generate distinct ride UUIDs, events and per-ride points using a seeded RNG and the frozen clock; all synthetic evidence has `source: simulated`. |
-| `send_batch(endpoint, frozen_body) -> IngestResult` | Enforce limits of 500 events or 2000 points, preserving per-ride point paths. Retry transport errors/temporary server errors with bounded backoff using identical payloads. Treat 409/422 as a failed scenario, not an endless retry. |
-| `run_publication_lifecycle(run, client) -> Evidence` | Persist each complete payload before sending, then create/retry/update/stale-probe/resolve. Check stable public ID, revisions and expected status codes at each step. |
-| `await_hazards(expected, deadline) -> Evidence` | Poll a bounded GSU bbox until aggregate predicates pass or a fixed deadline expires. Report missing expectations and last response on timeout; never infer success from ingestion alone. |
-| `compare_routes(origin, destination) -> Evidence` | Check response kinds, source hazard IDs, availability flag and nonnegative metrics; do not promise a distinct lower-risk line when the API reports no alternative. |
-| `rebase_recording(samples, run_time) -> samples` | Shift all timestamps by one offset while preserving gaps and event order, ensuring the latest sample is no later than run time. Playback speed controls scheduling, not sensor timestamps. |
+| `models.load_scenario` | Load and validate JSON scenario configuration before network writes. |
+| `cli.start_run`, `models.RunManifest` | Freeze an aware UTC clock, persist run identity, endpoints and requests, and validate resume inputs without storing credentials. |
+| `identity.run_namespace`, `identity.item_id` | Derive UUIDv5 identities from scenario/seed/time and stable item keys; resume reuses the saved bodies. |
+| `manual.generate_manual`, `manual.run_manual` | Generate a demo report and check create/read/retry/conflicting-reuse behavior. |
+| `observations.generate_observations`, `observations.send_observations` | Generate seeded simulated events and points, batch at 500 events/2000 points, and check identical retries. |
+| `publication.run_publication_lifecycle` | Persist complete payloads, then probe authorization, create/retry/update/stale rejection/resolve and manual preservation. |
+| `assertions.await_hazards` | Poll public aggregates within a bounded deadline; ingestion alone does not prove publication. |
+| `assertions.compare_routes` | Check route shape and metrics and identify fixed stub responses. Real hazard-aware routing remains an integration check. |
+| `replay.trim_recording`, `replay.rebase_recording`, `replay.send_replay` | Remove endpoint segments, shift timestamps by one offset preserving order, and upload replay evidence with stable IDs. |
 
 A run manifest lives in an ignored local output directory. Resume refuses a changed scenario,
 endpoint or payload rather than pairing old IDs with new bodies. Dry-run emits deterministic
@@ -116,21 +119,21 @@ expected 401 probes. This scenario bypasses detection deliberately.
   recent closed corridor 2/day and diverted corridor 15/day. Expect under 30% and over 130%
   respectively, with diversion within two H3 rings. Agree H3 resolution and UTC day boundaries
   with D before generation; do not invent them as a public contract here.
-- `demo_seed`: at least three fresh simulated events from at least two distinct rides within
+- `demo-seed`: at least three fresh simulated events from at least two distinct rides within
   12 m, using the same clustering thresholds as D. Three fresh events score near 0.6 before
   decay and can demonstrate route exclusion. A two-event variant is a negative control: it
   ingests successfully but must not publish a cluster. No service demo flag implicitly lowers
   the agreed count/ride thresholds or proves real detection.
 
 Synthetic observation coordinates represent already-trimmed data; do not trim them again.
-Scenario YAML records seed, relative timestamps, ride counts, evidence source, expected kinds,
-location tolerances and prerequisites. Worker scoring assertions freeze evaluation time where
-possible; live assertions use tolerances accounting for elapsed time. Publication must retain
+Scenario JSON records relative timestamps, ride counts, evidence source, expected kinds,
+location tolerances and prerequisites; the CLI seed is saved in the run manifest. Worker scoring
+assertions freeze evaluation time where possible; live assertions use tolerances accounting for elapsed time. Publication must retain
 simulated/replay/mixed labels all the way to the public feed.
 
 ## Recorded replay and privacy boundary
 
-Agree these files with Lane B before recording:
+The implemented adapter accepts these files (see the recording README before collecting real rides):
 
 - Motion CSV: `t_ms,ax,ay,az,gx,gy,gz`; epoch milliseconds, gravity-removed acceleration and gravity
   vectors in metres/second squared, matching the detector interface.
@@ -139,7 +142,7 @@ Agree these files with Lane B before recording:
 - Optional labels CSV: `t_ms,type`; manually reviewed event labels, plus comparison tolerances in
   adjacent metadata.
 
-The Node adapter merges streams by timestamp with a deterministic tie rule agreed with B, calls
+The Node adapter merges streams by timestamp with GPS first on timestamp ties, calls
 `pushMotion`/`pushLocation`, captures `onEvent` and resets between rides. Use the detector API as
 is; propose any missing end-of-stream behavior to B rather than fabricating samples or changing
 its interface. Python uploads derived events and GPS with stable UUIDs and `source: replay`.
@@ -153,21 +156,19 @@ manual release. If recordings are unavailable, report that gap and use synthetic
 
 ## Implementation slices and dependencies
 
-1. **F1 — CLI and manual scenario.** Using the merged stage-0 contracts, add own manifest,
-   validated config, dry-run, frozen-clock run manifests, HTTP client and manual retry/read flow.
-   Develop against the product stub. Exit: exact retry bodies and expected status codes; mark
-   restart persistence and real routing as pending C. Supply commands to G for demo seeding.
-2. **F2 — Publication lifecycle.** Reuse stage-0 fixture semantics, add resume and assertion output.
-   Exit: create/update/resolve and manual preservation work against product HTTP before D exists.
-   A confirms visible source/evidence labels independently.
-3. **F3 — Observation generators.** Add braking/bump/two-cluster scenarios, batching and observation
-   retries with stub HTTP tests. D supplies the worker for hazard assertions; until then record
-   ingestion-only evidence explicitly. Agree expected geometry and score tolerances with D.
-4. **F4 — Replay integration.** Agree CSV metadata with B, implement Node adapter and rebased
-   uploads, and test with synthetic CSV before consented rides exist. Exit: same data/seed/clock
-   produces identical events and retry payloads. Sensor quality claims await recorded labels.
-5. **F5 — Combined rehearsal.** Manual report → map, observations → D publication → same map,
-   routes using both eligible sources, then stop automation and submit another manual report.
+1. **F1 — Implemented: CLI and manual scenario.** JSON validation, dry-run, frozen-clock
+   manifests, HTTP client and manual retry/read/expired-report flows have HTTP-stand-in coverage.
+   Restart persistence and real routing remain integration checks against C's implementation.
+2. **F2 — Implemented: publication lifecycle.** Resumable create/update/resolve, authorization
+   probes and manual preservation use the product HTTP boundary. A checks device labels separately.
+3. **F3 — Implemented: observation generators.** Braking/bump/two-cluster and demo-seed scenarios,
+   bounded batching, retries and aggregate polling have HTTP-stand-in coverage. Real-worker
+   verification of braking-spot, bump-spot and two-clusters remains outstanding.
+4. **F4 — Implemented: replay integration.** CSV trimming, Node adapter, timestamp rebasing and
+   stable replay identities have synthetic tests. Real recordings and sensor-quality validation
+   remain outstanding; a stage-0 detector produces no events.
+5. **F5 — Deferred: combined hosted rehearsal.** Manual report → map, observations → D publication
+   → same map, routes using both sources, then stop automation and submit another manual report.
    G supplies demo URLs and lifecycle controls, A checks phones, C/D provide service behavior.
    A product outage must leave D publications pending and recover without duplicates.
 6. **Later:** closure-diversion/abandonment and real-ride tuning follow the brake/bump path. Do not
@@ -183,22 +184,42 @@ python3 contracts/scripts/publish_fixture.py --dry-run
 python3 contracts/scripts/publish_fixture.py --lifecycle
 ```
 
-Proposed simulator CLI commands, to become runnable in F1–F4 and documented in its README:
+Simulator commands from the repository root (Python 3.11+, no Python installation step):
 
 ```sh
-uv sync --project simulator
-uv run --project simulator python -m simulator.cli manual --dry-run --seed 42
-uv run --project simulator python -m simulator.cli manual --product-url URL --demo-target --seed 42
-uv run --project simulator python -m simulator.cli publication --resume RUN_MANIFEST
-uv run --project simulator python -m simulator.cli observations --scenario braking-spot --automation-url URL --demo-target
-uv run --project simulator python -m simulator.cli replay --recording DIRECTORY --automation-url URL --demo-target
+export PYTHONPATH=simulator/src
+python3 -m simulator.cli scenarios
+python3 -m simulator.cli manual --dry-run --seed 42
+python3 -m unittest discover -s simulator/tests -t simulator
+```
+
+Live examples require demo URLs; replace `URL`, `OBS_URL` and `RUN_MANIFEST` with your targets.
+Publication also requires `AUTOMATION_PUBLISH_KEY` in the server-side shell environment.
+
+```sh
+python3 -m simulator.cli manual --product-url URL --demo-target --seed 42
+python3 -m simulator.cli publication --product-url URL --demo-target --resume RUN_MANIFEST
+python3 -m simulator.cli observations --scenario braking-spot \
+  --automation-url OBS_URL --product-url URL --demo-target
+```
+
+Replay and its Node tests require Node 22 and a built detector. From the repository root:
+
+```sh
+npm ci --prefix automatic/detector
+npm run build --prefix automatic/detector
+node --test simulator/replay-detector/*.test.mjs
+# Replace the directory placeholders with your local recording paths:
+python3 -m simulator.cli trim --recording RAW_DIR --out TRIMMED_DIR
+python3 -m simulator.cli replay --recording TRIMMED_DIR --automation-url OBS_URL --demo-target
 ```
 
 Dry-run is the default; network writes require explicit demo-target selection, and resume verifies
 that selection against its manifest. No implicit production endpoint and no destructive cleanup.
 G owns any explicitly selected demo-database reset. Unit tests cover deterministic IDs/time,
 batching and rebasing; HTTP-stub tests cover identical retries and expected failures. Add a
-Lane F CI job through G only once the runnable manifest exists. Use actual API smoke tests for the
+Lane F CI job through G: the simulator manifest now exists, but its CI job is supplied separately
+in [PR #18](https://github.com/Keipydesu/hacklanta26/pull/18). Use actual API smoke tests for the
 manual and bridge gates rather than broad load testing.
 
 Every handoff records scenario/seed/frozen time, target environment, IDs and statuses, source labels,

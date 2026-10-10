@@ -5,7 +5,7 @@ F1–F4). Python standard library only, plus a dependency-free Node adapter for 
 talks to the product and observation APIs over HTTP and never imports their code, reads their
 databases or resets anything.
 
-Scenario files are JSON rather than the YAML sketched in the lane plan, and the CLI runs from the
+Scenario files use JSON (replacing the original YAML proposal), and the CLI runs from the
 source tree with plain `python3` instead of `uv`, so the simulator needs no third-party package,
 lockfile or build step.
 
