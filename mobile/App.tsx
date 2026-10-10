@@ -36,6 +36,9 @@ function CampusApp() {
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
   const [expanded, setExpanded] = useState(false);
   const [dockHeight, setDockHeight] = useState(220);
+  const [pageHeight, setPageHeight] = useState(0);
+  const [safeFrame, setSafeFrame] = useState({ y: 0, height: 0 });
+  const bottomInset = Math.max(0, pageHeight - safeFrame.y - safeFrame.height);
   function openScreen(next: 'map' | 'report' | 'route') { setScreen(next); setExpanded(false); }
   const mapTheme = colorScheme;
   const ROUTE_COLORS = { ...routeColors(theme), shortest: mapTheme === 'dark' ? palette.silver : palette.charcoal };
@@ -159,11 +162,13 @@ function CampusApp() {
   }
   const latestSubmission = submissions[submissions.length - 1];
   const pendingCount = submissions.filter(sub => sub.state !== 'submitted').length;
-  return <SafeAreaView style={styles.page}>
-    <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-    <KeyboardAvoidingView style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <View style={[styles.map, { bottom: dockHeight }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
+  return <View style={styles.page} onLayout={e => setPageHeight(e.nativeEvent.layout.height)}>
+    <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
+    <View style={[styles.map, { bottom: dockHeight + bottomInset }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
       onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} /></View>
+    <SafeAreaView pointerEvents="box-none" style={styles.safeControls}>
+    <KeyboardAvoidingView pointerEvents="box-none" style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      onLayout={e => { const { y, height } = e.nativeEvent.layout; setSafeFrame({ y, height }); }}>
     <View pointerEvents="box-none" style={styles.overlay}>
       <View style={styles.header}>
         <Text style={styles.title}>Campus</Text>
@@ -232,10 +237,11 @@ function CampusApp() {
       </View>
     </View>
     </KeyboardAvoidingView>
-  </SafeAreaView>;
+    </SafeAreaView>
+  </View>;
 }
 const createStyles = (theme: Theme) => StyleSheet.create({
-  page: { flex: 1, backgroundColor: theme.canvas }, canvas: { flex: 1 },
+  page: { flex: 1, backgroundColor: theme.canvas }, canvas: { flex: 1 }, safeControls: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   overlay: { flex: 1, paddingTop: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap',
