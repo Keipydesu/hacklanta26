@@ -8,7 +8,7 @@ Follow [the architecture](../../ARCHITECTURE.md), [roadmap](../ROADMAP.md), and
 
 **Owns:** `simulator/`. This directory is planned, not implemented. Stage 0 in
 [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) supplies contract fixtures and a standalone
-publication probe under `contracts/`, pending merge at the time of this plan. Reuse that probe to
+publication probe under `contracts/`; PR #1 is now merged. Reuse that probe to
 validate the bridge now; the simulator adds scenarios, durable run identity and replay later.
 Do not duplicate or silently change the frozen APIs. Method names and the layout below are
 proposals for implementation, not claims about existing commands.
@@ -152,7 +152,7 @@ manual release. If recordings are unavailable, report that gap and use synthetic
 
 ## Implementation slices and dependencies
 
-1. **F1 — CLI and manual scenario.** After stage-0 contracts are available, add own manifest,
+1. **F1 — CLI and manual scenario.** Using the merged stage-0 contracts, add own manifest,
    validated config, dry-run, frozen-clock run manifests, HTTP client and manual retry/read flow.
    Develop against the product stub. Exit: exact retry bodies and expected status codes; mark
    restart persistence and real routing as pending C. Supply commands to G for demo seeding.
@@ -174,7 +174,7 @@ manual release. If recordings are unavailable, report that gap and use synthetic
 
 ## Verification, commands and handoff
 
-The existing stage-0 probe (after PR #1 is available) is runnable today:
+The existing stage-0 probe is runnable today:
 
 ```sh
 python3 contracts/scripts/publish_fixture.py --dry-run
