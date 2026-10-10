@@ -15,7 +15,11 @@ import { locateOnce } from './src/location/foreground';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, freezeReport, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
-import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, searchPlaces, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { apiUrl, fixtureMode, getHazards, getHealth, getRoutes, searchPlaces, submitFeedback, submitReport, HazardCollection, Health, Report } from './src/api/client';
+import { createFeedback, FeedbackState } from './src/feedback/feedback';
+import { HazardPanel } from './src/feedback/HazardPanel';
+import { createNearbyWatcher } from './src/feedback/nearby';
+import { createHazardSelection, HazardSelection, selectionAvailable } from './src/feedback/selection';
 import { canRequest, createRouteComparison, presentRoutes, RouteState } from './src/routes/model';
 import { routeColors, RouteScreen } from './src/routes/RouteScreen';
 import { createPlaceSearch, SearchState } from './src/trip/placeSearch';
@@ -98,7 +102,7 @@ function CampusApp() {
     if (!apiUrl) return;
     return connectLive({
       url: liveUrl(apiUrl), createSocket: url => new WebSocket(url) as any,
-      onChange: () => { void refresh(); comparison.hazardsChanged(); }, onStatus: setLiveConnected,
+      onChange: () => { void refresh(); comparison.hazardsChanged(); void nearby.invalidate(); void selection.refresh(); }, onStatus: setLiveConnected,
       setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: h => clearTimeout(h as any), random: Math.random,
     });
   }, []);
@@ -108,6 +112,20 @@ function CampusApp() {
     return () => clearInterval(tick);
   }, [region, liveConnected]);
   // The queue persists each frozen report before any network I/O and resends the same body until resolved.
+  const [feedbackStates, setFeedbackStates] = useState<Readonly<Record<string, FeedbackState>>>({});
+  const [selectionState, setSelectionState] = useState<HazardSelection<HazardCollection['features'][number]> | null>(null);
+  const [selection] = useState(() => createHazardSelection({ load: getHazards, onChange: setSelectionState }));
+  const selected = selectionState?.feature.properties ?? null;
+  const [feedback] = useState(() => createFeedback({
+    send: submitFeedback, uuid: Crypto.randomUUID, onChange: setFeedbackStates,
+    onAccepted: () => { void refresh(); void selection.refresh(); void nearby.invalidate(); comparison.hazardsChanged(); },
+  }));
+  useEffect(() => {
+    void selection.setActive(AppState.currentState === 'active');
+    const subscription = AppState.addEventListener('change', state => { void selection.setActive(state === 'active'); });
+    const timer = setInterval(() => { if (AppState.currentState === 'active') void selection.refresh(); }, 5000);
+    return () => { clearInterval(timer); subscription.remove(); void selection.setActive(false); };
+  }, []);
   const [queue] = useState(() => createReportQueue({
     storage: AsyncStorage,
     send: submitReport,
@@ -158,10 +176,42 @@ function CampusApp() {
   const overlay = buildOverlay({
     screen, hazards: visible, submissions, pin: { lat: pin.latitude, lon: pin.longitude },
     routes: presented, origin: routeState.origin, destination: routeState.destination, routeColors: ROUTE_COLORS,
+    selectedHazardId: selected?.id,
   });
   if (mapTheme === 'dark' && overlay.routes.some(line => line.id === 'lower-risk')) {
     const line = overlay.routes.find(line => line.id === 'lower-risk')!;
     overlay.routes.unshift({ ...line, id: 'lower-risk-casing', color: palette.silver, width: 10 });
+  }
+  const [nearby] = useState(() => createNearbyWatcher({
+    load: getHazards, now: Date.now, busy: () => !!selection.state(),
+    onPrompt: hazard => { void selection.select(hazard); },
+  }));
+  useEffect(() => { if (!selected) nearby.evaluate(); }, [selected]);
+  useEffect(() => {
+    if (fixtureMode) return;
+    let subscription: { remove(): void } | null = null;
+    let generation = 0;
+    async function start() {
+      const mine = ++generation;
+      try {
+        const { granted } = await Location.requestForegroundPermissionsAsync();
+        if (!granted || mine !== generation) return;
+        const watching = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
+          ({ coords }) => void nearby.position({ lat: coords.latitude, lon: coords.longitude }));
+        if (mine !== generation) watching.remove(); else subscription = watching;
+      } catch {}
+    }
+    function stop() { generation++; subscription?.remove(); subscription = null; }
+    void start();
+    const appState = AppState.addEventListener('change', state => {
+      if (state === 'active') { void nearby.setActive(true); if (!subscription) void start(); }
+      else { void nearby.setActive(false); stop(); }
+    });
+    return () => { void nearby.setActive(false); stop(); appState.remove(); };
+  }, []);
+  function onSelectHazard(id: string) {
+    const hazard = visible.find(h => h.properties.id === id);
+    if (hazard) void selection.select(hazard);
   }
   function onMapPress(position: LngLat) {
     if (screen === 'report') setPin(toLatLng(position));
@@ -176,7 +226,7 @@ function CampusApp() {
   return <View style={styles.page} onLayout={e => setPageHeight(e.nativeEvent.layout.height)}>
     <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
     <View style={[styles.map, { bottom: dockHeight + bottomInset }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
-      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} /></View>
+      onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} onSelect={onSelectHazard} /></View>
     <SafeAreaView pointerEvents="box-none" style={styles.safeControls}>
     <KeyboardAvoidingView pointerEvents="box-none" style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       onLayout={e => { const { y, height } = e.nativeEvent.layout; setSafeFrame({ y, height }); }}>
@@ -197,6 +247,10 @@ function CampusApp() {
           </Pressable>
         </View>
         <ScrollView key={screen} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
+      {selected && <HazardPanel hazard={selected} available={selectionAvailable(selectionState, now)} state={feedbackStates[selected.id]} disabled={fixtureMode}
+        availabilityError={selectionState?.error}
+        onRespond={response => void feedback.respond(selected.id, response)} onRetry={() => void feedback.retry(selected.id)}
+        onClose={() => selection.clear()} />}
       {screen === 'map' && <>
         <Button primary icon="route" title={routeState.origin || routeState.destination ? 'Continue trip' : 'Where to?'}
           onPress={planTrip} />

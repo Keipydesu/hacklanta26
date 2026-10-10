@@ -8,16 +8,21 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 from shapely.geometry import shape
 
-from ..schemas import AutomaticPublication, ManualReport
+from ..feedback import RECENT_NEEDED, Hide, HazardState, apply_feedback
+from ..schemas import AutomaticPublication, HazardFeedback, ManualReport
 
 class Conflict(Exception):
     """Same identity, different content (report body or stale/conflicting revision)."""
+
+class NotFound(Exception):
+    """The hazard is unknown, resolved or expired."""
 
 @dataclass
 class Result:
     hazard_id: str
     duplicate: bool
     status: int  # HTTP status the adapter should use: 201 created, 200 retry/update
+    changed: bool = True
 
 FEATURE_COLUMNS = '''id, source, kind, label, score, status, first_seen, last_seen, expires_at,
     event_count, ride_count, report_count, evidence_source'''
@@ -104,12 +109,48 @@ class PostgresStore:
                  Jsonb(payload), body.expires_at, row['id']))
             return Result(str(row['id']), False, 200)
 
+    async def record_feedback(self, hazard_id: UUID, body: HazardFeedback, now):
+        """Store one answer and apply the feedback policy; retries are idempotent by feedback UUID."""
+        async with self.pool.connection() as conn, conn.transaction():
+            hazard = await (await conn.execute(
+                '''SELECT source, status, last_seen, expires_at, revision, hidden_at_revision
+                   FROM hazards WHERE id = %s FOR UPDATE''', (hazard_id,))).fetchone()
+            existing = await (await conn.execute(
+                'SELECT hazard_id, response FROM hazard_feedback WHERE id = %s', (body.id,))).fetchone()
+            if existing:
+                if existing['hazard_id'] != hazard_id or existing['response'] != body.response:
+                    raise Conflict()
+                return Result(str(hazard_id), True, 200, changed=False)
+            hidden = hazard is not None and hazard['hidden_at_revision'] is not None and hazard['hidden_at_revision'] == hazard['revision']
+            if not hazard or hazard['status'] != 'active' or hazard['expires_at'] <= now or hidden:
+                raise NotFound()
+            inserted = await (await conn.execute(
+                '''INSERT INTO hazard_feedback (id, hazard_id, response, hazard_revision, received_at)
+                   VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING RETURNING id''',
+                (body.id, hazard_id, body.response, hazard['revision'], now))).fetchone()
+            if not inserted:
+                raise Conflict()
+            recent = [row['response'] for row in await (await conn.execute(
+                '''SELECT response FROM hazard_feedback WHERE hazard_id = %s AND hazard_revision IS NOT DISTINCT FROM %s
+                   ORDER BY seq DESC LIMIT %s''', (hazard_id, hazard['revision'], RECENT_NEEDED))).fetchall()]
+            state = HazardState(hazard['source'], hazard['status'], hazard['last_seen'], hazard['expires_at'])
+            change = apply_feedback(state, recent, now)
+            if isinstance(change, Hide):
+                await conn.execute('UPDATE hazards SET hidden_at_revision = revision WHERE id = %s', (hazard_id,))
+            elif change:
+                await conn.execute(
+                    '''UPDATE hazards SET status = %s, last_seen = %s, expires_at = %s,
+                           expiry_notified_for = CASE WHEN expires_at IS DISTINCT FROM %s THEN NULL ELSE expiry_notified_for END
+                       WHERE id = %s''', (change.status, change.last_seen, change.expires_at, change.expires_at, hazard_id))
+            return Result(str(hazard_id), False, 201, changed=change is not None)
+
     async def list_active(self, bounds, now):
         west, south, east, north = bounds
         async with self.pool.connection() as conn:
             rows = await (await conn.execute(
                 f'''SELECT {FEATURE_COLUMNS}, ST_AsGeoJSON(geometry)::jsonb AS geojson FROM hazards
                     WHERE status = 'active' AND expires_at > %s
+                      AND (hidden_at_revision IS NULL OR hidden_at_revision <> revision)
                       AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
                       AND ST_Intersects(geometry, ST_MakeEnvelope(%s, %s, %s, %s, 4326))
                     ORDER BY first_seen, id''',

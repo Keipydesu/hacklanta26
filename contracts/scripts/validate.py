@@ -22,7 +22,7 @@ for path in sorted((ROOT / 'fixtures').rglob('*')):
         continue
     data = json.loads(path.read_text())
     stem = path.stem
-    schema = ('HazardCollection' if stem == 'hazards' else 'RouteRequest' if stem == 'route-request' else 'RouteResponse' if stem == 'route' else 'EventBatch' if stem.startswith('events') else 'PointBatch' if stem.startswith('points') else 'AutomaticPublication' if stem.startswith('automatic') else 'PlaceResults' if stem.startswith('places') else 'ManualReport')
+    schema = ('HazardCollection' if stem == 'hazards' else 'RouteRequest' if stem == 'route-request' else 'RouteResponse' if stem == 'route' else 'EventBatch' if stem.startswith('events') else 'PointBatch' if stem.startswith('points') else 'AutomaticPublication' if stem.startswith('automatic') else 'HazardFeedback' if stem.startswith('feedback') else 'PlaceResults' if stem.startswith('places') else 'ManualReport')
     spec = 'automatic.openapi.yaml' if schema in ('EventBatch', 'PointBatch') else 'openapi.yaml'
     errors = list(validator(spec, schema).iter_errors(data))
     if 'invalid' in stem:

@@ -13,6 +13,7 @@ export type MapLibreViewProps = {
   overlay: Overlay;
   onPress?(position: LngLat): void;
   onDragEnd?(id: string, position: LngLat): void;
+  onSelect?(id: string): void;
   onBounds?(bounds: Bounds): void;
   onBasemap?(status: 'loaded' | 'unavailable', detail?: string): void;
 };
@@ -49,6 +50,7 @@ export function MapLibreView(props: MapLibreViewProps) {
         break;
       case 'press': current.onPress?.(message.position); break;
       case 'drag': current.onDragEnd?.(message.id, message.position); break;
+      case 'select': current.onSelect?.(message.id); break;
       case 'bounds': current.onBounds?.(message.bounds); break;
       case 'basemap': current.onBasemap?.(message.status, message.detail); break;
     }

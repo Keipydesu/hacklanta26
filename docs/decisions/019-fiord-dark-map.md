@@ -1,11 +1,11 @@
-# 017. Fiord dark basemap
+# 019. Fiord dark basemap
 
 - Status: Accepted
 - Date: 2026-10-10
 - Supersedes: Decision 011's Dark Matter style only.
 
 At operator request, dark appearance selects bundled Fiord from openmaptiles/fiord-color-gl-style.
-Retain Positron for light appearance and decision 016's unified appearance switch. Adapt tile and
+Retain Positron for light appearance and decision 018's unified appearance switch. Adapt tile and
 font endpoints to OpenFreeMap, preserving Fiord colors and cartographic layers. No API key is
 required. EXPO_PUBLIC_MAP_DARK_STYLE_URL still overrides the default.
 

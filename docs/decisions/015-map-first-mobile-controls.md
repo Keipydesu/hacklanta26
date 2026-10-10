@@ -1,4 +1,4 @@
-# 013. Map first, visual controls before explanatory copy
+# 015. Map first, visual controls before explanatory copy
 
 - Status: Accepted
 - Date: 2026-10-10

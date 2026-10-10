@@ -186,6 +186,11 @@ never touches product storage or routing, and routing keeps taking lat/lon.
 6. **C6 — Automatic integration (milestone 4).** D replaces fixture publisher with durable outbox.
    Verify revisions, expiry, simulated labels and manual preservation; no C-side clustering added.
 
+Campus bike-lane coverage (issue #29) is checked-in OSM data in `backend/bike_lanes/`, with evidence
+rules and a refresh procedure in [its README](../../backend/bike_lanes/README.md). Nothing consumes it yet;
+using it in route scoring is follow-up work that must not replace pedestrian costing implicitly
+([decision 012](../decisions/012-osm-bike-lane-coverage.md)).
+
 ## Verification and delivery evidence
 
 These existing stage-0 commands run from repository root:
@@ -214,5 +219,5 @@ neither may silently disappear from risk scoring.
 Handoff records schema version/migration commands, confirmed DB durability, API and routing probes,
 which real-device checks A ran, tested Valhalla version/campus pairs, configuration, failures and
 remaining stubs. Physical-device and HTTPS gates cannot be replaced by fixture tests. Defer soft-cost
-OSMnx routing, cross-source merging/voting, raw event APIs and horizontal scaling until the manual
+OSMnx routing, cross-source merging (hazard feedback follows decision 013), raw event APIs and horizontal scaling until the manual
 release works. No contracts or implementation are changed by this planning PR.

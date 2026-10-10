@@ -19,6 +19,9 @@
     "src/map/overlay.ts",
     "src/map/html.ts",
     "src/trip/trip.ts",
-    "src/trip/placeSearch.ts"
+    "src/trip/placeSearch.ts",
+    "src/feedback/feedback.ts",
+    "src/feedback/nearby.ts",
+    "src/feedback/selection.ts"
   ]
 }

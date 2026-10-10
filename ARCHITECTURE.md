@@ -3,8 +3,8 @@
 Campus scooter safety map, built manual-first. Riders report hazards like Waze. A separate automatic detection system can later publish hazards through a versioned HTTP API. The manual app must work with the entire automatic system switched off.
 
 The rider UI leads with scooter/bike trip planning, with hazard mapping enriching route choices.
-Lime and Waze are the primary design references; see [decision 010](docs/decisions/012-scooter-bike-first-ui.md).
-The map fills the screen with compact supporting controls; see [decision 011](docs/decisions/013-map-first-mobile-controls.md).
+Lime and Waze are the primary design references; see [decision 014](docs/decisions/014-scooter-bike-first-ui.md).
+The map fills the screen with compact supporting controls; see [decision 015](docs/decisions/015-map-first-mobile-controls.md).
 This changes presentation priority, not the delivery sequence or supported routing modes.
 
 This is the target product design. Stage 0 now implements its contracts and nonpersistent skeletons, not production persistence, sensing or routing; see [the handoff](docs/STAGE-0-HANDOFF.md). It supersedes the original sensor-first mobile design. The monitoring web app remains out of scope.
@@ -46,6 +46,7 @@ backend/                         Shared platform: FastAPI [C]
   app/db/                        manual_reports and hazards
   app/schemas.py                 generated/contract-aligned schemas [0]
   app/routing/                   Valhalla client and planner [C]
+  bike_lanes/                    OSM campus bike-lane export and GeoJSON [C]
   tests/api/                     [C]
   tests/routing/                  [C]
 automatic/                       Track 2: standalone subsystem
@@ -92,6 +93,7 @@ JSON over HTTPS. Version prefix `/v1`. Coordinates are WGS84: objects use `lat`/
 | PUT | `/v1/automatic/hazards/{external_id}` | Publish or update an automatically derived hazard |
 | GET | `/v1/hazards?bbox=` | Active, unexpired manual and automatic hazards as one GeoJSON FeatureCollection |
 | GET | `/v1/places?q=&near=` | Address/place search for trip endpoints, proxied to Photon within the routing area ([decision 020](docs/decisions/020-trip-address-search-and-current-origin.md)) |
+| POST | `/v1/hazards/{hazard_id}/feedback` | Rider answer to "Is this hazard still there?" ([decision 013](docs/decisions/013-hazard-feedback.md)) |
 | POST | `/v1/route` | Shortest and lower-risk routes using the same combined feed |
 | WS | `/v1/live` | Notify phones that hazards changed |
 | GET | `/healthz` | Product API/database health, independent of automation |
@@ -149,9 +151,9 @@ New publication returns 201; a newer revision updates the existing hazard and re
 
 Each GeoJSON polygon has properties: `id`, `source` (`manual | automatic`), `kind`, `label`, `score`, `status`, `first_seen`, `last_seen`, `expires_at`, `event_count`, `ride_count`, `report_count`, `evidence_source` (null for manual). Manual reports have `report_count: 1` and zero sensor counts; automatic hazards have `report_count: 0`.
 
-Both sources are visible on the same map; use explicit labels “Community report” and “Automatically detected.” Keep separate records even when they overlap; cross-source merging and community voting are later features. Reads and routing filter expiry at request time, even if cleanup is delayed. The server publishes expiry changes, and the app also hides a hazard when its expiry time passes.
+Both sources are visible on the same map; use explicit labels “Community report” and “Automatically detected.” Keep separate records even when they overlap; cross-source merging is a later feature. Rider "still there / no longer there" feedback follows [decision 013](docs/decisions/013-hazard-feedback.md): it can extend or resolve manual hazards and can hide an automatic hazard until its next newer revision, without editing the publication. Reads and routing filter expiry at request time, even if cleanup is delayed. The server publishes expiry changes, and the app also hides a hazard when its expiry time passes.
 
-Live message: `{ "type": "hazards.changed", "data": { "hazard_id": "uuid" } }`. On receipt, debounce and refetch the visible bounds; also refetch on reconnect. Emit after committed creates, updates, resolutions, and expiry. There is no public raw event feed required by the manual app.
+Live message: `{ "type": "hazards.changed", "data": { "hazard_id": "uuid" } }`. On receipt, debounce and refetch the visible bounds; also refetch on reconnect. Emit after committed creates, updates, resolutions, feedback-driven changes, and expiry. There is no public raw event feed required by the manual app.
 
 ### Routing
 
@@ -203,6 +205,7 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 
 - The manual app asks for foreground location only when needed; a user can instead place a pin. Submission sends that selected point and report, not a ride trace.
 - Trip planning takes one foreground fix for the Current location origin, asking permission only when a trip is opened (decision 020). Place searches go to the product API, which forwards the query and a ~100 m-rounded ranking point to Photon; no account or device ID is sent.
+- While the app is open with location permission, the app compares the rider's position with nearby hazards on the phone to ask "Is this hazard still there?" within 40 m. It fetches hazards for the ~500 m grid block around the rider, so the server sees only that coarse block, as with map browsing. Nothing runs in the background, precise positions are never recorded or uploaded, and feedback carries no coordinates (decision 013).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.

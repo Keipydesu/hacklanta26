@@ -63,6 +63,7 @@ From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
 - Product API: `uv sync --project backend --frozen`, then
   `uv run --project backend uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000`.
 - Product tests: `uv run --project backend pytest -c backend/pyproject.toml backend/tests -q`.
+- Campus bike-lane data refresh: `python3 backend/bike_lanes/import_osm.py [--date <OSM snapshot>]`.
 - Mobile: `npm ci --prefix mobile`; `npm start --prefix mobile`;
   `npm run typecheck --prefix mobile`; `npm test --prefix mobile`; `npm run build --prefix mobile`.
 - Observation API: `uv sync --project automatic/service --frozen`, then

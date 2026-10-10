@@ -23,12 +23,13 @@ from shapely.geometry import Point, mapping, shape, box
 from shapely.ops import transform
 import yaml
 from .db.migrate import migrate
-from .db.store import Conflict, PostgresStore
+from .db.store import Conflict, NotFound, PostgresStore, Result
+from .feedback import RECENT_NEEDED, Hide, HazardState, apply_feedback
 from .routing import planner
 from .routing.valhalla import NoPath, Unavailable, ValhallaClient
 from .places import PlaceSearch, PlacesUnavailable
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
-                      HazardCollection, PlaceResults, RouteRequest, RouteResponse)
+                      HazardCollection, HazardFeedback, FeedbackReceipt, PlaceResults, RouteRequest, RouteResponse)
 
 CONTRACTS = Path(os.getenv('CONTRACTS_DIR', Path(__file__).resolve().parents[2] / 'contracts'))
 BEARER = HTTPBearer(auto_error=False)
@@ -62,7 +63,8 @@ def create_app(database_url=None):
     valhalla = ValhallaClient(valhalla_url) if valhalla_url else None
     photon_url = os.getenv('PHOTON_URL', 'https://photon.komoot.io').strip()
     places = PlaceSearch(photon_url) if photon_url else None
-    reports, publications, hazards = {}, {}, {}
+    reports, publications, hazards, feedback = {}, {}, {}, {}
+    revisions, hidden = {}, {}
     sockets = set()
     spec = yaml.safe_load((CONTRACTS/'openapi.yaml').read_text())
     route_fixture = json.loads((CONTRACTS/'fixtures/route.json').read_text())
@@ -220,6 +222,7 @@ def create_app(database_url=None):
         props.update(id=hazard_id, source='automatic', report_count=0)
         hazards[hazard_id] = {'type':'Feature','geometry':body.geometry.model_dump(),'properties':props}
         publications[key] = (body, hazard_id)
+        revisions[hazard_id] = body.revision
         await notify(hazard_id)
         return {'hazard_id':hazard_id,'revision':body.revision,'duplicate':False}
 
@@ -231,10 +234,50 @@ def create_app(database_url=None):
             return {'type':'FeatureCollection','features':await store.list_active(bounds, now)}
         return {'type':'FeatureCollection','features':memory_active(bounds, now)}
 
+    def memory_hidden(hazard_id):
+        return hazard_id in hidden and hidden[hazard_id] == revisions.get(hazard_id)
+
     def memory_active(bounds, now):
         area = box(*bounds)
-        return [h for h in hazards.values() if h['properties']['status'] == 'active'
+        return [h for h in hazards.values() if h['properties']['status'] == 'active' and not memory_hidden(h['properties']['id'])
                 and h['properties']['expires_at'] > now and shape(h['geometry']).intersects(area)]
+
+    @app.post('/v1/hazards/{hazard_id}/feedback', response_model=FeedbackReceipt, status_code=201)
+    async def submit_feedback(hazard_id: UUID, body: HazardFeedback, response: Response):
+        now = datetime.now(timezone.utc)
+        if store:
+            try:
+                result = await store.record_feedback(hazard_id, body, now)
+            except Conflict:
+                raise HTTPException(409, 'Feedback ID already used for a different hazard or answer')
+            except NotFound:
+                raise HTTPException(404, 'Hazard is unknown, resolved or expired')
+        else:
+            result = memory_feedback(str(hazard_id), body, now)
+        response.status_code = result.status
+        if result.changed:
+            await notify(result.hazard_id)
+        return {'feedback_id':str(body.id),'hazard_id':result.hazard_id,'duplicate':result.duplicate}
+
+    def memory_feedback(hazard_id, body, now):
+        key = str(body.id)
+        if key in feedback:
+            if feedback[key][:2] != (hazard_id, body.response):
+                raise HTTPException(409, 'Feedback ID already used for a different hazard or answer')
+            return Result(hazard_id, True, 200, changed=False)
+        hazard = hazards.get(hazard_id)
+        props = hazard and hazard['properties']
+        if not props or props['status'] != 'active' or props['expires_at'] <= now or memory_hidden(hazard_id):
+            raise HTTPException(404, 'Hazard is unknown, resolved or expired')
+        revision = revisions.get(hazard_id)
+        feedback[key] = (hazard_id, body.response, revision)
+        recent = [answer for (target, answer, at) in reversed(feedback.values()) if target == hazard_id and at == revision][:RECENT_NEEDED]
+        change = apply_feedback(HazardState(props['source'], props['status'], props['last_seen'], props['expires_at']), recent, now)
+        if isinstance(change, Hide):
+            hidden[hazard_id] = revision
+        elif change:
+            props.update(status=change.status, last_seen=change.last_seen, expires_at=change.expires_at)
+        return Result(hazard_id, False, 201, changed=change is not None)
 
     async def load_hazards(bounds):
         # Each full-envelope refresh uses one evaluation time; the planner replaces

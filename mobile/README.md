@@ -144,6 +144,25 @@ set, compares routes. Typing clears the old point, late answers are ignored, and
 is the secondary option. The offline preview searches the fixture places. See `src/trip/` and
 [decision 020](../docs/decisions/020-trip-address-search-and-current-origin.md).
 
+## Hazard feedback
+
+Tap a hazard pin to open its panel under the map. The panel shows the source, category, label and
+expiry, and asks "Is this … still there?" with "Still there" and "No longer there". An answer shows
+as sending until the server returns a receipt for that exact answer and hazard, and only then as
+received. Failed answers can be retried with the identical body. The app sends one answer per
+hazard per session, separate from the report queue (`src/feedback/`). The selected hazard has its
+own coarse-grid lookup around its public geometry, independent of the map viewport. That lookup
+refreshes on live hints, accepted feedback, foreground return and every five seconds while active.
+Removal disables new answers but retains the details and receipt; a failed lookup shows a stale
+notice, and local expiry still disables new answers.
+
+While the app is open with location permission, coming within 40 m of a hazard opens its panel
+once per session, wherever the map is panned. The app looks up hazards for the ~500 m grid block
+around the rider, separately from the map, so the server sees only that coarse block. This uses
+foreground location only. Precise positions are never recorded, uploaded or sent with answers, and
+an ignored prompt is not an answer. Answers can't be sent in fixture mode. Server-side effects are
+in [decision 013](../docs/decisions/013-hazard-feedback.md).
+
 ## SDK 57 upgrade (2026-10-10)
 
 After pulling the upgrade, stop Metro, reinstall from the lockfile and clear Metro's cache:

@@ -3,7 +3,7 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 import os
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import psycopg
@@ -11,9 +11,9 @@ import pytest
 from shapely.geometry import Polygon
 
 from app.db.migrate import migrate
-from app.db.store import Conflict
+from app.db.store import Conflict, PostgresStore
 from app.main import create_app
-from app.schemas import ManualReport
+from app.schemas import HazardFeedback, ManualReport
 from test_boundary import AUTH, FEED, PUB, fixture, fresh, validate
 
 URL = os.getenv('TEST_DATABASE_URL')
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(not URL, reason='TEST_DATABASE_URL not set')
 def clean_db(monkeypatch):
     monkeypatch.setenv('AUTOMATION_PUBLISH_KEY', 'test-only-key')
     with psycopg.connect(URL, autocommit=True) as conn:
-        conn.execute('DROP TABLE IF EXISTS hazards, manual_reports, schema_migrations CASCADE')
+        conn.execute('DROP TABLE IF EXISTS hazard_feedback, hazards, manual_reports, schema_migrations CASCADE')
 
 def run(scenario):
     """Run `scenario(client, app)` against a fresh app lifecycle; call again to simulate a restart."""
@@ -39,14 +39,14 @@ def sql(query, *args):
         return conn.execute(query, args).fetchall()
 
 def test_fresh_migration_is_idempotent():
-    assert migrate(URL) == ['001_product_schema']
+    assert migrate(URL) == ['001_product_schema', '002_hazard_feedback']
     assert migrate(URL) == []
 
 def test_concurrent_starters_serialize_migrations():
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(4) as pool:
         results = list(pool.map(lambda _: migrate(URL), range(4)))
-    assert sorted(len(r) for r in results) == [0, 0, 0, 1]
+    assert sorted(len(r) for r in results) == [0, 0, 0, 2]
 
 def test_manual_report_survives_restart_and_retries():
     manual, _ = fresh()
@@ -222,3 +222,100 @@ def test_unstorable_text_is_422_not_500_and_unchanged_expiry_keeps_notification_
         assert (await client.put(PUB, json=dict(stale, revision=2, label='renamed'), headers=AUTH)).status_code == 200
         assert await app.state.store.scan_expirations(datetime.now(timezone.utc)) == []  # same expires_at: not re-announced
     run(scenario)
+
+def test_feedback_persists_across_restart_and_rejects_conflicts():
+    manual, automatic = fresh()
+    body = {'id': str(uuid4()), 'response': 'still_there'}
+    async def first(client, app):
+        hazard_id = (await client.post('/v1/reports', json=manual)).json()['hazard_id']
+        created = await client.post(f'/v1/hazards/{hazard_id}/feedback', json=body)
+        assert created.status_code == 201
+        validate('FeedbackReceipt', created.json())
+        return hazard_id, created.json()
+    hazard_id, receipt = run(first)
+    async def after_restart(client, app):
+        url = f'/v1/hazards/{hazard_id}/feedback'
+        retry = await client.post(url, json=body)
+        assert retry.status_code == 200 and retry.json() == dict(receipt, duplicate=True)
+        assert (await client.post(url, json=dict(body, response='gone'))).status_code == 409
+        assert (await client.post(f'/v1/hazards/{uuid4()}/feedback', json={'id': str(uuid4()), 'response': 'gone'})).status_code == 404
+        expired_id = (await client.post('/v1/reports', json=fixture('cases/manual-expired.json'))).json()['hazard_id']
+        assert (await client.post(f'/v1/hazards/{expired_id}/feedback', json={'id': str(uuid4()), 'response': 'gone'})).status_code == 404
+        automatic_id = (await client.put(PUB, json=automatic, headers=AUTH)).json()['hazard_id']
+        assert (await client.post(f'/v1/hazards/{automatic_id}/feedback', json=body)).status_code == 409
+    run(after_restart)
+    assert sql('SELECT hazard_id::text, response FROM hazard_feedback') == [(hazard_id, 'still_there')]
+
+def test_same_feedback_uuid_racing_for_two_hazards_yields_one_201_and_one_409():
+    manual, _ = fresh()
+    second = dict(manual, id=str(uuid4()), lat=manual['lat'] + 0.001)
+    body = {'id': str(uuid4()), 'response': 'gone'}
+    async def scenario(client, app):
+        a = (await client.post('/v1/reports', json=manual)).json()['hazard_id']
+        b = (await client.post('/v1/reports', json=second)).json()['hazard_id']
+        results = await asyncio.gather(*(client.post(f'/v1/hazards/{h}/feedback', json=body) for h in (a, b)))
+        return sorted(r.status_code for r in results)
+    assert run(scenario) == [201, 409]
+    assert sql('SELECT count(*) FROM hazard_feedback') == [(1,)]
+
+def test_feedback_policy_extends_and_resolves_manual_hazards_in_the_database():
+    manual, _ = fresh()
+    manual['observed_at'] = (datetime.now(timezone.utc) - timedelta(hours=20)).isoformat()
+    async def scenario(client, app):
+        hazard_id = (await client.post('/v1/reports', json=manual)).json()['hazard_id']
+        url = f'/v1/hazards/{hazard_id}/feedback'
+        answer = lambda response: {'id': str(uuid4()), 'response': response}
+        assert (await client.post(url, json=answer('still_there'))).status_code == 201
+        return hazard_id, url, answer
+    hazard_id, url, answer = run(scenario)
+    [(expires_at, status)] = sql('SELECT expires_at, status FROM hazards WHERE id = %s', hazard_id)
+    assert status == 'active' and expires_at > datetime.now(timezone.utc) + timedelta(hours=23)
+    async def remove(client, app):
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert [f['properties']['id'] for f in (await client.get(FEED)).json()['features']] == [hazard_id]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert (await client.get(FEED)).json()['features'] == []
+    run(remove)
+    assert sql('SELECT status, source, report_count FROM hazards WHERE id = %s', hazard_id) == [('resolved', 'manual', 1)]
+
+def test_automatic_hazard_hidden_by_answers_until_newer_revision_in_the_database():
+    _, automatic = fresh()
+    async def scenario(client, app):
+        hazard_id = (await client.put(PUB, json=automatic, headers=AUTH)).json()['hazard_id']
+        url = f'/v1/hazards/{hazard_id}/feedback'
+        answer = lambda response: {'id': str(uuid4()), 'response': response}
+        ids = lambda feed: [f['properties']['id'] for f in feed['features']]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert ids((await client.get(FEED)).json()) == [hazard_id]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert ids((await client.get(FEED)).json()) == []
+        assert (await client.post(url, json=answer('gone'))).status_code == 404
+        return hazard_id, url, answer, ids
+    hazard_id, url, answer, ids = run(scenario)
+    assert sql('SELECT revision, status, hidden_at_revision FROM hazards WHERE id = %s', hazard_id) == [(1, 'active', 1)]
+    async def republish(client, app):
+        assert (await client.put(PUB, json=dict(automatic, revision=2), headers=AUTH)).status_code == 200
+        assert ids((await client.get(FEED)).json()) == [hazard_id]
+        assert (await client.post(url, json=answer('gone'))).status_code == 201
+        assert ids((await client.get(FEED)).json()) == [hazard_id]
+    run(republish)
+
+def test_feedback_order_follows_processing_not_the_request_clock():
+    manual, _ = fresh()
+    hazard_id = run(lambda client, app: _report(client, manual))
+    async def scenario():
+        store = PostgresStore(URL)
+        await store.open()
+        try:
+            now = datetime.now(timezone.utc)
+            gone = await store.record_feedback(UUID(hazard_id), HazardFeedback(id=uuid4(), response='gone'), now)
+            still = await store.record_feedback(UUID(hazard_id), HazardFeedback(id=uuid4(), response='still_there'), now - timedelta(seconds=5))
+            again = await store.record_feedback(UUID(hazard_id), HazardFeedback(id=uuid4(), response='gone'), now - timedelta(seconds=10))
+            return gone.changed, still.changed, again.changed
+        finally:
+            await store.close()
+    assert asyncio.run(scenario()) == (False, True, False), 'the later-processed still_there extends and resets the gone count'
+    assert sql('SELECT status FROM hazards WHERE id = %s', hazard_id) == [('active',)]
+
+async def _report(client, manual):
+    return (await client.post('/v1/reports', json=manual)).json()['hazard_id']
