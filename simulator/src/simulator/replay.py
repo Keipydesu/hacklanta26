@@ -10,6 +10,7 @@ The Node adapter in replay-detector/ runs Lane B's detector over the CSVs. This 
 output with source "replay" and stable IDs, and refuses anything not marked trimmed.
 """
 import csv
+import hashlib
 from datetime import datetime, timezone
 import json
 import subprocess
@@ -17,7 +18,9 @@ from pathlib import Path
 
 from .clock import iso, rebase_offset_ms
 from .geo import distance_m
-from .identity import item_id
+from uuid import uuid5
+
+from .identity import ROOT, item_id
 from .observations import MAX_EVENTS_PER_BATCH, MAX_POINTS_PER_BATCH, chunk
 from .transport import Run, ScenarioFailed
 
@@ -57,21 +60,21 @@ def read_meta(directory: Path) -> dict:
 
 
 def trim_window(gps: list[dict], trim_m: float = TRIM_M) -> tuple[int, int]:
-    """Timestamps (start, end), exclusive, between which a ride is more than `trim_m` from both ends.
+    """Timestamps (start, end) between which a ride is more than `trim_m` (straight-line) from both ends.
 
-    Distance is accumulated over fixes with known accuracy of 20 m or better.
+    Only fixes with known accuracy of 20 m or better are used.
     """
     good = [g for g in gps if g.get('accuracy_m') is not None and g['accuracy_m'] <= MAX_ACCURACY_M]
     if len(good) < 2:
         raise RecordingError('not enough accurate GPS fixes to measure the ride')
-    travelled = [0.0]
-    for a, b in zip(good, good[1:]):
-        travelled.append(travelled[-1] + distance_m(a['lat'], a['lon'], b['lat'], b['lon']))
-    total = travelled[-1]
+    # Displacement from the first and last accurate fix, not accumulated path length: GPS jitter while
+    # standing still adds path length but never moves the rider away from home.
+    origin, final = good[0], good[-1]
+    total = max(distance_m(origin['lat'], origin['lon'], g['lat'], g['lon']) for g in good)
     if total <= 2 * trim_m:
-        raise RecordingError(f'ride is {total:.0f} m; after removing the first and last {trim_m:.0f} m nothing is left')
-    start = next(g['t_ms'] for g, d in zip(good, travelled) if d > trim_m)
-    end = next(g['t_ms'] for g, d in zip(reversed(good), reversed(travelled)) if total - d > trim_m)
+        raise RecordingError(f'ride only strays {total:.0f} m from its start; after removing the first and last {trim_m:.0f} m nothing is left')
+    start = next(g['t_ms'] for g in good if distance_m(origin['lat'], origin['lon'], g['lat'], g['lon']) > trim_m)
+    end = next(g['t_ms'] for g in reversed(good) if distance_m(final['lat'], final['lon'], g['lat'], g['lon']) > trim_m)
     if start >= end:
         raise RecordingError('ride has no interior after trimming')
     return start, end
@@ -97,7 +100,9 @@ def trim_recording(source: Path, destination: Path, trim_m: float = TRIM_M) -> d
             handle.write(header + '\n')
             for row in rows:
                 handle.write(','.join(_cell(k, row[k]) for k in header.split(',')) + '\n')
-    trimmed = {**meta, 'trimmed': True, 'trim': {'removed_m_each_end': trim_m, 'kept_from_t_ms': start, 'kept_to_t_ms': end, 'rows': counts},
+    # Allowlist: the raw meta carries the ride ID and start time, which must not travel with a shareable copy.
+    kept = {k: meta[k] for k in ('format', 'source', 'motion', 'gps', 'labels') if k in meta}
+    trimmed = {**kept, 'trimmed': True, 'trim': {'removed_m_each_end': trim_m, 'kept_from_t_ms': start, 'kept_to_t_ms': end, 'rows': counts},
                'note': 'First and last 100 m removed. Review before sharing; do not trim again.'}
     (destination / 'meta.json').write_text(json.dumps(trimmed, indent=2) + '\n')
     return trimmed
@@ -135,6 +140,14 @@ def _stamp(t_ms: int) -> str:
     return iso(datetime.fromtimestamp(t_ms / 1000, tz=timezone.utc))
 
 
+def recording_identity(recording: Path) -> str:
+    digest = hashlib.sha256()
+    for kind in ('gps', 'motion', 'labels'):
+        path = Path(recording) / f'{kind}.csv'
+        digest.update(path.read_bytes() if path.exists() else b'')
+    return str(uuid5(ROOT, f'replay|{digest.hexdigest()}'))
+
+
 def planned(run_id: str, recording: Path, detected: dict, run_time) -> list[dict]:
     """Upload requests for a trimmed recording: derived events and GPS points, source `replay`."""
     recording = Path(recording)
@@ -142,17 +155,19 @@ def planned(run_id: str, recording: Path, detected: dict, run_time) -> list[dict
     if not meta.get('trimmed'):
         raise RecordingError('recording is not marked trimmed; run `simulator.cli trim` and review it before any upload')
     gps = read_rows(recording, 'gps')
+    # IDs come from the recording's content, not the run: replaying the same ride again is the same ride.
+    recording_id = recording_identity(recording)
     events, gps, _ = rebase_recording(detected['events'], gps, run_time)
     name = f'replay/{recording.name}'
-    ride = item_id(run_id, name, 'ride')
+    ride = item_id(recording_id, name, 'ride')
     bodies = [{
-        'id': item_id(run_id, name, f'event/{index}'), 'ride_id': ride, 'type': e['type'], 'ts': _stamp(e['t_ms']),
+        'id': item_id(recording_id, name, f'event/{index}'), 'ride_id': ride, 'type': e['type'], 'ts': _stamp(e['t_ms']),
         'lat': e['lat'], 'lon': e['lon'], 'accuracy_m': e['accuracy_m'], 'speed_before_mps': e['speed_before_mps'],
         'speed_after_mps': e['speed_after_mps'], 'peak_g': e['peak_g'], 'duration_ms': e['duration_ms'], 'source': 'replay',
     } for index, e in enumerate(events)]
     # A point needs measured speed and accuracy; unknown values are never sent as zero.
     points = [{
-        'id': item_id(run_id, name, f'point/{index}'), 'ts': _stamp(g['t_ms']), 'lat': g['lat'], 'lon': g['lon'],
+        'id': item_id(recording_id, name, f'point/{index}'), 'ts': _stamp(g['t_ms']), 'lat': g['lat'], 'lon': g['lon'],
         'speed_mps': g['speed_mps'], 'accuracy_m': g['accuracy_m'], 'source': 'replay',
     } for index, g in enumerate(gps) if g.get('speed_mps') is not None and g.get('accuracy_m') is not None and g['speed_mps'] >= 0]
     requests = [{'key': f'events-{i}', 'method': 'POST', 'target': 'automation', 'path': '/v1/events', 'body': {'events': part}, 'expect': [200]}
@@ -165,12 +180,18 @@ def planned(run_id: str, recording: Path, detected: dict, run_time) -> list[dict
 def send_replay(run: Run, recording: Path, detected: dict, run_time) -> dict:
     accepted = duplicates = 0
     requests = planned(run.manifest.run_id, recording, detected, run_time)
+    if not requests:
+        run.evidence('replayed', False, note='nothing to upload: no detected events and no GPS point with measured speed and accuracy')
+        raise ScenarioFailed('replay produced nothing to upload')
     for request in requests:
-        receipt = run.send(request['key'], 'POST', 'automation', request['path'], request['body'], expect=(200,), step='ingest-replay').body or {}
+        try:
+            receipt = run.send(request['key'], 'POST', 'automation', request['path'], request['body'], expect=(200,), step='ingest-replay').body or {}
+        except ScenarioFailed as error:
+            if ' 409' in str(error) or 'received 409' in str(error):
+                raise ScenarioFailed(f'{error}. This recording was already replayed with a different clock; its IDs are stable, so repeat it with the same --now, or resume that run.') from error
+            raise
         accepted += receipt.get('accepted', 0)
         duplicates += receipt.get('duplicates', 0)
     run.evidence('replayed', True, events=len(detected['events']), accepted=accepted, duplicates=duplicates,
                  note='replay evidence accepted by the observation API; detector accuracy still needs labeled rides')
-    if not requests:
-        raise ScenarioFailed('replay produced nothing to upload')
     return {'accepted': accepted, 'duplicates': duplicates}

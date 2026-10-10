@@ -35,9 +35,10 @@ def planned(run_id: str, scenario: Scenario, now) -> list[dict]:
     report = {'id': item_id(run_id, scenario.name, 'control-report'), 'kind': control.get('kind', 'other'), 'lat': control['lat'], 'lon': control['lon'],
               'observed_at': iso(now), 'description': control.get('description', 'DEMO: manual control report')}
     return [
-        {'key': 'control-report', 'method': 'POST', 'target': 'product', 'path': '/v1/reports', 'body': report, 'expect': [201]},
+        {'key': 'control-report', 'method': 'POST', 'target': 'product', 'path': '/v1/reports', 'body': report, 'expect': [201, 200]},
         {'key': 'no-credential', 'method': 'PUT', 'target': 'product', 'path': path, 'body': one, 'expect': [401]},
-        {'key': 'revision-1', 'method': 'PUT', 'target': 'product', 'path': path, 'body': one, 'expect': [201], 'auth': True},
+        {'key': 'bad-credential', 'method': 'PUT', 'target': 'product', 'path': path, 'body': one, 'expect': [401]},
+        {'key': 'revision-1', 'method': 'PUT', 'target': 'product', 'path': path, 'body': one, 'expect': [201, 200], 'auth': True},
         {'key': 'revision-1-retry', 'method': 'PUT', 'target': 'product', 'path': path, 'body': one, 'expect': [200], 'auth': True},
         {'key': 'revision-2', 'method': 'PUT', 'target': 'product', 'path': path, 'body': two, 'expect': [200], 'auth': True},
         {'key': 'revision-1-stale', 'method': 'PUT', 'target': 'product', 'path': path, 'body': one, 'expect': [409], 'auth': True},
@@ -53,7 +54,7 @@ def run_publication_lifecycle(run: Run, scenario: Scenario, now, stop_after: str
 
     def put(key: str, expect, auth=True, step=None):
         entry = steps[key]
-        return run.send(key, 'PUT', 'product', entry['path'], entry['body'], expect=expect, auth=auth, step=step or key)
+        return run.send(key, 'PUT', 'product', entry['path'], entry['body'], expect=expect, auth=auth, step=step or key, skip_done=True)
 
     control_receipt = run.send('control-report', 'POST', 'product', '/v1/reports', control, expect=(201, 200), step='manual-control').body
     before = find_by_id(read_feed(run, bbox), control_receipt['hazard_id'])

@@ -237,6 +237,39 @@ class Recordings(unittest.TestCase):
             with self.assertRaisesRegex(replay.RecordingError, 'already marked trimmed'):
                 replay.trim_recording(Path(root) / 'trimmed', Path(root) / 'again')
 
+    def test_standing_still_jitter_does_not_shrink_the_trim_zone(self):
+        with tempfile.TemporaryDirectory() as root:
+            raw = self.write(Path(root) / 'raw', 600)
+            rows = (raw / 'gps-0000.csv').read_text().splitlines()
+            jitter = ['t_ms,lat,lon,speed_mps,accuracy_m']
+            for i in range(60):  # a minute of 15 m GPS wander at the start (about 400 m of path, no displacement)
+                lat, lon = offset(33.75, -84.38, 15 if i % 2 else -15, 0)
+                jitter.append(f'{i * 1000 - 60000},{lat:.7f},{lon:.7f},1,5')
+            (raw / 'gps-0000.csv').write_text('\n'.join(jitter + rows[1:]) + '\n')
+            replay.trim_recording(raw, Path(root) / 'trimmed')
+            first = replay.read_rows(Path(root) / 'trimmed', 'gps')[0]
+            start = offset(33.75, -84.38, -15, 0)   # the recording's first accurate fix
+            self.assertGreater(distance_m(start[0], start[1], first['lat'], first['lon']), 100)
+
+    def test_trimmed_copy_drops_identifying_metadata(self):
+        with tempfile.TemporaryDirectory() as root:
+            raw = self.write(Path(root) / 'raw', 600)
+            (raw / 'meta.json').write_text(json.dumps({'format': 1, 'ride_id': 'secret-ride', 'started_at': '2026-01-01T00:00:00Z', 'upload_endpoint': 'https://x', 'device': 'Pixel', 'trimmed': False}))
+            replay.trim_recording(raw, Path(root) / 'trimmed')
+            text = (Path(root) / 'trimmed' / 'meta.json').read_text()
+            for secret in ('secret-ride', '2026-01-01', 'https://x', 'Pixel'):
+                self.assertNotIn(secret, text)
+
+    def test_replay_ids_come_from_the_recording_not_the_run(self):
+        with tempfile.TemporaryDirectory() as root:
+            raw = self.write(Path(root) / 'raw', 600)
+            replay.trim_recording(raw, Path(root) / 'trimmed')
+            detected = {'events': [{'t_ms': 30_000, 'type': 'hard_brake', 'lat': 33.75, 'lon': -84.38, 'accuracy_m': 5, 'speed_before_mps': 6, 'speed_after_mps': 2, 'peak_g': 0.5, 'duration_ms': 500}]}
+            one = replay.planned(RUN, Path(root) / 'trimmed', detected, NOW)
+            two = replay.planned(str(run_namespace('other', 1, iso(NOW))), Path(root) / 'trimmed', detected, NOW)
+            self.assertEqual(one[0]['body']['events'][0]['id'], two[0]['body']['events'][0]['id'])
+            self.assertEqual(one[0]['body']['events'][0]['ride_id'], two[0]['body']['events'][0]['ride_id'])
+
     def test_blank_speed_stays_unknown(self):
         with tempfile.TemporaryDirectory() as root:
             rows = replay.read_rows(self.write(Path(root) / 'raw', 100), 'gps')

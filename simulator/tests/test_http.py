@@ -127,6 +127,43 @@ class HttpScenarios(unittest.TestCase):
         self.assertEqual(automatic[0]['evidence_source'], 'simulated')
         self.assertIn('DEMO', automatic[0]['label'])
 
+    def test_resuming_a_partial_publication_run_finishes_instead_of_409(self):
+        argv = ['publication', '--product-url', self.url, '--demo-target', '--stop-after', 'update']
+        self.assertEqual(self.run_cli(*argv, env={'AUTOMATION_PUBLISH_KEY': KEY})[0], 0)
+        path, _ = self.manifest()
+        code, out, err = self.run_cli('publication', '--product-url', self.url, '--demo-target', '--resume', str(path), env={'AUTOMATION_PUBLISH_KEY': KEY})
+        self.assertEqual(code, 0, err)
+        self.assertIn('already completed in this run', out)
+        self.assertEqual([f['properties']['source'] for f in self.services.feed()['features']], ['manual'])
+
+    def test_a_resume_that_succeeds_clears_the_earlier_failure(self):
+        self.services.fail_next = [404]
+        self.assertEqual(self.run_cli('manual', '--product-url', self.url, '--demo-target')[0], 1)
+        path, _ = self.manifest()
+        code, out, err = self.run_cli('manual', '--product-url', self.url, '--demo-target', '--resume', str(path))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(out.strip().splitlines()[-1])['result'], 'PASS')
+
+    def test_dry_run_plan_matches_the_live_publication_requests(self):
+        _, manifest = self.manifest() if False else (None, None)
+        code, out, err = self.run_cli('publication', '--product-url', self.url, env={'AUTOMATION_PUBLISH_KEY': KEY})
+        self.assertEqual(code, 0, err)
+        planned = [r['key'] for r in json.loads(out)['requests']]
+        self.assertEqual(self.writes(), [])
+        self.assertEqual(self.run_cli('publication', '--product-url', self.url, '--demo-target', env={'AUTOMATION_PUBLISH_KEY': KEY})[0], 0)
+        _, manifest = self.manifest()
+        self.assertEqual([r['key'] for r in manifest['requests']], planned)
+
+    def test_negative_control_gets_a_fresh_spot_each_run_so_it_cannot_accumulate(self):
+        spots = set()
+        for seed in (1, 2, 3, 4, 5, 6):
+            code, _, err = self.run_cli('observations', '--scenario', 'demo-seed-negative', '--automation-url', self.url, '--demo-target', '--seed', str(seed), '--now', f'2026-10-10T12:00:0{seed}Z')
+            self.assertEqual(code, 0, err)
+        for event in self.services.events.values() if isinstance(self.services.events, dict) else self.services.events:
+            body = event if isinstance(event, dict) else event[1]
+            spots.add(round(body['lat'], 3))
+        self.assertGreater(len(spots), 3)
+
     def test_publication_without_the_server_side_key_fails_clearly(self):
         code, _, err = self.run_cli('publication', '--product-url', self.url, '--demo-target', env={'AUTOMATION_PUBLISH_KEY': ''})
         self.assertEqual(code, 1)

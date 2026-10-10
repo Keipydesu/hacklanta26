@@ -120,7 +120,12 @@ def attach(manifest: RunManifest, args) -> RunManifest:
 
 
 def finish(run: Run) -> int:
-    failed = [e for e in run.manifest.evidence if not e['ok']]
+    # The latest outcome per (step, request) decides: a failure from an earlier attempt that a resume has
+    # since repeated successfully no longer counts.
+    latest = {}
+    for entry in run.manifest.evidence:
+        latest[(entry['step'], entry.get('key'))] = entry
+    failed = [e for e in latest.values() if not e['ok']]
     print(json.dumps({'result': 'FAIL' if failed else 'PASS', 'scenario': run.manifest.scenario, 'seed': run.manifest.seed, 'now': run.manifest.now,
                       'run_id': run.manifest.run_id, 'manifest': str(run.manifest.path), 'endpoints': run.manifest.endpoints}))
     return 1 if failed else 0
@@ -195,6 +200,12 @@ def dispatch(args) -> int:
     expect_kind(scenario, 'observations')
     endpoints = {'automation': args.automation_url, 'product': args.product_url}
     manifest, now = start_run(args, scenario.name, scenario.digest, scenario.version, endpoints)
+    if scenario.name == 'demo-seed-negative' and not args.at:
+        # Observations persist, so repeated runs at one spot would add up past the worker's threshold and
+        # break the control. Give each run its own spot (about 45 m apart, so clusters never merge).
+        base = scenario.get('clusters')[0]['center']
+        step = int(manifest.run_id[:4], 16) % 40
+        args.at = {'lat': base['lat'] + step * 0.0004, 'lon': base['lon']}
     if not live(args, endpoints, ['automation']):
         print_plan(manifest, observations.planned(manifest.run_id, scenario, manifest.seed, now, args.at))
         return 0

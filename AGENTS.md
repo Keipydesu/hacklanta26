@@ -71,6 +71,8 @@ From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
 - Collector: `npm ci --prefix automatic/collector`; `npm start --prefix automatic/collector`;
   `npm run typecheck --prefix automatic/collector`; `npm run build --prefix automatic/collector`.
 - Detector: `npm ci --prefix automatic/detector`; `npm test --prefix automatic/detector`.
+- Simulator: `PYTHONPATH=simulator/src python3 -m unittest discover -s simulator/tests -t simulator`;
+  `node --test "simulator/replay-detector/*.test.mjs"`.
 - Documentation: `python3 scripts/check_docs.py`; `git diff --check`.
 - Compose setup/start/stop: [infra README](infra/README.md).
 
@@ -185,7 +187,8 @@ Use recorded routing responses and fixtures so checks do not require live upstre
 ## Gotchas
 
 - Stage 0 stubs are not production implementations. Check component READMEs before relying on behavior.
-- `simulator/`, real DB models, routing infrastructure and sensor processing are still planned.
+- `simulator/` exists (scenario CLI; run `PYTHONPATH=simulator/src python3 -m simulator.cli scenarios`). Real-ride
+  tuning, closure scenarios and the hosted rehearsal are still planned.
 
 ## Working agreements
 
