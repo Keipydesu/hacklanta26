@@ -1,0 +1,17 @@
+# Product HTTPS. Only the versioned API, the live socket and the health probe are proxied;
+# everything else is 404. Caddy obtains and renews the certificate for PRODUCT_HOSTNAME.
+{$PRODUCT_HOSTNAME} {
+	encode zstd gzip
+	@product path /v1/* /healthz
+	handle @product {
+		# Also carries the /v1/live WebSocket upgrade.
+		reverse_proxy api:8000
+	}
+	handle {
+		respond "Not found" 404
+	}
+}
+
+# Optional sites (the observation hostname) are copied into caddy/enabled/ only when their
+# service runs, so an absent automation stack can never break this file.
+import /etc/caddy/extra/*.caddy

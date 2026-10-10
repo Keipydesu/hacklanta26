@@ -1,12 +1,24 @@
+# Manual stack by default: db + api. Everything else is opt-in through a profile:
+#   --profile routing     self-hosted Valhalla (needs tiles from infra/valhalla/build_tiles.sh)
+#   --profile https       Caddy with automatic TLS for PRODUCT_HOSTNAME
+#   --profile automation  observation API + hazard worker with its own database and credentials
+# No manual service depends on an optional one. See infra/README.md.
+name: campus
 services:
   db:
     image: postgis/postgis:16-3.4
+    restart: unless-stopped
     environment:
       POSTGRES_DB: product
       POSTGRES_USER: product
       POSTGRES_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD in infra/.env}
+      # Only used to create the separate observation role/database on first start; may stay empty.
+      OBSERVATIONS_DB_PASSWORD: ${OBSERVATIONS_DB_PASSWORD:-}
     volumes:
       - product-data:/var/lib/postgresql/data
+      # One file, so the image's own PostGIS init scripts in that directory stay in place.
+      - ./db/init/10-observations.sh:/docker-entrypoint-initdb.d/20-observations.sh:ro
+    # No published port: only services on this Compose network can reach PostgreSQL.
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U product -d product']
       interval: 5s
@@ -16,13 +28,74 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
+    restart: unless-stopped
     ports:
-      - '8000:8000'
+      # Local development default reaches phones on the LAN. Set API_BIND=127.0.0.1 on a public
+      # host so only Caddy is exposed.
+      - '${API_BIND:-0.0.0.0}:${API_PORT:-8000}:8000'
     environment:
-      AUTOMATION_PUBLISH_KEY: ${AUTOMATION_PUBLISH_KEY:?Set a development-only publisher key in infra/.env}
+      AUTOMATION_PUBLISH_KEY: ${AUTOMATION_PUBLISH_KEY:?Set a publisher key in infra/.env}
       DATABASE_URL: postgresql://product:${PRODUCT_DB_PASSWORD}@db:5432/product
+      # Empty keeps the fixed example routes; http://valhalla:8002 with the routing profile.
+      VALHALLA_URL: ${VALHALLA_URL:-}
     depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Product health only: never fails because routing or automation is down.
+      test: [CMD, python, -c, "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+  valhalla:
+    profiles: [routing]
+    image: ${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla:3.9.1}
+    restart: unless-stopped
+    # Serving only. Tiles are built separately and mounted read-only.
+    command: [valhalla_service, /custom_files/valhalla.json, '1']
+    volumes:
+      - ./valhalla/custom_files:/custom_files:ro
+    expose:
+      - '8002'
+  caddy:
+    profiles: [https]
+    image: ${CADDY_IMAGE:-caddy:2.10.0}
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      PRODUCT_HOSTNAME: ${PRODUCT_HOSTNAME:-localhost}
+      OBSERVATION_HOSTNAME: ${OBSERVATION_HOSTNAME:-observations.localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Empty for the manual stack. infra/enable_automation_proxy.sh copies the observation site here.
+      - ./caddy/enabled:/etc/caddy/extra:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+  automatic:
+    profiles: [automation]
+    build:
+      context: ..
+      dockerfile: automatic/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${AUTOMATION_BIND:-0.0.0.0}:${AUTOMATION_PORT:-8001}:8001'
+    environment:
+      # Its own database and role. It never receives DATABASE_URL or the product password.
+      AUTOMATION_DATABASE_URL: postgresql://observations:${OBSERVATIONS_DB_PASSWORD:-}@db:5432/observations
+      PRODUCT_API_URL: ${PRODUCT_API_URL:-http://api:8000}
+      AUTOMATION_PUBLISH_KEY: ${AUTOMATION_PUBLISH_KEY}
+      DEMO_MODE: ${DEMO_MODE:-0}
+    depends_on:
+      # Deliberately not the product API: observations keep landing while it is down.
       db:
         condition: service_healthy
 volumes:
   product-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,12 @@
+# Observation ingestion on its own hostname. Enabled only with the automation profile:
+#   infra/enable_automation_proxy.sh on
+{$OBSERVATION_HOSTNAME} {
+	encode zstd gzip
+	@observations path /v1/events /v1/rides/* /healthz
+	handle @observations {
+		reverse_proxy automatic:8001
+	}
+	handle {
+		respond "Not found" 404
+	}
+}
