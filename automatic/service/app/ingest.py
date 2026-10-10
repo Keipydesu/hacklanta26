@@ -1,13 +1,20 @@
 """Atomic UUID-batch ingestion. A conflict anywhere rejects the whole batch (409)."""
+from datetime import datetime, timezone
+
 from psycopg.types.json import Jsonb
 
 class Conflict(Exception):
     pass
 
+def canonical_payload(body):
+    """Compare instants, including payloads stored before UTC normalization was introduced."""
+    stamp = datetime.fromisoformat(body['ts']).astimezone(timezone.utc)
+    return dict(body, ts=stamp.isoformat().replace('+00:00', 'Z'))
+
 def normalize(item, ride_id):
     body = item.model_dump(mode='json')
     body['ride_id'] = str(ride_id)  # identity includes the ride, even for points (path parameter)
-    return body
+    return canonical_payload(body)
 
 async def compare_and_insert(conn, table, items, insert_sql, params_for):
     """items: [(id, ride_id, model)]. Returns (accepted, duplicates). Caller owns the transaction."""
@@ -27,7 +34,7 @@ async def compare_and_insert(conn, table, items, insert_sql, params_for):
             accepted += 1
             continue
         row = await (await conn.execute(f'SELECT payload FROM {table} WHERE id = %s', (id,))).fetchone()
-        if row['payload'] != body:
+        if canonical_payload(row['payload']) != body:
             raise Conflict()
         duplicates += 1
     return accepted, duplicates

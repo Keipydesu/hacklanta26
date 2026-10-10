@@ -84,6 +84,36 @@ def test_points_identity_includes_ride_and_concurrent_identical_batches():
     run_app(scenario)
     assert sql('SELECT count(*) FROM points') == [(1,)]
 
+@pytest.mark.parametrize('table', ['events', 'points'])
+@pytest.mark.parametrize('legacy_payload', [False, True])
+def test_equivalent_timestamp_offsets_are_duplicates_even_for_existing_payloads(table, legacy_payload):
+    ride = uuid4()
+    original = event(ride=ride)
+    if table == 'points':
+        original = dict(json.loads((ROOT/'fixtures/points.json').read_text())['points'][0],
+                        id=str(uuid4()), ts=original['ts'])
+    instant = datetime.fromisoformat(original['ts'])
+    offset_ts = instant.astimezone(timezone(timedelta(hours=-4))).isoformat()
+    retry = dict(original, ts=offset_ts)
+    path = '/v1/events' if table == 'events' else f'/v1/rides/{ride}/points'
+
+    async def initial(client, app):
+        assert (await client.post(path, json={table: [original]})).json() == {'accepted': 1, 'duplicates': 0}
+    run_app(initial)
+    if legacy_payload:
+        # Rows persisted before UTC normalization must remain retryable without a data migration.
+        sql(f"UPDATE {table} SET payload = jsonb_set(payload, '{{ts}}', %s::jsonb) RETURNING id", json.dumps(offset_ts))
+        retry = original
+
+    async def after_restart(client, app):
+        response = await client.post(path, json={table: [retry, original]})
+        assert response.status_code == 200
+        assert response.json() == {'accepted': 0, 'duplicates': 2}
+        changed = dict(retry, ts=(instant + timedelta(seconds=1)).isoformat())
+        assert (await client.post(path, json={table: [changed]})).status_code == 409
+    run_app(after_restart)
+    assert sql('SELECT dirty_seq FROM worker_state') == [(1,)]
+
 # ---- worker ----------------------------------------------------------------------------------
 
 def seed(events):
@@ -417,6 +447,26 @@ def test_malformed_receipt_retries_instead_of_stranding_claimed_rows():
             return httpx.Response(200, json={'oops': True})
     assert deliver(Garbage())['retry'] == 1
     assert states() == [(1, 'pending', 1)]
+
+@pytest.mark.parametrize('content', [b'', b'<html>temporary proxy error</html>'])
+def test_non_json_success_retries_then_delivers_successor_in_order(content):
+    first = cluster()
+    seed(first)
+    evaluate()
+    seed([event(6, ride=first[0]['ride_id'])])
+    evaluate()
+    bodies = sql('SELECT body FROM outbox ORDER BY revision')
+    class BadJson(Product):
+        def handle(self, request):
+            return httpx.Response(200, content=content)
+    assert deliver(BadJson()) == {'delivered': 0, 'retry': 1, 'blocked': 0}
+    assert states() == [(1, 'pending', 1), (2, 'pending', 0)]
+    product = Product()
+    later = NOW + timedelta(minutes=10)
+    assert deliver(product, later)['delivered'] == 1
+    assert deliver(product, later)['delivered'] == 1
+    assert [call[1] for call in product.calls] == [1, 2]
+    assert sql('SELECT body FROM outbox ORDER BY revision') == bodies
 
 def test_rebase_renumbers_blocked_rows_above_the_products_revision_and_resumes():
     first = cluster()

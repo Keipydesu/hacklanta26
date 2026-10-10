@@ -10,6 +10,9 @@ from .worker import LOCK_KEY
 LEASE = timedelta(seconds=60)
 BACKOFF_CAP_S = 300
 
+class ReceiptConflict(ValueError):
+    """A parsed receipt contradicts the persisted revision or public identity."""
+
 CLAIM_SQL = '''
 UPDATE outbox SET state = 'sending', lease_until = %s, attempts = attempts + 1
 WHERE (external_id, revision) IN (
@@ -46,12 +49,12 @@ async def deliver_due(pool, client: httpx.AsyncClient, url, key, now, limit=10):
             if not isinstance(receipt, dict) or 'hazard_id' not in receipt or 'revision' not in receipt:
                 raise TypeError('malformed receipt')  # server misbehaving: retry, don't block
             if receipt['revision'] != job['revision']:
-                raise ValueError(f"receipt revision {receipt.get('revision')} != {job['revision']}")
+                raise ReceiptConflict(f"receipt revision {receipt.get('revision')} != {job['revision']}")
             async with pool.connection() as conn:
                 known = await (await conn.execute('SELECT product_hazard_id FROM derived_hazards WHERE external_id = %s',
                                                   (job['external_id'],))).fetchone()
             if known and known['product_hazard_id'] and str(known['product_hazard_id']) != receipt['hazard_id']:
-                raise ValueError('product hazard ID changed for a stable external ID')
+                raise ReceiptConflict('product hazard ID changed for a stable external ID')
         except httpx.HTTPStatusError as error:
             status = error.response.status_code
             if status in (401, 409, 422):  # credential, revision disagreement, payload defect: stop blind retries
@@ -63,7 +66,7 @@ async def deliver_due(pool, client: httpx.AsyncClient, url, key, now, limit=10):
         except httpx.HTTPError as error:
             await mark(pool, job, 'pending', type(error).__name__, now + timedelta(seconds=backoff(job['attempts'])))
             counts['retry'] += 1
-        except ValueError as error:
+        except ReceiptConflict as error:
             await mark(pool, job, 'blocked', str(error))
             counts['blocked'] += 1
         except Exception as error:  # e.g. a 200 with a malformed receipt: never leave the claim hanging until its lease expires

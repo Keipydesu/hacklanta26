@@ -10,6 +10,9 @@ An independent FastAPI service with no product imports or product DB credentials
   revision order per hazard, with capped jittered backoff; 401/409/422 block that hazard until an operator
   runs `outbox.release_blocked` after reconciling. Migrations apply at startup under an advisory lock.
   `/healthz` reports worker state and outbox backlog (pending, blocked, oldest age).
+  Empty/non-JSON success receipts retry the unchanged publication; a contradictory parsed revision
+  or public hazard ID blocks it for reconciliation. Observation retry identity compares timestamps in
+  UTC, including previously stored payloads with another offset; equivalent instants are duplicates.
 - **Unset**: the stage 0 nonpersistent in-memory stub (no worker).
 
 **Abandonment** (`app/abandonment.py`): H3 res-10 cells from `points` (rides/day in rolling 24 h windows:
