@@ -75,7 +75,7 @@ def test_legs_are_joined_without_duplicating_the_shared_point():
 def test_no_hazards_gives_identical_routes_with_zero_risk():
     result = run_plan(Recorded(), [])
     shortest, safest = result['routes']
-    assert result['safest_available'] and shortest == dict(safest, kind='shortest')
+    assert not result['safest_available'] and shortest == dict(safest, kind='shortest')
     assert shortest['risk_score'] == 0 and shortest['hazard_ids'] == []
 
 def test_hazard_on_baseline_is_avoided_by_safest_and_reported_on_shortest():

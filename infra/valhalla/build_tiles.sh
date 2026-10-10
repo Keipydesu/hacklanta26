@@ -3,6 +3,7 @@
 # Tile building is separate from serving: never run this as part of API or Compose startup.
 #
 #   infra/valhalla/build_tiles.sh EXTRACT.osm.pbf        # use an extract you already have
+#   infra/valhalla/build_tiles.sh --campus               # small GSU extract from Overpass, no osmium needed
 #   infra/valhalla/build_tiles.sh --geofabrik            # download Georgia and clip metro Atlanta (needs osmium)
 #
 # Output (ignored by git) under infra/valhalla/custom_files/:
@@ -24,6 +25,22 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/valhalla-build.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 case "${1:-}" in
+  --campus)
+    BBOX='-84.40,33.74,-84.37,33.77'
+    SOURCE='https://overpass-api.de/api/interpreter'
+    EXTRACT=extract.osm
+    note "downloading GSU campus map data ($BBOX)"
+    # Complete ways plus their referenced nodes; XML is accepted by Valhalla's OSM reader.
+    curl -fL --retry 2 --max-time 180 --data-urlencode \
+      'data=[out:xml][timeout:120];way(33.74,-84.40,33.77,-84.37);(._;>;);out body;' \
+      "$SOURCE" -o "$WORK/$EXTRACT"
+    python3 - "$WORK/$EXTRACT" <<'PY'
+import sys, xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+if root.tag != 'osm' or root.find('remark') is not None or root.find('way') is None:
+    sys.exit('Overpass did not return a complete campus extract; existing tiles are unchanged')
+PY
+    ;;
   --geofabrik)
     command -v osmium >/dev/null || die "--geofabrik needs osmium-tool on this machine to clip the extract"
     note "downloading $GEOFABRIK_URL"
@@ -31,7 +48,7 @@ case "${1:-}" in
     SOURCE="$GEOFABRIK_URL"
     note "clipping to $BBOX"
     osmium extract --bbox "$BBOX" --output "$WORK/extract.osm.pbf" "$WORK/georgia.osm.pbf"; EXTRACT=extract.osm.pbf ;;
-  ""|-*) die "usage: $0 EXTRACT.osm.pbf | --geofabrik" ;;
+  ""|-*) die "usage: $0 EXTRACT.osm.pbf | --campus | --geofabrik" ;;
   *)
     [ -s "$1" ] || die "extract $1 not found or empty"
     case "$1" in *.pbf) EXTRACT=extract.osm.pbf ;; *) EXTRACT=extract.osm ;; esac   # Valhalla picks the reader by extension

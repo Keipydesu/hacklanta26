@@ -55,12 +55,34 @@ and containers when upgrading from main. If you previously used `-p` or
 
 ### Routing (optional)
 
+For the manual demo, one command builds or reuses tiles, starts `db`, `valhalla` and `api`, and
+succeeds only after a real route request passes (never on fixture routes):
+
 ```sh
-infra/valhalla/build_tiles.sh path/to/extract.osm.pbf   # or --geofabrik (needs osmium)
+infra/start_routing_demo.sh --campus   # first run: small GSU extract from Overpass, no osmium needed
+infra/start_routing_demo.sh            # later runs: reuse the validated tiles in valhalla/custom_files/
+```
+
+It sets `VALHALLA_URL=http://valhalla:8002` for its Compose calls without editing `infra/.env`.
+It probes the running API's published address from Compose, including shell overrides of
+`API_PORT` and `API_BIND`. Point the phone at the printed `EXPO_PUBLIC_API_URL`; replace
+`YOUR_LAN_IP` with this machine's LAN address for a wildcard bind. A loopback-only bind must be
+changed to a LAN address before a phone can connect. Failure to resolve the published address
+stops the script instead of probing a guessed port.
+
+The same steps by hand:
+
+```sh
+infra/valhalla/build_tiles.sh --campus   # or path/to/extract.osm.pbf, or --geofabrik (needs osmium)
 # then in infra/.env:  VALHALLA_URL=http://valhalla:8002
 docker compose --env-file infra/.env -f infra/docker-compose.yml --profile routing up -d --wait
-infra/check_stack.sh http://localhost:8000 --expect-routing valhalla
+infra/check_stack.sh http://localhost:8000 --expect-routing valhalla --probe-route
 ```
+
+Without a reachable engine the API answers with its fixed example route and an `X-Stage-0-Stub`
+header. Outside offline preview mode the app treats that as an outage ("Routing is unavailable
+right now") with a retry button, rather than drawing example lines; reporting and the hazard map keep
+working.
 
 The script builds in a temporary directory, serves the new tiles on a private port, requests a
 real pedestrian route across GSU (16 km/h, step penalty 600), and only then replaces

@@ -95,7 +95,8 @@ async def plan(client, origin, destination, load_hazards):
     everything = list(hazards.values())
     shortest_json = route_json('shortest', baseline, everything)
     safest_json = route_json('safest', safest, everything)
-    if safest_json['risk_score'] > shortest_json['risk_score']:  # a detour that is riskier is not "safest"
+    # An identical path or equal-risk detour is not a distinct lower-risk alternative.
+    if safest_json['geometry'] == shortest_json['geometry'] or safest_json['risk_score'] >= shortest_json['risk_score']:
         safest_json, safest_available = dict(shortest_json, kind='safest'), False
     return {'routes': [shortest_json, safest_json], 'safest_available': safest_available}
 
