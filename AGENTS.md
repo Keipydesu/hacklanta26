@@ -34,8 +34,8 @@ introduces them. Keep records short and update affected plans to match.
 
 ## Current state
 
-Stage 0 contracts, fixtures and independently runnable skeletons now exist. Product and
-observation APIs use nonpersistent memory; mobile/collector export native bundles; the detector is
+Stage 0 contracts, fixtures and independently runnable skeletons now exist. The product API persists to PostGIS when `DATABASE_URL` is set (memory otherwise); the
+observation API uses nonpersistent memory; mobile/collector export native bundles; the detector is
 an explicit no-op. Real persistence, offline queues, sensors, routing and deployment remain later
 milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
 
@@ -44,8 +44,8 @@ milestones. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md)
 | Layer | Stage 0 state |
 |---|---|
 | Mobile | Expo SDK 55 + TypeScript + React Native Maps; fixture/live stub screens |
-| Backend | FastAPI in-memory stub |
-| Data | PostgreSQL + PostGIS Compose container; API persistence not connected |
+| Backend | FastAPI; PostGIS persistence via psycopg when `DATABASE_URL` is set, memory stub otherwise |
+| Data | PostgreSQL + PostGIS Compose container; product API persists reports/hazards/revisions |
 | Routing | Fixed fixture; planned Valhalla pedestrian costing with scooter pace/step penalty |
 | Automatic collector | Separate Expo simulated fixture sender; no sensors yet |
 | Automatic detector | Pure TypeScript no-op interface in `automatic/detector/` |
