@@ -22,7 +22,9 @@ test('Submit needs a category, a fresh location, a live API and no save in progr
   assert.equal(canSubmit({ ...ok, submitting: true }), false);
 });
 
-test('a location control only appears when there is something to retry', () => {
+test('the rider always has a way to a fresh fix: retry after failure or expiry, start one when idle', () => {
   for (const status of ['denied', 'unavailable', 'expired']) assert.equal(locationAction(status), 'Retry location', status);
-  for (const status of ['idle', 'locating', 'ready']) assert.equal(locationAction(status), null, status);
+  assert.equal(locationAction('idle'), 'Use my location', 'after a report is queued the fix is cleared; never a dead-end Submit');
+  for (const status of ['locating', 'ready']) assert.equal(locationAction(status), null, status);
+  for (const status of ['idle', 'denied', 'expired']) assert.equal(locationAction(status, true), null, 'fixture mode never requests location');
 });

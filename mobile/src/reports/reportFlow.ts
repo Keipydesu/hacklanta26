@@ -15,6 +15,13 @@ export const showSubmit = (kind: string | null) => kind !== null;
 export const canSubmit = (s: { kind: string | null; locationReady: boolean; fixtureMode: boolean; submitting: boolean }) =>
   s.kind !== null && s.locationReady && !s.fixtureMode && !s.submitting;
 
-/** A location control only when the rider has something to do: retry after a failure or expiry. */
-export const locationAction = (status: Status): string | null =>
-  status === 'denied' || status === 'unavailable' || status === 'expired' ? 'Retry location' : null;
+/**
+ * A location control whenever the rider would otherwise be stuck without a fresh fix: retry after a
+ * failure or expiry, or start one when none is in progress (e.g. right after a report was queued).
+ * Not in fixture mode, where location is never requested.
+ */
+export function locationAction(status: Status, fixtureMode = false): string | null {
+  if (fixtureMode) return null;
+  if (status === 'denied' || status === 'unavailable' || status === 'expired') return 'Retry location';
+  return status === 'idle' ? 'Use my location' : null;
+}

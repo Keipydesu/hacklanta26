@@ -62,17 +62,16 @@ function CampusApp() {
     setRegion(next);
   }
   const [reportLocation, setReportLocation] = useState<ReportLocationState>({ status: 'idle' });
+  const reportLocationRef = useRef<ReportLocationState>({ status: 'idle' });
   const [reportLocator] = useState(() => createReportLocation({
     requestPermission: async () => (await Location.requestForegroundPermissionsAsync()).granted,
     locate: () => locatePosition(Location, Location.Accuracy.Balanced),
     enabled: !fixtureMode,
     setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>),
-    now: Date.now, onChange: setReportLocation,
+    now: Date.now, onChange: next => { reportLocationRef.current = next; setReportLocation(next); },
   }));
   const screenRef = useRef(screen);
   screenRef.current = screen;
-  const reportLocationRef = useRef(reportLocation);
-  reportLocationRef.current = reportLocation;
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
       reportLocator.onAppState(state);
@@ -186,6 +185,7 @@ function CampusApp() {
         await queue.enqueue(reportLocator.freeze({ kind }, Crypto.randomUUID()));
         reportLocator.clear();
         setKind(null);
+        void reportLocator.request();
         void queue.drain();
       } catch (e) { setError(`Report was not saved: ${String(e)}`); }
       finally { setSubmitting(false); }
@@ -287,7 +287,7 @@ function CampusApp() {
         {reportLocation.status === 'denied' && <Text accessibilityRole="alert" style={styles.error}>Location permission is required to report a hazard. Enable it in Settings, then retry.</Text>}
         {reportLocation.status === 'unavailable' && <Text accessibilityRole="alert" style={styles.error}>Current location is unavailable. Check location services and retry; location is required to submit.</Text>}
         {reportLocation.status === 'expired' && <Text accessibilityRole="alert" style={styles.error}>Your location has expired. Refresh it before submitting.</Text>}
-        {locationAction(reportLocation.status) && <Button icon="locate" title={locationAction(reportLocation.status)!}
+        {locationAction(reportLocation.status, fixtureMode) && <Button icon="locate" title={locationAction(reportLocation.status, fixtureMode)!}
           disabled={fixtureMode || submitting} onPress={() => void reportLocator.request()} />}
         {reportLocation.status === 'denied' && <Button title="Open location settings" onPress={() => void Linking.openSettings().catch(() => setError('Open device Settings to enable location permission.'))} />}
         <View style={styles.categories} accessibilityRole="radiogroup" accessibilityLabel="Hazard category">{CATEGORIES.map(({ kind: k, label, hint }) => <Pressable key={k}
