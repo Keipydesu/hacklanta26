@@ -8,5 +8,16 @@
     "outDir": ".test-dist",
     "types": []
   },
-  "include": ["src/api/hazardRefresh.ts", "src/api/live.ts", "src/reports/queue.ts", "src/reports/submit.ts", "src/reports/location.ts", "src/location/foreground.ts", "src/routes/model.ts"]
+  "include": [
+    "src/api/hazardRefresh.ts",
+    "src/api/live.ts",
+    "src/reports/queue.ts",
+    "src/reports/submit.ts",
+    "src/reports/location.ts",
+    "src/location/foreground.ts",
+    "src/routes/model.ts",
+    "src/map/protocol.ts",
+    "src/map/overlay.ts",
+    "src/map/html.ts"
+  ]
 }

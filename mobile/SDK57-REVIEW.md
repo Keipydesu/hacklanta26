@@ -11,7 +11,7 @@ Review date: 2026-10-10. Scope: the manual mobile app; no backend, contract, or 
 | react | 19.2.3 | Same bundled compatibility manifest |
 | expo-crypto | 57.0.2 | August 24 release; matches bundled manifest and preserves randomUUID API |
 | expo-location | 57.0.14 | August 26 release; matches bundled manifest and preserves foreground location APIs |
-| react-native-maps | 1.27.2 | Unchanged; still the bundled compatible version |
+| react-native-maps | 1.27.2 | Unchanged at the time; later removed in favor of MapLibre in a WebView ([MAPLIBRE-REVIEW.md](MAPLIBRE-REVIEW.md)) |
 | @react-native-async-storage/async-storage | 2.2.0 | Unchanged; still the bundled compatible version |
 
 TypeScript remains locked to 5.9.3 and React types to 19.2.18. Runtime dependencies changed here

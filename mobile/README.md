@@ -1,6 +1,7 @@
 # Manual mobile app
 
-Expo SDK 57 + TypeScript, React Native Maps. No sensor imports or motion permissions. Uses only
+Expo SDK 57 + TypeScript. The map is MapLibre GL JS in a WebView with OpenFreeMap OSM vector tiles
+([decisions 010](../docs/decisions/010-osm-maplibre-basemap.md) and [011](../docs/decisions/011-positron-and-dark-matter-map-themes.md)). No sensor imports or motion permissions. Uses only
 its local generated product types and copied fixtures; the automatic tree is not a dependency.
 SDK versions follow the [Expo 57 compatibility table](https://docs.expo.dev/versions/v57.0.0/).
 
@@ -19,6 +20,33 @@ signed native binary. Open the development server using an SDK-57-compatible Exp
 build. The refresh regression tests run in Node without a device. Both native bundle exports and typechecking have been verified; a physical-device visual
 and interaction check is still needed.
 
+## Map
+
+`src/map/` holds the map. `MapLibreView` renders a self-contained page in `react-native-webview`, which
+ships in Expo Go. The page runs MapLibre GL JS 6.11.2, inlined from `node_modules` into the gitignored
+`src/map/maplibreBundle.generated.ts` by `npm run map:bundle`. The start, typecheck, test and build
+scripts run that step first. Nothing loads from a CDN at runtime.
+
+- **Basemap:** OpenFreeMap's OSM-derived Positron style is the default light map. The map button
+  switches to OpenFreeMap Dark, a fork of Dark Matter, without resetting the viewport or overlays.
+  The choice resets to Positron on launch. Override the light and dark styles with
+  `EXPO_PUBLIC_MAP_STYLE_URL` and `EXPO_PUBLIC_MAP_DARK_STYLE_URL` (public values, never secrets).
+  MapLibre shows the required OpenFreeMap/OpenMapTiles/OpenStreetMap attribution; its links open in
+  the browser.
+- **Routing consistency:** Valhalla also routes over OSM, but over a dated Georgia extract rather
+  than OpenFreeMap's build, so small drift between drawn and routed paths is expected (issue #27).
+- **Offline:** if the selected style can't load within 12 s, the page switches to a light or dark
+  local blank background with a notice. Hazards, pins and routes still draw, so the fixture preview
+  works without network. Switching themes retries the remote style.
+- **Privacy:** tile requests reveal the viewed area to OpenFreeMap. Reports and routes go only to
+  the product API.
+- **Bridge:** app-to-page messages and their validation live in `src/map/protocol.ts`, and the
+  overlay is built by `src/map/overlay.ts`. The page script is `map-web/page.js`. All three are
+  covered by `tests/map.cjs` in Node. Dependency review: [MAPLIBRE-REVIEW.md](MAPLIBRE-REVIEW.md).
+  Repeated world copies normalize pin longitudes and shift viewport bounds together into WGS84.
+  Dateline-crossing views still clip at ±180 because the API does not support crossing bounds.
+  A viewport centered exactly on the dateline consistently selects the -180 side in every copy.
+
 With no `EXPO_PUBLIC_API_URL`, the app opens in visibly labeled offline fixture preview mode.
 Map source/evidence labels and expiry are shown; timestamps shift once per app session. Report
 submission is disabled in fixture mode. The route screen shows fixed example GSU routes, labeled
@@ -36,8 +64,9 @@ Never put a publication key in this app or any Expo public variable.
 
 Tap Report, choose a kind, tap "Use my location" and submit after the foreground fix succeeds.
 Location is required: denial offers Settings and retry; unavailable location offers retry. Report
-markers cannot be placed or dragged. Refresh a fix older than 60 seconds; leaving the Report tab,
-backgrounding, or saving a report clears it. A lookup times out after 20 seconds so it can be retried. Submit
+markers cannot be placed or dragged. Refresh a fix older than 60 seconds; saving or backgrounding
+with no lookup in flight clears it. Switching tabs preserves a fresh fix. Permission dialogs have
+no deadline; after permission is granted, the position lookup times out after 20 seconds. Submit
 freezes the report (UUID, observation time, body) and saves it to AsyncStorage before any network
 call. It is then shown as queued/sending/submitted/failed and resent with the identical body after
 transient failures (bounded exponential backoff), app foregrounding and relaunch. Pending reports
@@ -114,18 +143,27 @@ Run with the live API URL above, open Report, and tap "Use my location". New rep
 fresh fix; existing queued reports resume without acquiring one. Route endpoint controls are
 unchanged. No API changes or dependencies were added; fixture submissions remain disabled.
 
-Verified locally: TypeScript typecheck, 44 Node tests (including location gating, stale results,
-expiry and queue identity after restart), documentation links and whitespace checks. Native
+Verified locally after review fixes: TypeScript typecheck, 79 Node tests (including location gating, stale results,
+expiry and queue identity after restart), documentation links, whitespace checks and iOS/Android bundle exports. Native
 permission dialogs and Settings return still need physical-device verification:
 
 - Deny permission: submission stays disabled, retry/Settings are offered, and map taps cannot
   place a report pin. Enable permission in Settings and retry successfully.
 - Disable location services or let a lookup time out: retry stays available. Late results must
   not overwrite a newer fix. A successful report marker cannot be dragged.
-- Let a fix age beyond one minute, leave Report, or background the app: acquire a new fix before
-  submitting. Permission-dialog inactivity alone must not cancel the request on iOS.
+- Let a fix age beyond one minute: the marker/coordinates disappear, Submit disables and a refresh
+  prompt appears without another interaction. Switching tabs preserves a fresh fix. Backgrounding
+  with no lookup in flight clears it; permission-dialog background/inactive events must preserve
+  a pending lookup on both platforms. Leave the permission prompt open for over 20 seconds before
+  allowing it: only the subsequent position lookup has a 20-second deadline.
 - Queue offline, relaunch and revoke location permission: the saved report still retries with
   its original UUID/body. Route start/destination pins remain draggable without permission.
 
 The hosted two-phone gate and native interaction checks remain pending; Node tests do not verify
 OS permission prompts or native map gestures. CI remains the native bundle export gate.
+
+PR #31 review fixes: controller-owned expiry/deadline timers, native-fix observation timestamps,
+permission-dialog lifecycle handling, and fixture-mode location gating have deterministic regression
+tests. The MapLibre report marker is read-only and absent without a fresh fix. Route pins retain
+their existing behavior. No dependency or public API changes. Native Android/iOS permission dialogs
+and Settings return remain unverified; automated lifecycle tests do not replace device checks.

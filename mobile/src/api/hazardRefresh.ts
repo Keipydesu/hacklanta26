@@ -1,12 +1,14 @@
 import type { components } from './schema';
 
-type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
 type Hazards = components['schemas']['HazardCollection'];
 
-/** Stable across renders; neither a delayed submit nor an old response can restore old bounds. */
-export function createHazardRefresh(
-  currentRegion: () => Region,
-  load: (region: Region) => Promise<Hazards>,
+/**
+ * Stable across renders; neither a delayed submit nor an old response can restore old bounds.
+ * The viewport is compared by identity, so the caller must keep one object per settled viewport.
+ */
+export function createHazardRefresh<Viewport>(
+  currentRegion: () => Viewport,
+  load: (region: Viewport) => Promise<Hazards>,
   apply: (result: Hazards) => void,
   fail: (error: unknown) => void,
 ) {

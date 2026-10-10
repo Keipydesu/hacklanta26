@@ -1,4 +1,4 @@
-# 011. Require device location for new hazard reports
+# 013. Require device location for new hazard reports
 
 - Status: Accepted
 - Date: 2026-10-10
@@ -22,5 +22,4 @@ contracts do not change; the client requirement is not server-side location atte
 ## Supersedes
 
 The manual report-pin fallback requirement in AGENTS.md, ARCHITECTURE.md, README.md, the Lane A
-plan and mobile/rehearsal guidance. No earlier numbered decision is superseded. Decision number
-010 is reserved by the concurrently active UI design worktree.
+plan and mobile/rehearsal guidance. No earlier numbered decision is superseded. Numbered after integrating main to avoid its map-theme decision 011.

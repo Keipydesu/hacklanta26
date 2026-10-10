@@ -41,6 +41,7 @@ backend/                         Shared platform: FastAPI [C]
   app/db/                        manual_reports and hazards
   app/schemas.py                 generated/contract-aligned schemas [0]
   app/routing/                   Valhalla client and planner [C]
+  bike_lanes/                    OSM campus bike-lane export and GeoJSON [C]
   tests/api/                     [C]
   tests/routing/                  [C]
 automatic/                       Track 2: standalone subsystem
@@ -195,11 +196,12 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 
 ## 8. Privacy and source labeling
 
-- The manual app requires a one-shot foreground device location for each new report, requested by an explicit user action. Denied or unavailable location blocks new reports with retry/settings guidance; there is no manual report-pin fallback. Submission sends that point and report, not a ride trace. Saved submissions retain their original coordinates on retry. Route endpoint pins remain available independently. See [decision 011](docs/decisions/011-required-report-location.md).
+- The manual app requires a one-shot foreground device location for each new report, requested by an explicit user action. Denied or unavailable location blocks new reports with retry/settings guidance; there is no manual report-pin fallback. Submission sends that point and report, not a ride trace. Saved submissions retain their original coordinates on retry. Route endpoint pins remain available independently. See [decision 013](docs/decisions/013-required-report-location.md).
 - No accounts or persistent device IDs in the MVP. Automatic collection is separate and opt-in, with a fresh random ride UUID.
 - The automatic collector trims the first and last 100 m before uploading points or events. Local diagnostic recordings require deliberate recorder mode; remove identifying endpoints before sharing fixtures.
 - Public product endpoints expose hazard aggregates, never ordered ride paths. Simulated/replayed automatic hazards remain visibly labeled as such.
 - UI copy says “lower-risk route,” never “safe route.”
+- The manual app's basemap is OSM vector tiles from OpenFreeMap, drawn by MapLibre GL JS in a WebView ([decisions 010](docs/decisions/010-osm-maplibre-basemap.md) and [011](docs/decisions/011-positron-and-dark-matter-map-themes.md)). Positron is the default light style; OpenFreeMap Dark (a Dark Matter fork) is selectable. Tile requests reveal the viewed area to that host; reports and routes do not go there. The required OpenStreetMap attribution stays visible.
 
 ## 9. Configuration
 
@@ -208,6 +210,8 @@ Manual reports bypass automatic clustering completely. Automatic recomputation c
 | `DATABASE_URL` | product API | Product database only |
 | `VALHALLA_URL` | product API | Routing server |
 | `EXPO_PUBLIC_API_URL` | mobile | Shared product API URL |
+| `EXPO_PUBLIC_MAP_STYLE_URL` | mobile | Optional light MapLibre style; defaults to OpenFreeMap Positron (public, never a secret) |
+| `EXPO_PUBLIC_MAP_DARK_STYLE_URL` | mobile | Optional dark MapLibre style; defaults to OpenFreeMap Dark (public, never a secret) |
 | `AUTOMATION_DATABASE_URL` | automatic service | Private observation database |
 | `PRODUCT_API_URL` | automatic worker | Publication destination |
 | `AUTOMATION_PUBLISH_KEY` | product API and worker | Server-only publication credential |

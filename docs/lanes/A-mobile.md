@@ -12,7 +12,7 @@ start/stop or recording belong in this release. Publication credentials never en
 `EXPO_PUBLIC_API_URL` must point only to the product API, never the observation/automatic service,
 including when Lane G supplies multiple service URLs for the hosted rehearsal.
 
-Stage 0 is merged through [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) and already has Expo SDK 55, React Native Maps, a pin form, source/evidence/expiry display,
+Stage 0 is merged through [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) and already has Expo SDK 55, React Native Maps (since replaced by MapLibre GL JS in a WebView, decision 010), a pin form, source/evidence/expiry display,
 in-session retry and illustrative routes. It polls every five seconds and has viewport freshness
 regression tests. It has no durable queue, reconnecting live channel, current-location convenience
 or selectable route endpoints. Build on those files; do not rebuild the skeleton or describe its
@@ -62,10 +62,13 @@ versions during implementation. No detector or observation client is needed.
 
 ## Required report location
 
-[Decision 011](../decisions/011-required-report-location.md) supersedes permission-free report pin placement.
+[Decision 013](../decisions/013-required-report-location.md) supersedes permission-free report pin placement.
 Only a device fix acquired for the current draft enables submission. A fix expires after 60 seconds;
-refreshing revokes the old fix immediately. Leaving Report, backgrounding or saving clears it, and
-late lookup results cannot restore a cleared fix. A 20-second lookup deadline enables retry.
+refreshing revokes the old fix immediately. Saving or backgrounding with no lookup in flight clears
+it; switching tabs preserves a fresh fix. Permission-dialog background events preserve the pending
+lookup. A 20-second position deadline starts after permission is granted; late results cannot
+replace a retry. Expiry publishes a refresh prompt immediately and is rechecked before saving.
+The observation timestamp is the device fix time. See [decision 014](../decisions/014-report-location-lifecycle.md).
 No map tap/drag sets a report point. Route endpoint selection remains unchanged. Queue retries
 never request location or replace the original body, including reports saved before this change.
 
@@ -153,7 +156,7 @@ refresh is used. Local queued reports do not influence routing until accepted se
 ## Implementation slices and acceptance
 
 1. **A1 — Extract feature seams and durable reporting (milestone 1).** Build on stage-0 screens,
-   require current device location for new reports per decision 011, add queue model/storage/controller and explicit five states.
+   require current device location for new reports per decision 013, add queue model/storage/controller and explicit five states.
    Exit: kill/relaunch after queueing or an unknown send outcome, then retry with exactly the same
    ID/body and obtain one server report. Use a fake transport for development without C persistence.
 2. **A2 — Live map and location convenience (milestone 1).** Add current-bounds refresh integration,
@@ -196,7 +199,9 @@ Keep refresh regression tests. Cover reconnect refetch and route stale-response/
 without live upstreams. Run typecheck plus the changed behavior checks locally; CI remains the
 routine full lane gate. Bundle export writes output and requires the stick in a shared room.
 
-Run device checks on SDK-57-compatible Expo Go/development builds. Verify map gestures, keyboard/form,
+Run device checks on SDK-57-compatible Expo Go/development builds. Verify both Positron and Dark Matter
+map themes (decision 011), switching without losing the viewport or overlays, airplane-mode fallback,
+map gestures, pin drag, attribution links opening in the browser, keyboard/form,
 permission denial, screen reader/status text, connection recovery and both platform renderings where
 devices are available. `npm run build` produces JS/Hermes exports, not signed binaries or proof that
 permissions work on-device. Use phone-reachable LAN URLs locally and G's HTTPS URL for hosted tests.
