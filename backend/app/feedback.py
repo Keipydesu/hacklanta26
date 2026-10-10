@@ -1,5 +1,5 @@
 """Hazard feedback policy ("Is this hazard still there?"), kept pure so it can change without touching
-storage or the HTTP adapter. Decision 012 records the agreed policy."""
+storage or the HTTP adapter. Decision 013 records the agreed policy."""
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 

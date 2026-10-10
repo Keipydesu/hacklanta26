@@ -70,7 +70,7 @@ or `gone`. It works in both memory and PostGIS modes, and migration `002_hazard_
   until the publisher's next newer revision. The publication itself is never edited.
 
 Retries with the same UUID return 200 with `duplicate: true`. Unknown, resolved, expired and hidden
-hazards return 404. See [decision 012](../docs/decisions/012-hazard-feedback.md).
+hazards return 404. See [decision 013](../docs/decisions/013-hazard-feedback.md).
 
 ## Routing failure and refresh semantics
 

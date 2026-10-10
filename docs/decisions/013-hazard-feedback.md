@@ -1,4 +1,4 @@
-# 012. "Is this hazard still there?" feedback
+# 013. "Is this hazard still there?" feedback
 
 - Status: Accepted
 - Date: 2026-10-10
@@ -34,7 +34,12 @@ Any change sends the existing `hazards.changed` live hint, so phones refetch.
 **Where riders answer.** Tapping a hazard pin opens a panel under the map. It shows the source,
 category, label and expiry with the two answers, and it never marks an answer received before
 the server's matching receipt. The panel keeps the hazard's details, so the acknowledgement stays
-visible after the hazard is removed. While the app is open with location permission, coming
+visible after the hazard is removed. Selected-hazard availability is checked with its own coarse
+bounding-box lookup around public hazard geometry, never inferred from the viewport feed. It
+refreshes on live hints, accepted feedback, foreground return and foreground polling; switching or
+closing selection invalidates pending responses. Removal retains the snapshot/receipt and disables
+new answers. Failed lookups preserve last-known state with a stale notice; local expiry still applies.
+While the app is open with location permission, coming
 within 40 m of a hazard opens its panel, at most once per hazard per session. The prompt uses its
 own hazard lookup, not the map viewport, and re-checks the latest position whenever that lookup
 returns. The lookup asks `GET /v1/hazards` for the 3x3 block of ~500 m grid cells around the

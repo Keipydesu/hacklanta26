@@ -157,7 +157,7 @@ paths:
         hidden by feedback.
         Feedback is separate from reports and never changes source/evidence labels or
         automatic publication revisions. Its effect on visibility and expiry follows
-        decision 012. No location, account or device identifier is collected.
+        decision 013. No location, account or device identifier is collected.
       responses:
         '200':
           description: Duplicate retry of accepted feedback

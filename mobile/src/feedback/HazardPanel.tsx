@@ -14,7 +14,8 @@ export type PanelHazard = {
 
 export function HazardPanel(props: {
   hazard: PanelHazard;
-  onMap: boolean;
+  available: boolean;
+  availabilityError?: string;
   state?: FeedbackState;
   disabled?: boolean;
   onRespond(response: FeedbackResponse): void;
@@ -28,8 +29,9 @@ export function HazardPanel(props: {
       <Button title="Close" onPress={props.onClose} />
     </View>
     <Text>{hazard.kind} · {hazard.label}</Text>
-    <Text>{props.onMap ? `Expires ${new Date(hazard.expires_at).toLocaleString()}` : 'No longer shown on the map.'}</Text>
-    {(props.onMap || props.state) && <FeedbackRow kind={hazard.kind} state={props.state} disabled={props.disabled || !props.onMap}
+    <Text>{props.available ? `Expires ${new Date(hazard.expires_at).toLocaleString()}` : 'No longer available for new answers.'}</Text>
+    {props.availabilityError && <Text>{props.availabilityError}</Text>}
+    {(props.available || props.state) && <FeedbackRow kind={hazard.kind} state={props.state} disabled={props.disabled || !props.available}
       onRespond={props.onRespond} onRetry={props.onRetry} />}
     {props.disabled && <Text style={styles.fine}>Connect to the product API to answer.</Text>}
   </View>;
