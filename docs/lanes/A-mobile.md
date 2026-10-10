@@ -67,7 +67,7 @@ the complete product request. State belongs to the submission, not to whatever f
 | `queued` | Durable pending body, waiting for connection/retry. Display explicitly as pending locally. |
 | `sending` | One active request for the persisted body. On restart, recover this record as queued because server outcome may be unknown. |
 | `submitted` | Received successful 201 or duplicate 200 receipt. Persist receipt or remove pending work durably before allowing queue advancement. Refresh feed using current bounds. |
-| `failed` | Validation/conflict or a surfaced retry failure. Store reason and whether exact-body retry remains possible. Correction creates a new draft/submission UUID. |
+| `failed` | Validation/conflict or a surfaced retry failure. Store reason and whether exact-body retry remains possible. Correction after definitive rejection creates a new draft/submission UUID; unknown outcomes require exact retry first. |
 
 Use a versioned queue envelope keyed by submission UUID, containing immutable body, state, attempts,
 next retry time and optional receipt/error. Serialize storage writes and network sends through one
@@ -84,7 +84,7 @@ safe through server idempotency. Never remove pending work on a transport timeou
 | `drainQueue(trigger) -> Promise<void>` | Single-flight loop sends due queued items. At startup, network restoration, foreground return and explicit retry, reuse the same immutable body. Avoid concurrent timers/drains for the same ID. |
 | `classifyFailure(error) -> Retryable or Terminal` | Transport timeout, 408, 429 and temporary server errors get bounded exponential backoff with jitter. 409/422 and other permanent 4xx surface terminal failure. Honor a valid retry delay when supplied; cap repeated attempts and show explicit retry. |
 | `applyReceipt(id, receipt) -> Promise<void>` | Verify response belongs to the sending item, durably complete pending state, show submitted and request current-bounds refresh. Duplicate success is equivalent to first success. |
-| `newDraftFromFailure(id) -> Draft` | Copy editable values but do not mutate or silently reuse the failed submission body. Explicit corrected submit gets a new UUID. |
+| `newDraftFromFailure(id) -> Draft` | Copy editable values but do not mutate or silently reuse the failed submission body. Allow this only after a definitive rejection; an exhausted retry budget or lost response has an unknown server outcome and must retain the original UUID/body until reconciled by exact retry. Explicit corrected submit after rejection gets a new UUID. |
 
 Keep the observation timestamp when offline, including across days. An already-expired submission
 can be accepted by C but absent from the active feed; explain the accepted-but-expired result rather
@@ -176,6 +176,8 @@ EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:8000 npm start --prefix mobile
 
 Add queue behavior cases to the existing test setup; test lost receipt/restart, duplicate submit,
 terminal conflict and exact retry identity using fake storage/transport and a controlled clock.
+Include an accepted request whose response is lost through retry exhaustion: correction must not
+create a second submission while the original outcome is unknown.
 Keep refresh regression tests. Cover reconnect refetch and route stale-response/fallback behavior
 without live upstreams. Run typecheck plus the changed behavior checks locally; CI remains the
 routine full lane gate. Bundle export writes output and requires the stick in a shared room.
