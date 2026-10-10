@@ -30,7 +30,7 @@ jobs:
           filters: |
             backend: ['backend/**', 'contracts/**', '.github/workflows/skeletons.yml']
             service: ['automatic/service/**', 'automatic/tests/**', 'contracts/**', '.github/workflows/skeletons.yml']
-            mobile: ['mobile/**', 'contracts/**', '.github/workflows/skeletons.yml']
+            mobile: ['mobile/**', 'contracts/**', 'backend/bike_lanes/campus-bike-lanes.geojson', '.github/workflows/skeletons.yml']
             collector: ['automatic/collector/**', 'contracts/**', '.github/workflows/skeletons.yml']
             detector: ['automatic/detector/**', '.github/workflows/skeletons.yml']
             simulator: ['simulator/**', 'automatic/detector/**', '.github/workflows/skeletons.yml']

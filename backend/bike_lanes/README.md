@@ -3,7 +3,7 @@
 Street segments around Georgia Tech and GSU with bike-lane status, from OpenStreetMap. This is
 infrastructure data, separate from hazard reports; it does not depend on the automatic service.
 The mobile map bundles confirmed `present` segments as a mild static overlay
-([decision 024](../../docs/decisions/024-static-bike-lane-map-overlay.md)). Route
+([decision 025](../../docs/decisions/025-static-bike-lane-map-overlay.md)). Route
 scoring remains a follow-up, and bike-lane presence is not a safety guarantee. See
 [decision 012](../../docs/decisions/012-osm-bike-lane-coverage.md).
 

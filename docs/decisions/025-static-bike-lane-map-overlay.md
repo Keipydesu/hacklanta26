@@ -1,4 +1,4 @@
-# 024. Static OSM bike-lane map overlay
+# 025. Static OSM bike-lane map overlay
 
 - Status: Accepted
 - Date: 2026-10-10

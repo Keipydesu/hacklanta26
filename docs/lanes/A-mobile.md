@@ -138,7 +138,7 @@ Detail shows kind, label, community versus automatic source, simulated/replay/mi
 present, age and expiry. Scores are routing heuristics, not probabilities or verified severity.
 The map also keeps a muted, non-interactive OSM bike-lane overlay beneath hazard and route layers,
 from the bundled `present` campus segments only
-([decision 024](../decisions/024-static-bike-lane-map-overlay.md)); it does not alter route scoring.
+([decision 025](../decisions/025-static-bike-lane-map-overlay.md)); it does not alter route scoring.
 
 Retain visibly labeled fixture preview when no API URL is configured: timestamps shift once per
 preview session, report submission remains disabled, and directions remain unavailable until real routing is connected; no fixture route lines are drawn.
