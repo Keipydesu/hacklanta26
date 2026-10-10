@@ -180,6 +180,11 @@ field or unsupported global routing promise is introduced by this plan.
 6. **C6 — Automatic integration (milestone 4).** D replaces fixture publisher with durable outbox.
    Verify revisions, expiry, simulated labels and manual preservation; no C-side clustering added.
 
+Campus bike-lane coverage (issue #29) is checked-in OSM data in `backend/bike_lanes/`, with evidence
+rules and a refresh procedure in [its README](../../backend/bike_lanes/README.md). Nothing consumes it yet;
+using it in route scoring is follow-up work that must not replace pedestrian costing implicitly
+([decision 012](../decisions/012-osm-bike-lane-coverage.md)).
+
 ## Verification and delivery evidence
 
 These existing stage-0 commands run from repository root:

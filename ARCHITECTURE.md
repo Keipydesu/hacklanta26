@@ -41,6 +41,7 @@ backend/                         Shared platform: FastAPI [C]
   app/db/                        manual_reports and hazards
   app/schemas.py                 generated/contract-aligned schemas [0]
   app/routing/                   Valhalla client and planner [C]
+  bike_lanes/                    OSM campus bike-lane export and GeoJSON [C]
   tests/api/                     [C]
   tests/routing/                  [C]
 automatic/                       Track 2: standalone subsystem
