@@ -114,7 +114,7 @@ jobs:
         run: |
           npm ci --prefix automatic/detector
           npm run build --prefix automatic/detector
-          node --test simulator/replay-detector/
+          node --test "simulator/replay-detector/*.test.mjs"
   stack:
     needs: changes
     if: needs.changes.outputs.stack == 'true'
@@ -185,7 +185,13 @@ jobs:
         run: for f in infra/*.sh infra/db/init/*.sh infra/valhalla/*.sh infra/vultr/*.sh; do bash -n "$f"; done
       - name: Logs on failure
         if: failure()
-        run: docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation logs --no-color --tail 200
+        run: |
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation ps -a || true
+          docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation logs --no-color --tail 200 || true
+          # Also surface the service logs as an annotation, readable without downloading the job log.
+          tail_logs="$(docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation logs --no-color --no-log-prefix --tail 25 api automatic 2>&1 | tail -n 45)"
+          tail_logs="${tail_logs//'%'/'%25'}"; tail_logs="${tail_logs//$'\r'/'%0D'}"; tail_logs="${tail_logs//$'\n'/'%0A'}"
+          echo "::error title=Service logs at failure::$tail_logs"
   generated-types:
     needs: changes
     if: needs.changes.outputs.contracts == 'true'
