@@ -15,7 +15,7 @@ collector → Caddy, own hostname → automatic [automation] → db (observation
 
 | Service | Profile | Exposure | Notes |
 |---|---|---|---|
-| `db` | always | Compose network only, no published port | PostGIS; named volume `campus_product-data` |
+| `db` | always | Compose network only, no published port | PostGIS; named volume `infra_product-data` |
 | `api` | always | `API_BIND:API_PORT` (default `0.0.0.0:8000` for LAN development) | one worker; health checks the product only |
 | `valhalla` | `routing` | internal `8002` | serves prebuilt tiles mounted read-only |
 | `caddy` | `https` | 80, 443 | proxies `/v1/*` and `/healthz`, everything else 404 |
@@ -49,8 +49,9 @@ Whether reports survive an API restart depends on the product code in the checko
 says `storage: postgis` once Lane C's persistence is merged and `storage: memory` before that.
 `check_stack.sh --expect-storage postgis` turns that into a failing probe.
 
-The Compose project is now named `campus`, so volumes are `campus_*`. A stage 0 volume named
-`infra_product-data` is no longer used (the stage 0 API never wrote to it).
+The Compose project remains `infra`, preserving the existing `infra_product-data` volume
+and containers when upgrading from main. If you previously used `-p` or
+`COMPOSE_PROJECT_NAME`, keep using that same project override to retain its data.
 
 ### Routing (optional)
 
@@ -134,6 +135,9 @@ Steps, once those exist:
 2. On the host, create `/opt/campus/shared/.env` from `.env.example` with real values,
    `API_BIND=127.0.0.1`, and `chmod 600` it. For routing, upload the built `custom_files/` to
    `/opt/campus/shared/custom_files/` and set `VALHALLA_URL=http://valhalla:8002`.
+   Finish the upload before deploying; this directory is staging only. Each routing deployment
+   copies the serving files into its own release directory, so later uploads cannot change a
+   running or rollback release. Allow disk space for a tile copy per retained release.
 3. From a checkout: `infra/vultr/deploy.sh deploy@HOST <commit-on-main> [--profile routing] [--profile automation] [--demo]`.
 4. From a phone on mobile data (not the host's network): open `https://HOSTNAME/healthz`, then run
    the app with `EXPO_PUBLIC_API_URL=https://HOSTNAME`.
@@ -152,7 +156,9 @@ If a rollout fails after the new stack started, `current` stays on the last good
 `rollback.sh deploy@HOST [--current|--previous]` restarts a known-good release and probes it. After a
 failed rollout (the `failed_release` marker exists) it restarts `current`, the last good release,
 which also works after the first upgrade when no `previous` exists; otherwise it restarts `previous`.
-The flags override that choice. Pass the same `--profile` flags as the deploy. **It does not roll the
+The flags override that choice. Each deployment attempt has a unique directory, even for the
+same commit, and rollback mounts that release’s tile snapshot. Pass the same `--profile` flags
+as the deploy. **It does not roll the
 database back.** Product and observation migrations run at service start and are additive so far;
 if a release ever ships a migration the previous code cannot read, fix forward or restore a
 checked backup on purpose.

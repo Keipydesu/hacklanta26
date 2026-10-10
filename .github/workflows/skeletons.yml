@@ -192,6 +192,8 @@ jobs:
           infra/reset_db.sh product --yes-delete-demo-data
           docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml up -d --wait api
           infra/check_stack.sh http://localhost:8000
+      - name: Deployment upgrade and tile rollback regressions
+        run: python3 -m unittest discover -s infra/tests -v
       - name: Shell scripts parse
         run: for f in infra/*.sh infra/db/init/*.sh infra/valhalla/*.sh infra/vultr/*.sh; do bash -n "$f"; done
       - name: Logs on failure

@@ -5,8 +5,8 @@
 #
 # Host layout (created by cloud-init.yaml):
 #   /opt/campus/shared/.env        real settings, mode 600, created by the operator on the host
-#   /opt/campus/shared/custom_files  routing tiles (optional), uploaded separately
-#   /opt/campus/releases/<commit>  an exported copy of that commit, never a working tree
+#   /opt/campus/shared/custom_files  staging tiles (optional), uploaded separately
+#   /opt/campus/releases/<commit>.<id>  exported code and a private routing tile snapshot
 #   /opt/campus/current, previous  symlinks to releases
 #
 # Acceptance: product health, feed, auth and proxy probes always run. With the routing profile it
@@ -76,7 +76,7 @@ for name in PRODUCT_DB_PASSWORD OBSERVATIONS_DB_PASSWORD; do
   case "$v" in *[!A-Za-z0-9._~-]*) die "$name must use only letters, digits and . _ ~ - (it is embedded in a database URL)" ;; esac
 done
 case " ${PROFILES[*]} " in
-  *" routing "*) [ -f "$ROOT/shared/custom_files/valhalla_tiles.tar" ] || die "routing profile requested but $ROOT/shared/custom_files has no tiles"
+  *" routing "*) [ -s "$ROOT/shared/custom_files/valhalla_tiles.tar" ] && [ -s "$ROOT/shared/custom_files/valhalla.json" ] || die "routing profile requested but $ROOT/shared/custom_files has no tiles"
                  [ -n "$(value VALHALLA_URL)" ] || die "routing profile requested but VALHALLA_URL is empty in $ENV_FILE" ;;
 esac
 case " ${PROFILES[*]} " in
@@ -85,15 +85,28 @@ case " ${PROFILES[*]} " in
 esac
 [ "$(df --output=avail -BG "$ROOT" | tail -n 1 | tr -dc 0-9)" -ge 3 ] || die "less than 3 GB free on $ROOT"
 
-# Back up first: redeploying the commit that is already current replaces the very directory the backup runs from.
+# Back up before starting any new application or migrations.
 if [ -L "$ROOT/current" ] && docker compose --env-file "$ENV_FILE" -f "$ROOT/current/infra/docker-compose.yml" ps --status running --services 2>/dev/null | grep -qx db; then
   note "backing up the product database before the new release starts"
   ENV_FILE="$ENV_FILE" "$ROOT/current/infra/backup.sh" product "$ROOT/backups" >/dev/null || die "pre-deploy backup failed; nothing was changed"
 fi
-NEW="$ROOT/releases/$SHORT"
-rm -rf "$NEW"; mv "$NEW.new" "$NEW"
-mkdir -p "$ROOT/shared/custom_files"
-rm -rf "$NEW/infra/valhalla/custom_files"; ln -s "$ROOT/shared/custom_files" "$NEW/infra/valhalla/custom_files"
+# Each attempt gets its own directory, including redeploys of the same commit. Never
+# overwrite current/previous or let an upload replace their known-good routing tiles.
+NEW="$(mktemp -d "$ROOT/releases/$SHORT.XXXXXX")"
+rmdir "$NEW"
+mv "$ROOT/releases/$SHORT.new" "$NEW"
+mkdir -p "$NEW/infra/valhalla/custom_files"
+case " ${PROFILES[*]} " in
+  *" routing "*)
+    for tile in valhalla.json valhalla_tiles.tar; do
+      cp -pL "$ROOT/shared/custom_files/$tile" "$NEW/infra/valhalla/custom_files/$tile"
+    done
+    for tile in admin.sqlite tz.sqlite manifest.json; do
+      if [ -f "$ROOT/shared/custom_files/$tile" ]; then
+        cp -pL "$ROOT/shared/custom_files/$tile" "$NEW/infra/valhalla/custom_files/$tile"
+      fi
+    done ;;
+esac
 compose() { docker compose --env-file "$ENV_FILE" -f "$NEW/infra/docker-compose.yml" "${PROFILES[@]}" "$@"; }
 
 note "building images for $SHORT"

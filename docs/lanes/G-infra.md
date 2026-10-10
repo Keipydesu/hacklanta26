@@ -90,7 +90,8 @@ multiple scripts actually need them; no deployment framework is required for thi
 
 ## Local stack and database integration (G1)
 
-1. Start from stage-0 Compose; keep a named PostGIS volume and verify normal shutdown preserves it.
+1. Preserve the existing `infra` Compose project and `infra_product-data` volume on upgrade;
+   keep explicit project-name overrides consistent. Verify normal shutdown preserves data.
    Do not use volume removal as the normal teardown in README. Add a dedicated local test database
    for destructive integration checks so a developer's reports are not erased.
 2. Agree C's schema migration command and product role requirements; implement one-shot migration
@@ -150,6 +151,8 @@ can serve those requests. A running container or open port alone does not pass t
    migrations, start API/proxy and probe. Record old and new image/commit IDs. Prefer additive,
    backward-compatible migrations so the previous app can run if rollout fails. Document manual
    recovery for a migration that has already committed before a later service failure.
+   Every deployment attempt retains a private copy of its serving tiles in a unique release
+   directory, including retries of the same commit; shared uploads are staging only.
 5. **Acceptance.** Run HTTPS health, manual create/read/retry, WebSocket reconnect, real route and
    automation-off probes. Rehearse report submission on a second phone with location denied.
    Update root README with the actual URL and verified launch/runbook commands only after success.

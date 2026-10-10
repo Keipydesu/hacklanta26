@@ -3,7 +3,8 @@
 #   --profile https       Caddy with automatic TLS for PRODUCT_HOSTNAME
 #   --profile automation  observation API + hazard worker with its own database and credentials
 # No manual service depends on an optional one. See infra/README.md.
-name: campus
+# Preserve the existing project identity and its persistent volumes on upgrade.
+name: infra
 services:
   db:
     image: postgis/postgis:16-3.4
