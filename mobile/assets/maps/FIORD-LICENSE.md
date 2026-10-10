@@ -1,5 +1,5 @@
-Copyright (c) 2024, MapTiler.com & OpenMapTiles contributors.  
-Copyright (c) 2015, CartoDB Inc.  
+Copyright (c) 2024, MapTiler.com & OpenMapTiles contributors.
+Copyright (c) 2015, CartoDB Inc.
 All rights reserved.
 
 Derived from "CartoDB Basemaps" (https://github.com/CartoDB/CartoDB-basemaps)
@@ -57,6 +57,6 @@ For printed and static maps a similar attribution should be made in a textual
 description near the image, in the same fashion as if you cite a photograph.
 
 Exceptions to OpenMapTiles attribution requirement can be in a written form granted
-by MapTiler AG (info@maptiler.com).  
+by MapTiler AG (info@maptiler.com).
 The project contributors grant MapTiler AG the license to give such
 exceptions on a commercial basis.
