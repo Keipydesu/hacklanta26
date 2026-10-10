@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createHazardRefresh } = require('../.test-dist/hazardRefresh.js');
+const { createHazardRefresh } = require('../.test-dist/api/hazardRefresh.js');
 const regionA = { latitude: 33.75, longitude: -84.38, latitudeDelta: 0.01, longitudeDelta: 0.01 };
 const regionB = { ...regionA, latitude: 34 };
 const hazards = label => ({ type: 'FeatureCollection', features: [], label });
