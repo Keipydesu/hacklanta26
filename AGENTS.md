@@ -137,6 +137,14 @@ lane plans together.
 
 ### Engineering
 
+- Use only libraries and exact versions vetted for security before adding or upgrading them.
+  Never select a release merely because it is newest. Prefer established, maintained releases
+  with time for community review; check current security advisories, package provenance and
+  maintainer changes, release diffs, install scripts, and newly introduced transitive dependencies.
+  Pin or lock the reviewed versions and record the review date, sources, and rationale in the
+  PR or handoff. Release age, popularity, and a clean vulnerability scan alone do not establish
+  safety. If vetting is incomplete or compromise is suspected, defer adoption or choose a vetted
+  alternative. Apply security fixes promptly after reviewing the specific patched release.
 - Keep the monitoring web app, continuous ride tracking, and motion permissions out of the first
   user-facing release (see README scope decisions). Database redundancy is a proposal, not selected
   or provisioned infrastructure — do not implement application-level dual writes.
