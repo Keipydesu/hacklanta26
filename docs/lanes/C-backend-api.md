@@ -120,7 +120,7 @@ receives product hazards only. No worker, observation DB or sensor process is re
 | `ValhallaClient.route(origin, destination, exclusions) -> Candidate` | Reuse lifespan-owned `httpx.AsyncClient`, set bounded connect/read/overall budgets, send pedestrian costing with walking speed 16 km/h and heavy step penalty (starting value 600). Convert summary km to meters and decode every leg's polyline6 into longitude-first LineString, removing duplicate leg joins. Validate finite geometry/metrics. |
 | `select_exclusions(hazards, origin, destination) -> rings` | Keep active unexpired score >=0.4 from both sources. Skip polygons containing or touching either endpoint to avoid trapping the route. Rank by metric distance to trip and take at most 20; serialize exterior rings in `[lon, lat]` order. Preserve all eligible hazards for risk scoring, including endpoint/cap exclusions. |
 | `score_route(line, hazards) -> (risk, ids)` | Intersect candidate line with polygons; deduplicate IDs. Compute `1 - product(1 - score)` over intersected hazards. Empty intersection gives zero. This heuristic is not a probability or safety guarantee. |
-| `plan(...) -> RouteResponse` | Obtain the baseline route without exclusions, then the lower-risk candidate using selected exclusions. Score both against the same eligible snapshot. Map to contract kinds `shortest` and `safest`; user-facing wording remains lower-risk. |
+| `plan(...) -> RouteResponse` | Obtain the baseline route without exclusions, then the lower-risk candidate using selected exclusions. Score both against the same complete active/unexpired snapshot, including scores below 0.4; the cutoff applies only to exclusions. Map to contract kinds `shortest` and `safest`; user-facing wording remains lower-risk. |
 | `classify_upstream_error(response) -> NoPath or Unavailable` | Recognize a real no-path response for the pinned upstream version. Do not treat every HTTP 400 as no-path: malformed requests/configuration failures must surface operationally. Timeouts, invalid responses and upstream outages map to product 503. |
 
 Only if the exclusion request has no path and the baseline succeeded, return that baseline under
@@ -139,6 +139,9 @@ shortest option that discards the intended penalties.
 For spatial selection, initially use a documented bounded campus trip envelope expanded around
 origin/destination; check returned geometry against it. If a candidate leaves it, load active hazards
 covering the returned line before scoring and reconsider exclusions within a bounded second pass.
+After expansion, rescore both candidates against the same merged hazard snapshot and evaluation
+time. If the second pass leaves covered bounds again, return 503 rather than assign risk from
+incomplete coverage; keep reporting and map reads available.
 Record the search bounds/limit and test a detour; never claim risk for an unseen area is zero.
 Choose the concrete envelope and timeout budgets with measured GSU routes during C4; no new API
 field or unsupported global routing promise is introduced by this plan.
@@ -188,7 +191,9 @@ Required tests: atomic rollback, restart persistence, exact/conflicting retries,
 publication, out-of-order revisions, resolved/expired filtering, bbox intersection, world-coordinate
 buffer regression, expired queued report, future timestamp rejection, post-commit notification,
 slow sockets and expiry/reactivation race. Routing tests replay baseline/alternative/no-path/outage
-responses and assert polyline precision, units, both-source risk, endpoint exclusions and cap behavior.
+responses and assert polyline precision, units, both-source risk, endpoint exclusions and cap
+behavior. Include a sub-0.4 hazard intersecting a route and a detour outside the initial bounds;
+neither may silently disappear from risk scoring.
 
 Handoff records schema version/migration commands, confirmed DB durability, API and routing probes,
 which real-device checks A ran, tested Valhalla version/campus pairs, configuration, failures and
