@@ -18,7 +18,7 @@ export PYTHONPATH=simulator/src
 python3 -m simulator.cli scenarios
 python3 -m simulator.cli manual --seed 42            # dry run: prints payloads
 python3 -m unittest discover -s simulator/tests -t simulator
-node --test simulator/replay-detector/
+node --test "simulator/replay-detector/*.test.mjs"
 ```
 
 **Dry run is the default.** Nothing touches the network without `--demo-target` and an explicit

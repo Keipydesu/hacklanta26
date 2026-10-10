@@ -109,18 +109,22 @@ either endpoint zone, a short ride uploads nothing, denied permissions fail visi
 after an unknown HTTP outcome resends identical bytes, and one qualifying demo jerk yields exactly
 one `simulated` event.
 
-**Not verified yet** (the change was written in a sandbox without access to the npm registry):
+Verified by CI on the pull request (the collector job): `npm ci` with the lockfile below,
+`npm run typecheck`, and `npm run build` (iOS and Android bundle export, which exercises the Metro
+resolver for the detector folder).
 
-- `npm ci`, `npm run typecheck` and `npm run build` have not been run for this change. The
-  lockfile was edited by hand: `expo-location`, `expo-crypto` and AsyncStorage entries are copied
-  from `mobile/package-lock.json`, `expo-keep-awake` and `expo-file-system` are the entries Expo
-  already pulled in (moved to the top level), and `expo-sensors` was added from registry metadata.
-  If `npm ci` reports a lock mismatch, run `npm install --prefix automatic/collector` and commit
-  the regenerated lockfile.
-- The Metro resolver for the detector folder has not been exercised by a real bundle.
-- No physical phone has run this app. Sensor units, axis conventions, real sample rates,
-  permission prompts and keep-awake behaviour must be checked on each target device, and the
-  detector thresholds are untuned (see [TUNING.md](../detector/TUNING.md)).
+About the lockfile: it was edited by hand because the change was written without access to the npm
+registry. `expo-location`, `expo-crypto` and AsyncStorage entries are copied from
+`mobile/package-lock.json`, `expo-keep-awake` and `expo-file-system` are the entries Expo already
+pulled in (moved to the top level), and `expo-sensors` was added from registry metadata. `npm ci`
+accepts it; running `npm install --prefix automatic/collector` once will normalize it.
+
+**Not verified yet:**
+
+- No physical phone has run this app. A bundle export is not a device test: sensor units, axis
+  conventions, real sample rates, permission prompts and keep-awake behaviour must be checked on
+  each target device, and the detector thresholds are untuned (see
+  [TUNING.md](../detector/TUNING.md)).
 - No real ride has been recorded.
 
 ## Dependencies added (review date 2026-10-10)

@@ -181,10 +181,12 @@ jobs:
           AUTOMATION_PUBLISH_KEY=ci-publisher-only python3 -m simulator.cli publication --product-url http://localhost:8000 --demo-target
           if curl -fsS http://localhost:8001/healthz | grep -q '"worker":"running"'; then
             # Real worker present: synthetic observations must come back as a published, labeled hazard.
-            infra/seed_demo.sh http://localhost:8000 --automation-url http://localhost:8001 --at 33.7570,-84.3895
+            infra/seed_demo.sh http://localhost:8000 --automation-url http://localhost:8001 --at 33.7570,-84.3895 | tee /tmp/seed.log
             python3 -m simulator.cli observations --scenario demo-seed-negative --automation-url http://localhost:8001 --product-url http://localhost:8000 --demo-target --wait 15
+            echo "::notice title=End-to-end::observations -> worker -> published hazard: $(grep '"await-hazards"' /tmp/seed.log | head -c 600)"
+            echo "::notice title=Health::product $(curl -fsS http://localhost:8000/healthz) | observations $(curl -fsS http://localhost:8001/healthz | head -c 300)"
           else
-            echo "observation service has no worker in this checkout; ingestion-only"
+            echo "::notice title=End-to-end::observation service has no worker in this checkout; ingestion only, no published hazard was checked"
             python3 -m simulator.cli observations --scenario demo-seed --automation-url http://localhost:8001 --demo-target
           fi
       - name: Each side keeps running while the other is stopped
