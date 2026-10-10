@@ -6,10 +6,9 @@ Deliver milestones 1–2 of [the roadmap](../ROADMAP.md): durable manual reporti
 and real route comparison with every automatic process stopped. Follow
 [ARCHITECTURE.md](../../ARCHITECTURE.md) and [decision 001](../decisions/001-mvp-delivery-workflow.md).
 
-Stage 0 exists on [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1), pending merge when this
-plan was written. It supplies contract-aligned schemas, memory-backed endpoints, bounded live
+Stage 0 merged through [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1). It supplies contract-aligned schemas, memory-backed endpoints, bounded live
 notifications, expiry/revision regression tests and fixed route fixtures. It does not use PostGIS
-or calculate routes. Build on that work after it lands; do not rebuild its API or claim persistence
+or calculate routes. Build on that work; do not rebuild its API or claim persistence
 from a healthy but unused database. The methods and new files below are proposed internal seams.
 
 **Owns:** `backend/` except `app/schemas.py` (Lane 0) and `Dockerfile` (Lane G).
@@ -169,7 +168,7 @@ field or unsupported global routing promise is introduced by this plan.
 
 ## Verification and delivery evidence
 
-After stage 0 is available, these existing commands run from repository root:
+These existing stage-0 commands run from repository root:
 
 ```sh
 uv sync --project backend --frozen
@@ -179,7 +178,9 @@ uv run --project backend uvicorn app.main:app --app-dir backend --host 0.0.0.0 -
 python3 contracts/scripts/smoke_product.py
 ```
 
-Migration and DB integration test commands do not exist yet. Add them and verify them in C1; ask G
+The current smoke script asserts memory storage; it is a stage-0 probe, not the durable acceptance
+check. Add a DB-aware probe in backend tests when C1 lands, or coordinate a contracts-script update
+with Lane 0. Migration and DB integration test commands do not exist yet. Add them and verify them in C1; ask G
 to extend the backend CI job with a disposable PostGIS service, path-scoped to backend/contracts.
 Use small changes and CI as routine gate, not an exhaustive local suite before every push.
 
