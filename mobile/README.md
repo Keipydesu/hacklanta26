@@ -1,5 +1,27 @@
 # Manual mobile app
 
+## UI concept branch
+
+The `lane/a-ui` concept uses a full map canvas with a compact header, an expandable bottom
+panel and Map / Trip / Report controls. “Where to?” opens destination-pin placement;
+select Set start or expand details for foreground location. Expanding reveals additional
+controls and evidence; changing tasks collapses the panel while preserving trip/draft state.
+Controls follow system light/dark appearance with silver and cyan-blue accents.
+The shared icon and control system is described in the [mobile UI guide](docs/UI-GUIDE.md).
+
+Run `npm start --prefix mobile` for the labeled fixture preview, or set
+`EXPO_PUBLIC_API_URL` for live flows. The rebased concept uses main's MapLibre/OpenFreeMap renderer. Use the header sun/moon switch to change UI and map appearance; attribution stays above the task panel.
+Report pins and optional descriptions remain pending #23/#24. This is route comparison, not
+turn-by-turn navigation; no text search, rental integration or separate bicycle costing is added.
+
+Verified: TypeScript and all 39 mobile tests; iPhone 17 Pro / iOS 26.1 Simulator with Expo Go
+57.0.9 renders Map, route-pin selection, fixture comparison, details and reporting.
+[Screenshots](docs/screenshots/README.md) use fixture data. Physical-device, Android, larger-text
+and full screen-reader checks remain pending. For Metro binding only to IPv6 localhost, use
+`NODE_OPTIONS=--dns-result-order=ipv4first npm start --prefix mobile -- --localhost --clear`.
+The screenshot session needed a clean Metro/Expo Go restart after an initial ExpoAsset error;
+no package change was required.
+
 Expo SDK 57 + TypeScript. The map is MapLibre GL JS in a WebView with OpenFreeMap OSM vector tiles
 ([decisions 010](../docs/decisions/010-osm-maplibre-basemap.md) and [011](../docs/decisions/011-positron-and-dark-matter-map-themes.md)). No sensor imports or motion permissions. Uses only
 its local generated product types and copied fixtures; the automatic tree is not a dependency.
@@ -28,7 +50,7 @@ ships in Expo Go. The page runs MapLibre GL JS 6.11.2, inlined from `node_module
 scripts run that step first. Nothing loads from a CDN at runtime.
 
 - **Basemap:** OpenFreeMap's OSM-derived Positron style is the default light map. The map button
-  switches to OpenFreeMap Dark, a fork of Dark Matter, without resetting the viewport or overlays.
+  switches to the bundled Fiord style on OpenFreeMap tiles, without resetting the viewport or overlays.
   The choice resets to Positron on launch. Override the light and dark styles with
   `EXPO_PUBLIC_MAP_STYLE_URL` and `EXPO_PUBLIC_MAP_DARK_STYLE_URL` (public values, never secrets).
   MapLibre shows the required OpenFreeMap/OpenMapTiles/OpenStreetMap attribution; its links open in
@@ -151,3 +173,9 @@ the pinned releases match the bundled SDK 57 compatibility manifest, and TypeScr
 our existing checks. Review upgrades before running `expo install --fix`.
 Motion activity permission is explicitly disabled in the location plugin. The app still requests
 only a one-shot foreground location when the user taps the location action.
+
+### UI fonts
+
+Start/build automatically fetch and verify Satoshi Italic and Light Italic from Fontshare.
+A first build needs network access and Python 3; subsequent runs reuse verified local files.
+See [font setup](assets/fonts/README.md) and [dependency review](docs/FONT-DEPENDENCY-REVIEW.md).

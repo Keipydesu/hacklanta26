@@ -1,1 +1,4 @@
 src/map/maplibreBundle.generated.ts
+
+# Fontshare permits app embedding, not loose-font redistribution.
+assets/fonts/*.otf
