@@ -1,0 +1,60 @@
+{
+  "routes": [
+    {
+      "kind": "shortest",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -84.3853,
+            33.7531
+          ],
+          [
+            -84.386,
+            33.7545
+          ],
+          [
+            -84.388,
+            33.756
+          ]
+        ]
+      },
+      "distance_m": 410,
+      "duration_s": 92,
+      "risk_score": 0.86,
+      "hazard_ids": [
+        "920740f0-0293-4495-b8e9-c1dccd5492be",
+        "d8271740-8fe9-4e23-818e-f78d28e0ed96"
+      ]
+    },
+    {
+      "kind": "safest",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -84.3853,
+            33.7531
+          ],
+          [
+            -84.3848,
+            33.7544
+          ],
+          [
+            -84.3865,
+            33.7564
+          ],
+          [
+            -84.388,
+            33.756
+          ]
+        ]
+      },
+      "distance_m": 540,
+      "duration_s": 122,
+      "risk_score": 0,
+      "hazard_ids": []
+    }
+  ],
+  "safest_available": true
+}

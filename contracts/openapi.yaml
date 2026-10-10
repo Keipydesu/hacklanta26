@@ -1,0 +1,595 @@
+openapi: 3.1.0
+info:
+  title: Campus scooter product API
+  version: 0.1.0
+  description: Contract-first API. Stage 0 servers use nonpersistent memory and fixed
+    routing fixtures. UTC examples; all input timestamps must include a timezone.
+servers:
+- url: http://localhost:8000
+  description: Local product stub
+paths:
+  /healthz:
+    get:
+      operationId: health
+      description: Product health independent of automation. Stage 0 reports storage=memory;
+        later implementation must check product database.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Product storage unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/reports:
+    post:
+      operationId: create_report
+      description: 201 creates report and its 8 m buffered hazard atomically; source=manual,
+        score=0.5, expiry observed_at +24h. Same UUID and normalized payload returns
+        200 duplicate=true and original IDs; changed payload returns 409. Already-expired
+        reports remain stored but absent from active feed. No automation dependency.
+        Omitted description is equivalent to empty string. Future timestamps >5 minutes
+        return 422.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportReceipt'
+        '409':
+          description: Same report UUID with different payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportReceipt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualReport'
+  /v1/automatic/hazards/{external_id}:
+    put:
+      operationId: publish_hazard
+      description: 201 creates; higher revision updates (200); equal revision identical
+        payload is duplicate (200); older or equal conflicting revision returns 409.
+        Stable external UUID scoped to authenticated publisher. Resolution requires
+        full payload and higher revision. Manual hazards are never overwritten.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationReceipt'
+        '401':
+          description: Missing or invalid publisher credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision or conflicting same revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid publication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationReceipt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomaticPublication'
+      security:
+      - PublisherKey: []
+      parameters:
+      - name: external_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /v1/hazards:
+    get:
+      operationId: list_hazards
+      description: Return active unexpired hazards intersecting bbox from both sources.
+        Expiry filtered at read time regardless of cleanup. No ordered ride traces
+        or raw observations.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HazardCollection'
+        '422':
+          description: Invalid bounds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: bbox
+        in: query
+        required: true
+        schema:
+          type: string
+        description: minLon,minLat,maxLon,maxLat; finite WGS84 numbers with minLon
+          < maxLon and minLat < maxLat; antimeridian-crossing boxes unsupported.
+        example: -84.40,33.74,-84.37,33.77
+  /v1/route:
+    post:
+      operationId: plan_routes
+      description: Compare shortest and lower-risk against same active combined feed.
+        Routing outage returns 503 without blocking reports or hazard reads. Stage
+        0 returns a fixed illustrative GSU route fixture, not computed navigation.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '422':
+          description: Invalid coordinates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Routing unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+components:
+  schemas:
+    Coordinate:
+      type: object
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+      required:
+      - lat
+      - lon
+      additionalProperties: false
+    Position:
+      type: array
+      prefixItems:
+      - type: number
+        minimum: -180
+        maximum: 180
+      - type: number
+        minimum: -90
+        maximum: 90
+      items: false
+      minItems: 2
+      maxItems: 2
+    Error:
+      type: object
+      properties:
+        detail:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              type: object
+      required:
+      - detail
+      additionalProperties: false
+    Health:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+        storage:
+          type: string
+      additionalProperties: true
+    Polygon:
+      type: object
+      properties:
+        type:
+          const: Polygon
+          type: string
+        coordinates:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/Position'
+            minItems: 4
+          minItems: 1
+      required:
+      - type
+      - coordinates
+      additionalProperties: false
+      description: WGS84 longitude-first nonempty valid Polygon. Rings must be closed,
+        non-self-intersecting; holes must be contained. Semantic geometry validation
+        returns 422.
+    LineString:
+      type: object
+      properties:
+        type:
+          const: LineString
+          type: string
+        coordinates:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position'
+          minItems: 2
+      required:
+      - type
+      - coordinates
+      additionalProperties: false
+    ManualReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum:
+          - pothole
+          - obstruction
+          - closure
+          - other
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+        observed_at:
+          type: string
+          format: date-time
+          description: Timezone required. At most five minutes in the future. Expired
+            reports are stored but excluded from active reads.
+        description:
+          type: string
+          maxLength: 280
+      required:
+      - id
+      - kind
+      - lat
+      - lon
+      - observed_at
+      additionalProperties: false
+    ReportReceipt:
+      type: object
+      properties:
+        report_id:
+          type: string
+          format: uuid
+        hazard_id:
+          type: string
+          format: uuid
+        duplicate:
+          type: boolean
+      required:
+      - report_id
+      - hazard_id
+      - duplicate
+      additionalProperties: false
+    AutomaticPublication:
+      type: object
+      properties:
+        revision:
+          type: integer
+          minimum: 1
+        kind:
+          type: string
+          enum:
+          - braking
+          - surface
+          - abandoned
+        geometry:
+          $ref: '#/components/schemas/Polygon'
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+        event_count:
+          type: integer
+          minimum: 0
+        ride_count:
+          type: integer
+          minimum: 0
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - active
+          - resolved
+        label:
+          type: string
+        evidence_source:
+          type: string
+          enum:
+          - device
+          - simulated
+          - replay
+          - mixed
+      required:
+      - revision
+      - kind
+      - geometry
+      - score
+      - event_count
+      - ride_count
+      - first_seen
+      - last_seen
+      - expires_at
+      - status
+      - label
+      - evidence_source
+      additionalProperties: false
+      description: first_seen <= last_seen <= expires_at. Each timestamp requires
+        a timezone. Full payload for each revision, including resolution. Server assigns
+        source=automatic; identity comes from the credential.
+    PublicationReceipt:
+      type: object
+      properties:
+        hazard_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 1
+        duplicate:
+          type: boolean
+      required:
+      - hazard_id
+      - revision
+      - duplicate
+      additionalProperties: false
+    HazardProperties:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          type: string
+          enum:
+          - manual
+          - automatic
+        kind:
+          type: string
+          enum:
+          - pothole
+          - obstruction
+          - closure
+          - other
+          - braking
+          - surface
+          - abandoned
+        label:
+          type: string
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+        status:
+          type: string
+          enum:
+          - active
+          - resolved
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        event_count:
+          type: integer
+          minimum: 0
+        ride_count:
+          type: integer
+          minimum: 0
+        report_count:
+          type: integer
+          minimum: 0
+        evidence_source:
+          type:
+          - string
+          - 'null'
+          enum:
+          - null
+          - device
+          - simulated
+          - replay
+          - mixed
+      required:
+      - id
+      - source
+      - kind
+      - label
+      - score
+      - status
+      - first_seen
+      - last_seen
+      - expires_at
+      - event_count
+      - ride_count
+      - report_count
+      - evidence_source
+      additionalProperties: false
+      description: 'Manual: report_count=1, event_count=ride_count=0, evidence_source=null.
+        Automatic: report_count=0, non-null evidence_source. Records from different
+        sources remain separate.'
+    HazardFeature:
+      type: object
+      properties:
+        type:
+          type: string
+          const: Feature
+        geometry:
+          $ref: '#/components/schemas/Polygon'
+        properties:
+          $ref: '#/components/schemas/HazardProperties'
+      required:
+      - type
+      - geometry
+      - properties
+      additionalProperties: false
+    HazardCollection:
+      type: object
+      properties:
+        type:
+          type: string
+          const: FeatureCollection
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/HazardFeature'
+      required:
+      - type
+      - features
+      additionalProperties: false
+    RouteRequest:
+      type: object
+      properties:
+        origin:
+          $ref: '#/components/schemas/Coordinate'
+        destination:
+          $ref: '#/components/schemas/Coordinate'
+      required:
+      - origin
+      - destination
+      additionalProperties: false
+    Route:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - shortest
+          - safest
+        geometry:
+          $ref: '#/components/schemas/LineString'
+        distance_m:
+          type: number
+          minimum: 0
+        duration_s:
+          type: number
+          minimum: 0
+        risk_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        hazard_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          uniqueItems: true
+      required:
+      - kind
+      - geometry
+      - distance_m
+      - duration_s
+      - risk_score
+      - hazard_ids
+      additionalProperties: false
+    RouteResponse:
+      type: object
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Route'
+          minItems: 2
+          maxItems: 2
+        safest_available:
+          type: boolean
+      required:
+      - routes
+      - safest_available
+      additionalProperties: false
+      description: One shortest and one safest route; UI calls safest lower-risk.
+        When no alternative exists, duplicate shortest under both kinds and set safest_available=false.
+    HazardsChanged:
+      type: object
+      properties:
+        type:
+          type: string
+          const: hazards.changed
+        data:
+          type: object
+          properties:
+            hazard_id:
+              type: string
+              format: uuid
+          required:
+          - hazard_id
+          additionalProperties: false
+      required:
+      - type
+      - data
+      additionalProperties: false
+  securitySchemes:
+    PublisherKey:
+      type: http
+      scheme: bearer
+      description: Server-side AUTOMATION_PUBLISH_KEY only; never in Expo or collector.
+        Invalid or missing credentials return 401.

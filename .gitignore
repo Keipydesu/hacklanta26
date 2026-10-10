@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+.expo/
+dist/
+*.egg-info/
+.DS_Store
+infra/valhalla/custom_files/
