@@ -48,4 +48,6 @@ CREATE TABLE hazards (
 );
 
 CREATE INDEX hazards_geometry_idx ON hazards USING gist (geometry);
-CREATE INDEX hazards_active_expiry_idx ON hazards (expires_at) WHERE status = 'active';
+-- Only rows the expiry scan still has to notify; notified rows leave the index.
+CREATE INDEX hazards_active_expiry_idx ON hazards (expires_at)
+    WHERE status = 'active' AND expiry_notified_for IS DISTINCT FROM expires_at;
