@@ -24,5 +24,6 @@
     "src/feedback/feedback.ts",
     "src/feedback/nearby.ts",
     "src/feedback/selection.ts"
-  ]
+  ],
+  "include": ["src/api/hazardRefresh.ts", "src/api/live.ts", "src/reports/queue.ts", "src/reports/categories.ts", "src/reports/submit.ts", "src/location/foreground.ts", "src/routes/model.ts"]
 }

@@ -42,7 +42,7 @@ mobile/
     model.ts                   draft/submission types and transitions
     storage.ts                 versioned AsyncStorage queue persistence
     queue.ts                   one serialized sender and retry scheduling
-    ReportScreen.tsx           kind, pin, description and submission status
+    ReportScreen.tsx           kind (category picker), pin and submission status
   src/map/
     bounds.ts                  viewport to product bbox
     HazardMap.tsx              polygons/markers and local queued overlays
@@ -81,8 +81,8 @@ never request location or replace the original body, including reports saved bef
 
 ## Report model and durable queue
 
-A draft has editable kind and optional description; its point comes only from a current one-shot device fix. On submit, validate current coordinates,
-kind and 280-character plain text limit; create the UUID and observation timestamp once, then freeze
+A draft has an editable category (one of the API's four kinds; no free-text description, see issue #24); its point comes only from a current one-shot device fix. On submit, validate current coordinates
+and kind; create the UUID and observation timestamp once, then freeze
 the complete product request. State belongs to the submission, not to whatever form is now open.
 
 | State | Meaning and transition |
@@ -101,7 +101,7 @@ safe through server idempotency. Never remove pending work on a transport timeou
 
 | Proposed method | Implementation and behavior |
 |---|---|
-| `freezeSubmission(draft, now, uuid) -> Submission` | Require a current device fix and normalize optional description; capture device point and observation time once. Return immutable body and queued metadata. |
+| `freezeSubmission(draft, now, uuid) -> Submission` | Require a current device fix; the app sends no description (the optional API field and older queued reports with one still work). Capture the device point and observation time once. Return immutable body and queued metadata. |
 | `loadQueue() -> QueueSnapshot` | Parse versioned AsyncStorage data. Recover sending entries to queued, preserve original bodies/times and surface unreadable data rather than silently discarding it. Small version migrations must retain IDs. |
 | `persistQueue(snapshot) -> Promise<void>` | Await serialized writes. Update durable metadata before scheduling dependent work; report storage errors to the form/controller. |
 | `enqueue(draft) -> Promise<SubmissionId>` | Freeze and persist before scheduling the sender. Disable duplicate submit taps during creation; one press/retry cannot mint several UUIDs. |

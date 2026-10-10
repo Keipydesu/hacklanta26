@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, Keyboard, Linking, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
+import { AppState, Keyboard, Linking, SafeAreaView, ScrollView, View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
 import { SilverTexture } from './src/ui/SilverTexture';
 import { Icon } from './src/ui/Icon';
@@ -13,6 +13,7 @@ import * as Location from 'expo-location';
 import { connectLive, liveUrl } from './src/api/live';
 import { locateOnce, locatePosition } from './src/location/foreground';
 import { createReportLocation, ReportLocationState } from './src/reports/location';
+import { CATEGORIES, categoryLabel, hazardTitle } from './src/reports/categories';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, Submission } from './src/reports/queue';
 import { createHazardRefresh } from './src/api/hazardRefresh';
@@ -91,7 +92,6 @@ function CampusApp() {
   function planTrip() { openScreen('route'); editEndpoint(trip.state().destination.kind === 'none' ? 'destination' : null); void trip.start(); }
   const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind']>('pothole');
-  const [description, setDescription] = useState('');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [error, setError] = useState('');
   const [hazardError, setHazardError] = useState('');
@@ -173,9 +173,8 @@ function CampusApp() {
       setSubmitting(true); setError('');
       try {
         if (fixtureMode) return;
-        await queue.enqueue(reportLocator.freeze({ kind, description }, Crypto.randomUUID()));
+        await queue.enqueue(reportLocator.freeze({ kind }, Crypto.randomUUID()));
         reportLocator.clear();
-        setDescription('');
         void queue.drain();
       } catch (e) { setError(`Report was not saved: ${String(e)}`); }
       finally { setSubmitting(false); }
@@ -266,7 +265,7 @@ function CampusApp() {
           {visible.length === 0 && <Text style={styles.caption}>No reports here. Unreported hazards may still exist.</Text>}
           {visible.map(h => <View key={h.properties.id} style={styles.card}>
             <Text style={styles.source}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
-            <Text style={styles.heading}>{h.properties.label}</Text>
+            <Text style={styles.heading}>{hazardTitle(h.properties)}</Text>
             <Text style={styles.caption}>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
           </View>)}
           <Button title="Refresh reports" onPress={() => void refresh()} />
@@ -282,20 +281,19 @@ function CampusApp() {
         <Button icon="locate" title={reportLocation.status === 'idle' ? 'Use my location' : reportLocation.status === 'ready' ? 'Refresh my location' : 'Retry location'}
           disabled={fixtureMode || submitting || reportLocation.status === 'locating'} onPress={() => void reportLocator.request()} />
         {reportLocation.status === 'denied' && <Button title="Open location settings" onPress={() => void Linking.openSettings().catch(() => setError('Open device Settings to enable location permission.'))} />}
-        <View style={styles.categories}>{(['pothole','obstruction','closure','other'] as const).map(k => <Pressable key={k}
-          accessibilityRole="button" accessibilityLabel={k} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
+        <View style={styles.categories} accessibilityRole="radiogroup" accessibilityLabel="Hazard category">{CATEGORIES.map(({ kind: k, label, hint }) => <Pressable key={k}
+          accessibilityRole="radio" accessibilityLabel={`${label}. ${hint}`} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
           style={[styles.category, k === kind && styles.categorySelected]}>
           {k !== kind && <SilverTexture />}
-          <Icon name={k} color={k === kind ? theme.inverse : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{k[0].toUpperCase() + k.slice(1)}</Text>
+          <Icon name={k} color={k === kind ? theme.inverse : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{label}</Text>
         </Pressable>)}</View>
-        {expanded && <TextInput accessibilityLabel="Optional report description" style={styles.input} value={description} onChangeText={setDescription} maxLength={280} placeholderTextColor={theme.muted} placeholder="Description (optional)" />}
 
         <Button primary title={submitting ? 'Saving report…' : 'Submit report'} disabled={fixtureMode || submitting || !reportLocator.ready()} onPress={() => void send()} />
         {!expanded && latestSubmission && <Text accessibilityLiveRegion="polite" style={latestSubmission.state === 'failed' ? styles.error : styles.caption}>
           {latestSubmission.state === 'submitted' ? 'Report submitted' : latestSubmission.state === 'sending' ? 'Sending report…' : latestSubmission.state === 'queued' ? 'Queued · not yet accepted' : 'Report failed · expand for details and retry'}
         </Text>}
         {expanded && submissions.map(sub => <View key={sub.id} style={styles.card}>
-          <Text style={styles.heading}>{sub.body.kind} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
+          <Text style={styles.heading}>{categoryLabel(sub.body.kind)} · {sub.state === 'queued' ? 'queued (pending, not accepted)' : sub.state}</Text>
           <Text style={styles.caption}>Observed {new Date(sub.body.observed_at).toLocaleString()}{sub.attempts ? ` · attempts ${sub.attempts}` : ''}</Text>
           {!!sub.error && <Text style={styles.error}>{sub.error}{sub.retryable ? '' : '\nThe server rejected this report; dismiss it and submit a corrected one.'}</Text>}
           {sub.state === 'failed' && sub.retryable && <Button title="Retry original report" onPress={() => void queue.retry(sub.id)} />}

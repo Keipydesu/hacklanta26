@@ -224,3 +224,7 @@ permission-dialog lifecycle handling, and fixture-mode location gating have dete
 tests. The MapLibre report marker is read-only and absent without a fresh fix. Route pins retain
 their existing behavior. No dependency or public API changes. Native Android/iOS permission dialogs
 and Settings return remain unverified; automated lifecycle tests do not replace device checks.
+
+## Report categories
+
+The Report screen has no free-text field. Riders pick one of four categories (pothole or rough surface, obstruction, closed path or road, other), which map one-to-one to the API's `kind` values in `src/reports/categories.ts`; "Other" needs no explanation. The API's optional `description` is unchanged, so reports queued by earlier versions still send. Adding a category beyond these four needs a coordinated contract change.
