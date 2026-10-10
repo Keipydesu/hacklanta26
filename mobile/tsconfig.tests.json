@@ -4,9 +4,9 @@
     "module": "CommonJS",
     "strict": true,
     "skipLibCheck": true,
-    "rootDir": "src/api",
+    "rootDir": "src",
     "outDir": ".test-dist",
     "types": []
   },
-  "include": ["src/api/hazardRefresh.ts"]
+  "include": ["src/api/hazardRefresh.ts", "src/reports/queue.ts", "src/reports/submit.ts"]
 }

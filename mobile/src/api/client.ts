@@ -15,18 +15,28 @@ for (const feature of fixtures.features) {
   }
 }
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  constructor(readonly status: number, message: string, readonly retryAfterSeconds?: number) { super(message); }
   // 4xx other than timeout/rate limit means resending the same body cannot succeed.
   get permanent() { return this.status >= 400 && this.status < 500 && this.status !== 408 && this.status !== 429; }
 }
+const REQUEST_TIMEOUT_MS = 15000;
 async function request<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!response.ok) throw new ApiError(response.status, `API ${response.status}: ${await response.text()}`);
-  return response.json();
+  // A hung connection must surface as a retryable failure, not leave a report stuck in "sending".
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${apiUrl}${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const retryAfter = Number(response.headers.get('Retry-After'));
+      throw new ApiError(response.status, `API ${response.status}: ${await response.text()}`, Number.isFinite(retryAfter) && response.headers.get('Retry-After') ? retryAfter : undefined);
+    }
+    return await response.json();
+  } finally { clearTimeout(timer); }
 }
 export const getHazards = (bbox: string) => fixtureMode ? Promise.resolve(fixtures) : request<HazardCollection>(`/v1/hazards?bbox=${encodeURIComponent(bbox)}`);
 export const submitReport = (body: Report) => {
