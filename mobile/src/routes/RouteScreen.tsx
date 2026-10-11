@@ -34,8 +34,8 @@ export function RouteScreen(props: {
       <Button title="Clear" onPress={props.onClear} />
     </View>}
     {props.offlinePreview && <Text style={styles.notice}>Offline preview · connect to routing for directions</Text>}
-    {loading && <Text style={styles.fine}>Comparing routes…</Text>}
-    {ready && !loading && (!presented || expanded) && <Button primary title={presented ? 'Refresh routes' : 'Compare routes'} onPress={props.onCompare} />}
+    {ready && (loading || !presented || expanded) && <Button primary busy={loading}
+      title={loading ? 'Comparing routes…' : presented ? 'Refresh routes' : 'Compare routes'} onPress={props.onCompare} />}
     {!!state.error && <Text accessibilityRole="alert" style={styles.error}>{state.error}</Text>}
     {state.error && presented && !expanded && <Button title="Retry comparison" onPress={props.onCompare} disabled={loading} />}
     {state.outdated && presented && <View>

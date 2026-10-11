@@ -1,14 +1,15 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { SilverTexture } from './SilverTexture';
 import { Icon, IconName } from './Icon';
 import { useTheme, type Theme } from './theme';
 
 /** Shared concept control; uses native primitives and adds no runtime dependency. */
-export function ActionButton({ title, onPress, disabled = false, primary = false, selected = false, icon }: {
+export function ActionButton({ title, onPress, disabled = false, busy = false, primary = false, selected = false, icon }: {
   title: string;
   onPress(): void;
   disabled?: boolean;
+  busy?: boolean;
   primary?: boolean;
   selected?: boolean;
   icon?: IconName;
@@ -16,11 +17,12 @@ export function ActionButton({ title, onPress, disabled = false, primary = false
   const theme = useTheme();
   const styles = createStyles(theme);
   return <Pressable accessibilityRole="button" accessibilityLabel={title}
-    accessibilityState={{ disabled, selected }} disabled={disabled} onPress={onPress}
+    accessibilityState={{ disabled: disabled || busy, selected, busy }} disabled={disabled || busy} onPress={onPress}
     style={({ pressed }) => [styles.button, primary && styles.primary,
       selected && styles.selected, disabled && styles.disabled, pressed && styles.pressed]}>
     {!primary && !selected && <SilverTexture />}
-    {icon && <Icon name={icon} color={primary || selected ? theme.inverse : theme.controlInk} />}
+    {busy ? <ActivityIndicator accessible={false} size="small" color={primary || selected ? theme.inverse : theme.controlInk} />
+      : icon && <Icon name={icon} color={primary || selected ? theme.inverse : theme.controlInk} />}
     <Text style={[styles.label, (primary || selected) && styles.primaryLabel]}>{title}</Text>
   </Pressable>;
 }
@@ -30,7 +32,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingVertical: 10, borderRadius: theme.radius, backgroundColor: theme.quiet, marginVertical: 4, flexShrink: 1, borderWidth: 1, borderColor: theme.line },
   primary: { backgroundColor: theme.primary, borderColor: theme.primaryEdge },
   selected: { backgroundColor: theme.selected, borderColor: theme.selectedEdge },
-  label: { fontFamily: theme.fontBody, color: theme.controlInk, fontSize: 14, textAlign: 'center' },
+  label: { fontFamily: theme.fontBody, color: theme.controlInk, fontSize: 14, textAlign: 'center', flexShrink: 1 },
   primaryLabel: { color: theme.inverse },
   disabled: { opacity: 0.6, borderStyle: 'dashed' },
   pressed: { opacity: 0.75 },
