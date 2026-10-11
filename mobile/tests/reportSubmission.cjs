@@ -23,14 +23,16 @@ for (const [screen, appState, expectedRequests] of [
 ]) {
   test(`delayed report save finishes on ${screen}/${appState} without an out-of-context fix`, async () => {
     let persist;
-    let requests = 0, drains = 0, clears = 0, kind = 'closure';
+    let requests = 0, drains = 0, clears = 0, kind = 'closure', description = 'Confirmed construction barrier';
     const context = {
       guardSubmit: run => run(), setSubmitting() {}, setError(error) { assert.equal(error, ''); },
-      fixtureMode: false, kind, Crypto: { randomUUID: () => 'report-id' },
+      fixtureMode: false, kind, description, Crypto: { randomUUID: () => 'report-id' },
       screenRef: { current: 'report' }, AppState: { currentState: 'active' },
       setKind: next => { kind = next; },
+      setDescription: next => { description = next; }, setDraftRevision() {},
       reportLocator: {
-        freeze: () => ({ id: 'report-id' }), clear: () => { clears++; }, request: () => { requests++; },
+        freeze: draft => { assert.equal(draft.description, 'Confirmed construction barrier'); return { id: 'report-id' }; },
+        clear: () => { clears++; }, request: () => { requests++; },
       },
       queue: {
         enqueue: () => new Promise(resolve => { persist = resolve; }), drain: () => { drains++; },
@@ -45,6 +47,7 @@ for (const [screen, appState, expectedRequests] of [
     assert.equal(requests, expectedRequests);
     assert.equal(clears, 1);
     assert.equal(kind, null);
+    assert.equal(description, '');
     assert.equal(drains, 1, 'saved reports still drain without another location fix');
   });
 }

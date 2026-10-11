@@ -20,10 +20,10 @@ export class ApiError extends Error {
   get permanent() { return this.status >= 400 && this.status < 500 && this.status !== 408 && this.status !== 429; }
 }
 const REQUEST_TIMEOUT_MS = 15000;
-async function call<T>(path: string, body?: unknown): Promise<{ data: T; headers: Headers }> {
+async function call<T>(path: string, body?: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<{ data: T; headers: Headers }> {
   // A hung connection must surface as a retryable failure, not leave a report stuck in "sending".
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${apiUrl}${path}`, {
       method: body ? 'POST' : 'GET',
@@ -77,3 +77,15 @@ export async function getRoutes(origin: Coordinate, destination: Coordinate): Pr
 }
 export type Health = components['schemas']['Health'];
 export const getHealth = () => request<Health>('/healthz');
+
+export type PhotoAnalysis = components['schemas']['PhotoAnalysis'];
+export type RouteExplanationRequest = components['schemas']['RouteExplanationRequest'];
+export const getAIStatus = () => fixtureMode ? Promise.resolve({ available: false }) : request<components['schemas']['AIStatus']>('/v1/ai/status');
+export async function analyzePhoto(image_base64: string): Promise<PhotoAnalysis> {
+  if (fixtureMode) throw new Error('Connect to the server to analyze a photo.');
+  return (await call<PhotoAnalysis>('/v1/ai/analyze-photo', { image_base64 }, 35000)).data;
+}
+export async function explainRoute(body: RouteExplanationRequest): Promise<string> {
+  if (fixtureMode) throw new Error('Connect to the server for route explanations.');
+  return (await call<components['schemas']['RouteExplanation']>('/v1/ai/explain-route', body, 35000)).data.explanation;
+}

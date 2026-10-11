@@ -15,7 +15,8 @@ from uuid import UUID, uuid4
 
 import psycopg
 import psycopg_pool
-from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends
+from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pyproj import Transformer
@@ -28,8 +29,10 @@ from .feedback import RECENT_NEEDED, Hide, HazardState, apply_feedback
 from .routing import planner
 from .routing.valhalla import NoPath, Unavailable, ValhallaClient
 from .places import PlaceSearch, PlacesUnavailable
+from .ai import VultrAI, AIUnavailable, AIBusy, MAX_REQUEST_BYTES, validate_image
 from .schemas import (ManualReport, AutomaticPublication, ReportReceipt, PublicationReceipt,
-                      HazardCollection, HazardFeedback, FeedbackReceipt, PlaceResults, RouteRequest, RouteResponse)
+                      HazardCollection, HazardFeedback, FeedbackReceipt, PlaceResults, RouteRequest, RouteResponse,
+                      AIStatus, PhotoAnalysisRequest, PhotoAnalysis, RouteExplanationRequest, RouteExplanation)
 
 CONTRACTS = Path(os.getenv('CONTRACTS_DIR', Path(__file__).resolve().parents[2] / 'contracts'))
 BEARER = HTTPBearer(auto_error=False)
@@ -65,6 +68,7 @@ def create_app(database_url=None):
     valhalla = ValhallaClient(valhalla_url) if valhalla_url else None
     photon_url = os.getenv('PHOTON_URL', 'https://photon.komoot.io').strip()
     places = PlaceSearch(photon_url) if photon_url else None
+    ai = VultrAI.from_env()
     reports, publications, hazards, feedback = {}, {}, {}, {}
     revisions, hidden = {}, {}
     sockets = set()
@@ -131,6 +135,8 @@ def create_app(database_url=None):
                 await valhalla.close()
             if places:
                 await places.close()
+            if app.state.ai:
+                await app.state.ai.close()
 
     app = FastAPI(title='Campus product stub', lifespan=lifespan)
 
@@ -151,6 +157,57 @@ def create_app(database_url=None):
     app.state.store = store
     app.state.valhalla = valhalla
     app.state.places = places
+    app.state.ai = ai
+
+    @app.exception_handler(AIUnavailable)
+    async def ai_down(request, exc):
+        return JSONResponse({'detail': 'AI is unavailable right now. You can still report manually and compare routes.'}, status_code=503)
+
+    @app.exception_handler(AIBusy)
+    async def ai_busy(request, exc):
+        return JSONResponse({'detail': 'AI is busy. Try again shortly or continue manually.'}, status_code=429, headers={'Retry-After': '60'})
+
+    async def ai_body(request, model, limit=MAX_REQUEST_BYTES):
+        # Read bounded chunks before JSON parsing, including chunked requests without Content-Length.
+        if request.headers.get('content-type', '').split(';')[0].strip().lower() != 'application/json':
+            raise HTTPException(422, 'Send application/json')
+        data = bytearray()
+        async for chunk in request.stream():
+            if len(data) + len(chunk) > limit:
+                raise HTTPException(413, 'AI request is too large')
+            data.extend(chunk)
+        try:
+            return model.model_validate_json(data)
+        except (ValueError, ValidationError):
+            # Never echo an uploaded photo in validation errors.
+            raise HTTPException(422, 'Invalid AI request') from None
+
+    def require_ai():
+        provider = app.state.ai
+        if not provider:
+            raise AIUnavailable()
+        return provider
+
+    @app.get('/v1/ai/status', response_model=AIStatus)
+    async def ai_status():
+        # Configured capability, not an upstream health guarantee; product health is independent.
+        return {'available': app.state.ai is not None}
+
+    @app.post('/v1/ai/analyze-photo', response_model=PhotoAnalysis)
+    async def analyze_photo(request: Request):
+        provider = require_ai()
+        body = await ai_body(request, PhotoAnalysisRequest)
+        try:
+            cleaned = validate_image(body.image_base64)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
+        return await provider.analyze(cleaned)
+
+    @app.post('/v1/ai/explain-route', response_model=RouteExplanation)
+    async def explain_route(request: Request):
+        provider = require_ai()
+        body = await ai_body(request, RouteExplanationRequest, 8192)
+        return {'explanation': await provider.explain(body)}
 
     def authenticate(credentials: HTTPAuthorizationCredentials | None = Depends(BEARER)):
         key = os.getenv('AUTOMATION_PUBLISH_KEY')

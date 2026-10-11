@@ -113,7 +113,7 @@ def test_request_schema_parity():
     module_spec = importlib.util.spec_from_file_location('parity', ROOT/'scripts/check_model_parity.py')
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
-    module.assert_request_parity(SPEC, {name:getattr(schemas,name) for name in ['ManualReport','AutomaticPublication','RouteRequest','HazardFeedback']})
+    module.assert_request_parity(SPEC, {name:getattr(schemas,name) for name in ['ManualReport','AutomaticPublication','RouteRequest','HazardFeedback','PhotoAnalysisRequest','RouteExplanationRequest']})
 
 def test_reports_anywhere_keep_feed_valid(client):
     for lat, lon in [(0, 120), (89.99, 0), (-45, -179.99999)]:

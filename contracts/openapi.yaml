@@ -277,6 +277,101 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RouteRequest'
+  /v1/ai/status:
+    get:
+      operationId: status
+      description: Configured capability only, not upstream health. AI is optional.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIStatus'
+  /v1/ai/analyze-photo:
+    post:
+      operationId: analyze_photo
+      description: Analyze a JPEG up to 3 MB through Vultr. No storage or publication;
+        review before submission.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoAnalysis'
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: AI busy; retry after 60 seconds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: AI unconfigured or unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhotoAnalysisRequest'
+  /v1/ai/explain-route:
+    post:
+      operationId: explain_route
+      description: AI chooses emphasis; the server renders numeric comparison facts.
+        No location or geometry forwarded.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteExplanation'
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: AI busy; retry after 60 seconds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: AI unconfigured or unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteExplanationRequest'
 components:
   schemas:
     Coordinate:
@@ -798,6 +893,120 @@ components:
       - type
       - data
       additionalProperties: false
+    AIStatus:
+      additionalProperties: false
+      properties:
+        available:
+          title: Available
+          type: boolean
+      required:
+      - available
+      title: AIStatus
+      type: object
+    PhotoAnalysisRequest:
+      additionalProperties: false
+      properties:
+        image_base64:
+          maxLength: 4194304
+          minLength: 4
+          title: Image Base64
+          type: string
+      required:
+      - image_base64
+      title: PhotoAnalysisRequest
+      type: object
+    PhotoAnalysis:
+      additionalProperties: false
+      properties:
+        status:
+          enum:
+          - suggested
+          - unclear
+          - no_hazard
+          title: Status
+          type: string
+        kind:
+          anyOf:
+          - enum:
+            - pothole
+            - obstruction
+            - closure
+            - other
+            type: string
+          - type: 'null'
+          title: Kind
+        description:
+          maxLength: 280
+          minLength: 1
+          title: Description
+          type: string
+      required:
+      - status
+      - kind
+      - description
+      title: PhotoAnalysis
+      type: object
+    AIRouteSummary:
+      additionalProperties: false
+      properties:
+        kind:
+          enum:
+          - shortest
+          - safest
+          title: Kind
+          type: string
+        distance_m:
+          maximum: 10000000
+          minimum: 0
+          title: Distance M
+          type: number
+        duration_s:
+          maximum: 1000000
+          minimum: 0
+          title: Duration S
+          type: number
+        hazard_count:
+          maximum: 10000
+          minimum: 0
+          title: Hazard Count
+          type: integer
+      required:
+      - kind
+      - distance_m
+      - duration_s
+      - hazard_count
+      title: AIRouteSummary
+      type: object
+    RouteExplanationRequest:
+      additionalProperties: false
+      properties:
+        routes:
+          items:
+            $ref: '#/components/schemas/AIRouteSummary'
+          maxItems: 2
+          minItems: 2
+          title: Routes
+          type: array
+        safest_available:
+          title: Safest Available
+          type: boolean
+      required:
+      - routes
+      - safest_available
+      title: RouteExplanationRequest
+      type: object
+    RouteExplanation:
+      additionalProperties: false
+      properties:
+        explanation:
+          maxLength: 700
+          minLength: 1
+          title: Explanation
+          type: string
+      required:
+      - explanation
+      title: RouteExplanation
+      type: object
   securitySchemes:
     PublisherKey:
       type: http

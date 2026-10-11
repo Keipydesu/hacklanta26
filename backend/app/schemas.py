@@ -138,3 +138,42 @@ class RouteResponse(Model):
     routes: Annotated[list[Route], Field(min_length=2, max_length=2)]
     safest_available: bool
     alternatives: Annotated[list[AlternativeRoute], Field(max_length=2)] = []
+
+class AIStatus(Model):
+    available: bool
+
+class PhotoAnalysisRequest(Model):
+    # JPEG bytes only, never remote URLs or precise location metadata.
+    image_base64: Annotated[str, Field(min_length=4, max_length=4194304)]
+
+class PhotoAnalysis(Model):
+    status: Literal['suggested', 'unclear', 'no_hazard']
+    kind: Literal['pothole', 'obstruction', 'closure', 'other'] | None
+    description: Annotated[str, Field(min_length=1, max_length=280)]
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if (self.status == 'suggested') != (self.kind is not None):
+            raise ValueError('Only a suggested hazard can have a category')
+        if not self.description.strip() or any(ord(c) < 32 for c in self.description):
+            raise ValueError('Description must be readable plain text')
+        return self
+
+class AIRouteSummary(Model):
+    kind: Literal['shortest', 'safest']
+    distance_m: Annotated[float, Field(ge=0, le=10000000, strict=True)]
+    duration_s: Annotated[float, Field(ge=0, le=1000000, strict=True)]
+    hazard_count: Annotated[int, Field(ge=0, le=10000, strict=True)]
+
+class RouteExplanationRequest(Model):
+    routes: Annotated[list[AIRouteSummary], Field(min_length=2, max_length=2)]
+    safest_available: bool
+
+    @model_validator(mode='after')
+    def distinct_kinds(self):
+        if {route.kind for route in self.routes} != {'shortest', 'safest'}:
+            raise ValueError('Provide one baseline and one lower-risk route')
+        return self
+
+class RouteExplanation(Model):
+    explanation: Annotated[str, Field(min_length=1, max_length=700)]

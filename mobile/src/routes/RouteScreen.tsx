@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ActionButton as Button } from '../ui/ActionButton';
 import { useTheme, type Theme } from '../ui/theme';
 import { canRequest, presentRoutes, type RouteLine, type RouteState } from './model';
+import { RouteExplanation } from '../ai/RouteExplanation';
 
 export const routeColors = (theme: Theme) => ({ shortest: theme.routeShortest, safest: theme.routeLowerRisk });
 
@@ -23,7 +24,7 @@ function RouteCard({ line, expanded, colors }: { line: RouteLine; expanded: bool
 }
 
 export function RouteScreen(props: {
-  colors: { shortest: string; safest: string }; state: RouteState; offlinePreview: boolean; expanded: boolean;
+  colors: { shortest: string; safest: string }; state: RouteState; offlinePreview: boolean; expanded: boolean; aiAvailable?: boolean;
   fields: ReactNode; canSwap: boolean; onCompare(): void; onSwap(): void; onClear(): void;
 }) {
   const theme = useTheme();
@@ -53,6 +54,8 @@ export function RouteScreen(props: {
         {presented.lowerRisk && <RouteCard colors={props.colors} line={presented.lowerRisk} expanded={expanded} />}
       </View>
       {!presented.lowerRisk && <Text style={styles.fine}>No distinct lower-risk alternative</Text>}
+      {props.aiAvailable && state.result && <RouteExplanation key={JSON.stringify(state.result.response)} response={state.result.response}
+        outdated={state.outdated} disabled={loading || state.status !== 'ready'} />}
       {expanded && <>
         <Text style={styles.fine}>{presented.summary}</Text>
         <Text style={styles.fine}>Routes do not reroute automatically. Risk is a routing heuristic, not a safety guarantee.</Text>

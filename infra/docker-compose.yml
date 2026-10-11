@@ -39,6 +39,8 @@ services:
       DATABASE_URL: postgresql://product:${PRODUCT_DB_PASSWORD}@db:5432/product
       # Empty keeps the fixed example routes; http://valhalla:8002 with the routing profile.
       VALHALLA_URL: ${VALHALLA_URL:-}
+      VULTR_INFERENCE_API_KEY: ${VULTR_INFERENCE_API_KEY:-}
+      VULTR_INFERENCE_MODEL: ${VULTR_INFERENCE_MODEL:-qwen3.8-27b}
     depends_on:
       db:
         condition: service_healthy

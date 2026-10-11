@@ -102,3 +102,11 @@ See the [deployment handoff](infra/VULTR-DEMO.md) for verified checks, Expo laun
 and remaining phone validation.
 
 Passing `main` pushes automatically deploy the Vultr API stack; see the [deployment runbook](infra/VULTR-DEMO.md#automatic-deployment-from-main).
+
+## Optional AI through Vultr
+
+Photo analysis suggests an editable hazard draft, requiring rider confirmation and normal Submit.
+Route explanations emphasize the displayed comparison using facts rendered by the backend.
+Set the server-only Vultr Inference key/model; blank key disables AI.
+See the [AI setup and rehearsal runbook](backend/AI.md). Live inference requires your private key
+and has not been verified during implementation.

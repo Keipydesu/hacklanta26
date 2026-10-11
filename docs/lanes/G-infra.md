@@ -250,3 +250,9 @@ Every handoff includes tested commit/image versions, enabled profiles, public UR
 migration and launch commands, probe results, backup/restore/rollback evidence, missing operator
 inputs, and remaining stubs. The final gate is a phone using live reports and real routes over HTTPS
 with automatic containers stopped, not merely a green Compose status.
+
+## Optional Vultr AI extension
+
+[Decision 031](../decisions/031-vultr-ai-assistance.md) coordinates optional photo-assisted drafts
+and grounded route explanations across A/C/0/G. The manual MVP remains independent of inference.
+See [configuration, contracts, dependency review and verification](../../backend/AI.md).

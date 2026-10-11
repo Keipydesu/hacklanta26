@@ -53,6 +53,9 @@ Physical-device validation and real-recording tuning remain outstanding. See com
 | Automatic service | Independent FastAPI; durable PostGIS ingestion, serialized hazard worker and publication outbox when `AUTOMATION_DATABASE_URL` is set (memory stub otherwise) |
 | Hosting | One-command local app via `infra/dev.sh` (Expo + API + PostGIS + Valhalla); Compose manual stack with opt-in `routing` / `https` / `automation` profiles and Vultr deploy/rollback scripts (`infra/`); manual HTTPS deployment and current-release recovery verified; see infra/VULTR-DEMO.md |
 
+Optional Vultr photo drafts and route explanations are implemented per decision 031; real
+inference and device rehearsal require credentials. See [AI runbook](backend/AI.md).
+
 ## Commands
 
 From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
@@ -62,6 +65,8 @@ From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
 - Generated types: `npm ci --prefix contracts`, then `npm run generate --prefix contracts`.
 - Product API: `uv sync --project backend --frozen`, then
   `uv run --project backend uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000`.
+- AI catalog/smoke: `uv run --project backend python backend/scripts/check_vultr_ai.py --catalog-only`;
+  real-key commands and current verification limits: [AI runbook](backend/AI.md).
 - Product tests: `uv run --project backend pytest -c backend/pyproject.toml backend/tests -q`.
 - Campus bike-lane data refresh: `python3 backend/bike_lanes/import_osm.py [--date <OSM snapshot>]`.
 - Mobile: `npm ci --prefix mobile`; `npm start --prefix mobile`;
