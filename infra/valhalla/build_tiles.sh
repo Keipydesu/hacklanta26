@@ -31,7 +31,8 @@ case "${1:-}" in
     EXTRACT=extract.osm
     note "downloading GSU campus map data ($BBOX)"
     # Complete ways plus their referenced nodes; XML is accepted by Valhalla's OSM reader.
-    curl -fL --retry 2 --max-time 180 --data-urlencode \
+    curl -fL --retry 2 --max-time 180 \
+      --user-agent 'CampusHazardMap/0.1 (local routing tile build)' --data-urlencode \
       'data=[out:xml][timeout:120];way(33.74,-84.40,33.77,-84.37);(._;>;);out body;' \
       "$SOURCE" -o "$WORK/$EXTRACT"
     python3 - "$WORK/$EXTRACT" <<'PY'

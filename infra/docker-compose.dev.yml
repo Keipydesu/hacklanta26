@@ -1,0 +1,27 @@
+# Local phone development overlay; use ./infra/dev.sh to prepare secrets, tiles and LAN_IP.
+# Keep the base project's database/volume identity and optional automation/HTTPS profiles.
+services:
+  api:
+    environment:
+      VALHALLA_URL: http://valhalla:8002
+  mobile:
+    build:
+      context: ..
+      dockerfile: infra/mobile.Dockerfile
+    init: true
+    restart: unless-stopped
+    ports:
+      - '${API_BIND:-0.0.0.0}:${EXPO_PORT:-8081}:8081'
+    environment:
+      EXPO_PUBLIC_API_URL: http://${LAN_IP:?Run ./infra/dev.sh to select your LAN address}:${API_PORT:-8000}
+      EXPO_PACKAGER_PROXY_URL: http://${LAN_IP}:${EXPO_PORT:-8081}
+      REACT_NATIVE_PACKAGER_HOSTNAME: ${LAN_IP}
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_OFFLINE: '1'
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8081/status').then(async r => { if (!r.ok || !(await r.text()).includes('packager-status:running')) process.exit(1); }).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

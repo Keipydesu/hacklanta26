@@ -1,9 +1,9 @@
 name: Lane checks
 on:
   push:
-    paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
+    paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '.dockerignore', '**/*.md', '.github/workflows/**']
   pull_request:
-    paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '**/*.md', '.github/workflows/**']
+    paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '.dockerignore', '**/*.md', '.github/workflows/**']
 concurrency:
   group: skeletons-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -22,6 +22,7 @@ jobs:
       contracts: ${{ steps.paths.outputs.contracts }}
       simulator: ${{ steps.paths.outputs.simulator }}
       stack: ${{ steps.paths.outputs.stack }}
+      dev_mobile: ${{ steps.paths.outputs.dev_mobile }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -34,6 +35,7 @@ jobs:
             collector: ['automatic/collector/**', 'contracts/**', '.github/workflows/skeletons.yml']
             detector: ['automatic/detector/**', '.github/workflows/skeletons.yml']
             simulator: ['simulator/**', 'automatic/detector/**', '.github/workflows/skeletons.yml']
+            dev_mobile: ['infra/mobile.Dockerfile', 'infra/docker-compose.dev.yml', 'infra/dev.py', 'mobile/**', '.dockerignore', '.github/workflows/skeletons.yml']
             stack: ['infra/**', 'backend/**', 'automatic/service/**', 'automatic/Dockerfile', 'contracts/**', '.dockerignore', '.github/workflows/skeletons.yml']
             contracts: ['contracts/**', 'mobile/src/api/schema.d.ts', 'automatic/collector/src/api/schema.d.ts', 'automatic/service/product-api.d.ts', 'mobile/src/fixtures/**', 'automatic/collector/src/*.json', '.github/workflows/skeletons.yml']
   backend:
@@ -214,6 +216,43 @@ jobs:
           tail_logs="$(docker compose --env-file "$ENV_FILE" -f infra/docker-compose.yml --profile automation logs --no-color --no-log-prefix --tail 25 api automatic 2>&1 | tail -n 45)"
           tail_logs="${tail_logs//'%'/'%25'}"; tail_logs="${tail_logs//$'\r'/'%0D'}"; tail_logs="${tail_logs//$'\n'/'%0A'}"
           echo "::error title=Service logs at failure::$tail_logs"
+  dev-mobile:
+    needs: changes
+    if: needs.changes.outputs.dev_mobile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Development Compose overlay parses
+        run: LAN_IP=192.0.2.10 docker compose --env-file infra/.env.example -f infra/docker-compose.yml -f infra/docker-compose.dev.yml --profile routing config --quiet
+      - name: Build locked Expo image and serve a phone-addressed native bundle
+        run: |
+          docker build -f infra/mobile.Dockerfile -t campus-mobile-ci .
+          docker run -d --name mobile-ci -p 8081:8081 \
+            -e CI=1 -e EXPO_OFFLINE=1 -e EXPO_NO_TELEMETRY=1 \
+            -e EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
+            -e EXPO_PACKAGER_PROXY_URL=http://127.0.0.1:8081 campus-mobile-ci
+          python3 - <<'PY'
+          import json, time, urllib.request
+          base = 'http://127.0.0.1:8081'
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen(base + '/status', timeout=2) as r:
+                      assert b'packager-status:running' in r.read()
+                  break
+              except (OSError, AssertionError):
+                  if attempt == 29: raise
+                  time.sleep(2)
+          request = urllib.request.Request(base, headers={'expo-platform': 'ios', 'Accept': 'application/expo+json'})
+          with urllib.request.urlopen(request, timeout=30) as r:
+              manifest = json.load(r)
+          assert manifest['launchAsset']['url'].startswith(base + '/')
+          with urllib.request.urlopen(manifest['launchAsset']['url'], timeout=120) as r:
+              assert r.status == 200 and len(r.read()) > 1000
+          print('Expo manifest and native bundle passed')
+          PY
+      - name: Expo logs on failure
+        if: failure()
+        run: docker logs mobile-ci || true
   generated-types:
     needs: changes
     if: needs.changes.outputs.contracts == 'true'

@@ -46,7 +46,31 @@ The first release ends after the third item. Automatic work can proceed in paral
 - Foreground live trip position and camera follow are supported ([decision 024](docs/decisions/024-foreground-trip-tracking.md)). Background tracking, ride recording and motion permission remain out of scope.
 - Vultr database redundancy remains a proposed follow-up, not a deployed or selected configuration.
 
-## Stage 0 quick start
+## One-command local app
+
+With Docker Desktop running and Python 3 installed, from the repository root:
+
+```sh
+./infra/dev.sh
+```
+
+This creates ignored local credentials if needed, prepares GSU routing tiles on first launch,
+and starts PostGIS, the product API, Valhalla and Expo in Docker. Existing credentials, tiles
+and database data are reused. No host `npm ci` or separate backend terminal is needed.
+Scan the printed QR code with SDK-57-compatible Expo Go on the same Wi-Fi.
+The first build downloads dependencies, fonts and map data; campus routes cover the GSU area.
+
+```sh
+./infra/dev.sh logs     # service logs
+./infra/dev.sh down     # stop; preserve reports and tiles
+```
+
+Stop any old standalone API/Expo terminals first (ports 8000/8081). If network detection chooses
+an unsuitable interface, use `LAN_IP=192.168.1.10 ./infra/dev.sh` with your computer's Wi-Fi IP.
+Re-run after source changes to rebuild. Automation stays optional. See the
+[local Compose runbook](infra/README.md#one-command-phone-development) for ports and troubleshooting.
+
+## Separate host processes (fixture backend by default)
 
 Use Python 3.11+ with uv, Node 22 LTS, and Docker Compose for the optional local DB container.
 
