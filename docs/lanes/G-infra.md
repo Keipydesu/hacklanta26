@@ -17,6 +17,13 @@ F owns scenario generation. G wires their documented commands without implementi
 logic. Coordinate AGENTS Commands/Stack updates when verified commands land, since that is shared
 guidance. Never make generated runtime data or credentials part of a planning PR.
 
+## Local startup entrypoint
+
+[Decision 026](../decisions/026-one-command-local-compose.md) adds `./infra/dev.sh` and a development
+Compose overlay for Expo + API + PostGIS + real routing. It preserves credentials/data and builds
+missing campus tiles once before startup. Automation stays optional; production profiles are
+unchanged. This local entrypoint does not complete the hosted/device acceptance gates below.
+
 ## Service architecture and isolation
 
 ```text

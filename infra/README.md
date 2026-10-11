@@ -26,12 +26,60 @@ collector → Caddy, own hostname → automatic [automation] → db (observation
 | Piece | Status |
 |---|---|
 | Compose file, all profiles parse | run locally (`docker compose config`) and in CI |
+| `dev.sh` + dev overlay + Expo Docker image | On 2026-10-10: isolated first database startup and repeat launch; persistent API/real LAN route probes; Metro/iOS manifest and native bundle with correct LAN API URL; 16 infrastructure tests and docs checks passed. Physical Expo Go interaction with this container remains to be checked. |
 | Images build from locked manifests; manual stack starts healthy; `check_stack.sh`; `backup.sh` → `restore_check.sh`; observation role isolation; automation start/stop independence; `reset_db.sh`; Caddyfile validation | exercised by the CI `stack` job on every change under `infra/` — see that job's result on the PR, not this table, for the current state |
-| `valhalla/build_tiles.sh`, the `routing` profile serving real tiles | **not run** |
+| `valhalla/build_tiles.sh`, the `routing` profile serving real tiles | Campus extract built and validated locally on 2026-10-10; real route probe passed over LAN. Full metro extract remains unmeasured. |
 | `vultr/cloud-init.yaml`, `vultr/deploy.sh`, `vultr/rollback.sh`, real TLS issuance | **not run** against a real host — no host, hostname or credentials existed. The remote deploy/rollback logic was exercised locally with mocked `docker`/`flock` for: A/B/C failed rollout restarts B; first-upgrade failure restarts the only release; successful-then-bad release rolls back to `previous`; failed route or write probes leave `current` untouched. `--probe-route` and `--probe-report` were run against the stage 0 backend (fixture rejected, report probe passed). |
 | `seed_demo.sh`, `check_stack.sh --write-demo` | **not run** against a real stack (they call Lane F's simulator) |
 
 Nothing is deployed. There is no public URL yet.
+
+## One-command phone development
+
+From the repository root, with Docker Desktop, Python 3, Git and curl available:
+
+```sh
+./infra/dev.sh
+```
+
+The launcher prepares `infra/.env` with random credentials only when no database exists, builds
+missing GSU tiles with the existing preparation script, and uses `docker-compose.dev.yml` over
+the base Compose file to start `db`, `valhalla`, `api` and `mobile`. Existing credentials and
+`infra_product-data` are preserved. The API gets real routing automatically; the Expo container
+installs all locked dependencies (including MapLibre), verifies fonts and generates the map bundle.
+It receives only public LAN URLs, never backend secrets. Source is copied at build time; rerun
+this command to pick up edits. No host npm install or additional backend command is needed.
+
+Readiness checks persistent API health, a real campus route, Metro health and the iOS manifest's
+advertised bundle URL. Scan the printed QR in Expo Go on the same Wi-Fi. The native application
+runs on your phone; Docker hosts its development server. This is not a web dashboard or signed app.
+
+```sh
+./infra/dev.sh status
+./infra/dev.sh logs
+./infra/dev.sh down       # stops only these four services; keeps all data and tiles
+LAN_IP=192.168.1.10 ./infra/dev.sh   # override Wi-Fi address detection
+API_PORT=18000 EXPO_PORT=18081 ./infra/dev.sh  # alternate host ports
+```
+
+Use the same port/project overrides on subsequent commands. `COMPOSE_PROJECT_NAME` preserves an
+existing custom project; default remains `infra`. `ENV_FILE` may select another Git-ignored,
+untracked file inside this checkout. The default is `infra/.env`; it is never sourced as shell code.
+Stop standalone Uvicorn/Expo terminals on conflicting ports; the launcher reports which port.
+If database authentication fails, restore the original password in `.env` or deliberately update
+the local database role to match. Replacing `.env` does not change an initialized database password.
+The launcher never resets data or silently rotates an existing password.
+
+For direct Compose usage after initial preparation (set your actual LAN_IP):
+
+```sh
+LAN_IP=192.168.1.10 docker compose --env-file infra/.env \
+  -f infra/docker-compose.yml -f infra/docker-compose.dev.yml --profile routing up -d --build --wait
+```
+
+The base Compose file continues to support manual API-only, optional automation and production
+HTTPS independently. The dev overlay is for a trusted LAN; do not use it on the public Vultr host.
+The Expo runtime is pinned and documented in [its review](DEV-RUNTIME-REVIEW.md).
 
 ## Local development
 
@@ -79,8 +127,8 @@ docker compose --env-file infra/.env -f infra/docker-compose.yml --profile routi
 infra/check_stack.sh http://localhost:8000 --expect-routing valhalla --probe-route
 ```
 
-Without a reachable engine the API answers with its fixed example route and an `X-Stage-0-Stub`
-header. Outside offline preview mode the app treats that as an outage ("Routing is unavailable
+Without a configured `VALHALLA_URL` the API answers with its fixed example route and an `X-Stage-0-Stub`
+header. A configured but unreachable engine returns 503. Outside offline preview mode the app treats that as an outage ("Routing is unavailable
 right now") with a retry button, rather than drawing example lines; reporting and the hazard map keep
 working.
 
@@ -90,10 +138,9 @@ real pedestrian route across GSU (16 km/h, step penalty 600), and only then repl
 the extract checksum, bounding box, date and engine image digest. Extracts, tiles and logs are
 ignored by git.
 
-Unverified until someone runs it: that the `ghcr.io/valhalla/valhalla:3.9.1` tag is the right
-engine (it is the version Lane C recorded its fixtures with; CI only checks that the tag exists),
-the `valhalla_build_config` flags, and memory, disk and time for the metro Atlanta extract. Record
-those here on first use, and pin the image digest from `manifest.json`. With an empty
+The `ghcr.io/valhalla/valhalla:3.9.1` image and build flags passed the small campus build and route
+probe on 2026-10-10. The manifest records the served image digest. Memory, disk and build time for
+the full metro Atlanta extract remain unmeasured. With an empty
 `VALHALLA_URL` the API keeps answering with its fixed example route and says so in a response
 header. The API never fails health because routing is down.
 

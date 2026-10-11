@@ -5,3 +5,7 @@
 **/.expo
 **/__pycache__
 **/.env
+**/.env.*
+!**/.env.example
+infra/valhalla/custom_files
+**/.test-dist
