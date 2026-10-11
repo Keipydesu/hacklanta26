@@ -71,6 +71,8 @@ def check_port(bind, port, service, compose, env):
     if published and published.rsplit(':', 1)[-1] == str(port):
         return
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        # Like the servers, allow reuse after closed connections enter TIME_WAIT.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((bind, port))
         except OSError as error:
