@@ -13,6 +13,7 @@ from .valhalla import NoPath, Unavailable
 
 EXCLUDE_SCORE = 0.4
 MAX_EXCLUSIONS = 20
+MAX_EXCLUSION_VERTICES = 100  # Valhalla's combined exclude_polygons limit, not a per-ring one
 SEARCH_MARGIN_DEG = 0.004  # ~450 m around the trip; widened once if a candidate leaves it
 MAX_ALTERNATIVES = 2
 SAME_ROUTE_DEG = 1e-4  # ~10 m: a Hausdorff distance below this is the same route
@@ -36,7 +37,8 @@ def covers(outer, inner):
 
 def select_exclusions(hazards, origin, destination, baseline_coordinates=None):
     """Rings of at most 20 eligible hazards nearest the baseline route (else the straight trip line),
-    never ones that touch an endpoint."""
+    never ones that touch an endpoint, stopping early if their combined vertices would exceed the
+    routing engine's exclude_polygons limit (hazard count alone does not bound that)."""
     endpoints = [Point(origin.lon, origin.lat), Point(destination.lon, destination.lat)]
     line = LineString(baseline_coordinates or [(origin.lon, origin.lat), (destination.lon, destination.lat)])
     cos = math.cos(math.radians((origin.lat + destination.lat) / 2))  # longitude degrees shrink with latitude
@@ -45,7 +47,14 @@ def select_exclusions(hazards, origin, destination, baseline_coordinates=None):
     eligible = [h for h in hazards if h.score >= EXCLUDE_SCORE
                 and not any(h.polygon.intersects(p) for p in endpoints)]
     eligible.sort(key=lambda h: (distance(h), h.id))
-    return [[list(c) for c in h.polygon.exterior.coords] for h in eligible[:MAX_EXCLUSIONS]]
+    rings, total_vertices = [], 0
+    for h in eligible[:MAX_EXCLUSIONS]:
+        ring = [list(c) for c in h.polygon.exterior.coords]
+        if total_vertices + len(ring) > MAX_EXCLUSION_VERTICES:
+            break
+        rings.append(ring)
+        total_vertices += len(ring)
+    return rings
 
 def score_route(coordinates, hazards):
     line = LineString(coordinates)

@@ -48,9 +48,11 @@ def parse_bbox(bbox):
 
 def report_area(lon, lat, radius_m=8):
     # Buffer in a metre-based projection centred on the point so any global coordinate stays finite.
+    # quad_segs=4 keeps each hazard ring to 17 vertices (default 16 segments/quadrant gives 65) so a
+    # handful of hazards near a route still fit Valhalla's combined exclude_polygons vertex limit.
     local = f'+proj=aeqd +lat_0={lat} +lon_0={lon} +units=m +datum=WGS84'
     reverse = Transformer.from_crs(local, 4326, always_xy=True).transform
-    polygon = transform(reverse, Point(0, 0).buffer(radius_m))
+    polygon = transform(reverse, Point(0, 0).buffer(radius_m, quad_segs=4))
     west, _, east, _ = polygon.bounds
     if not polygon.is_valid or east - west > 180:
         raise HTTPException(422, 'Report location is too close to a pole or the antimeridian')

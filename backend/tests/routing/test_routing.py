@@ -11,7 +11,7 @@ from shapely.geometry import Polygon, box
 from app.main import create_app
 from app.routing import planner
 from app.routing.planner import Hazard
-from app.routing.valhalla import NoPath, Unavailable, ValhallaClient, decode_polyline6, parse_trip
+from app.routing.valhalla import Candidate, NoPath, Unavailable, ValhallaClient, decode_polyline6, parse_trip
 from app.schemas import Coordinate
 from test_boundary import fresh, validate
 
@@ -106,6 +106,48 @@ def test_exclusions_capped_at_twenty_nearest():
     hazards = [hazard(f'h{i:02d}', 0.8, far(i)) for i in range(30)]
     rings = planner.select_exclusions(hazards, ORIGIN, DEST)
     assert len(rings) == 20
+
+def test_exclusions_capped_by_vertex_budget_not_just_count():
+    """High-vertex rings (e.g. real hazard-report circles) must never push the combined
+    exclude_polygons payload past the routing engine's limit, even well under 20 hazards."""
+    from shapely.geometry import Point as ShapelyPoint
+    circle = lambda i: list(ShapelyPoint(-84.3853, 33.7531 + 0.0001 * i).buffer(0.00005).exterior.coords)
+    hazards = [hazard(f'c{i:02d}', 0.8, circle(i)) for i in range(5)]
+    assert len(hazards[0].polygon.exterior.coords) > 20  # each ring alone would have blown the old 20-hazard budget
+    rings = planner.select_exclusions(hazards, ORIGIN, DEST)
+    assert rings  # the budget must not starve exclusions down to nothing
+    assert sum(len(r) for r in rings) <= planner.MAX_EXCLUSION_VERTICES
+    assert len(rings) < len(hazards)  # the budget, not the count cap, is what stopped it here
+
+def test_budget_skipped_hazard_is_still_scored_on_both_routes():
+    """A hazard dropped from the exclude_polygons payload by the vertex budget must still count
+    toward risk_score and hazard_ids - the budget only bounds what Valhalla is asked to avoid,
+    never what a rider sees scored against whichever road they end up on."""
+    from shapely.geometry import Point as ShapelyPoint, LineString as ShapelyLine
+    line = ShapelyLine([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    on_line = lambda t: line.interpolate(t, normalized=True)
+    # Full-resolution circles (default ~65 vertices) placed directly on the straight trip line,
+    # far enough apart that both are eligible and neither touches an endpoint.
+    first, second = on_line(0.3), on_line(0.6)
+    h1 = Hazard('on-line-1', 0.8, first.buffer(0.0003))
+    h2 = Hazard('on-line-2', 0.8, second.buffer(0.0003))
+    hazards = [h1, h2]
+    assert all(h.polygon.intersects(line) for h in hazards)
+    rings = planner.select_exclusions(hazards, ORIGIN, DEST)
+    assert 0 < len(rings) < len(hazards)  # budget let one through and dropped the other
+    class StraightRoute:
+        async def routes(self, origin, destination, alternates=0):
+            return [Candidate(list(line.coords), 400, 100)]
+        async def route(self, origin, destination, exclusions):
+            assert exclusions and sum(map(len, exclusions)) <= 100
+            return Candidate(list(line.coords), 400, 100)
+    async def loader(bounds):
+        return hazards
+    result = asyncio.run(planner.plan(StraightRoute(), ORIGIN, DEST, loader))
+    for route in result['routes']:
+        assert set(route['hazard_ids']) == {'on-line-1', 'on-line-2'}
+        assert route['risk_score'] == pytest.approx(0.96)
+    assert not result['safest_available']
 
 def test_no_path_returns_baseline_for_both_kinds():
     result = run_plan(Recorded(missing_path=True), [hazard('x', 0.9)])
