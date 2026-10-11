@@ -12,6 +12,7 @@ export type MapMarker = {
   color: string;
   title: string;
   description?: string;
+  icon?: 'location' | 'pothole' | 'obstruction' | 'closure' | 'other' | 'braking' | 'surface' | 'abandoned';
   draggable?: boolean;
   select?: string;
   dot?: boolean;
@@ -21,7 +22,7 @@ export type Overlay = { hazards: HazardShape[]; markers: MapMarker[]; routes: Ro
 
 export type MapTheme = 'light' | 'dark';
 export type Camera = { position: LngLat | null; follow: boolean; revision: number };
-export type ToWeb = { type: 'overlay'; overlay: Overlay } | { type: 'theme'; theme: MapTheme } | { type: 'camera'; camera: Camera };
+export type ToWeb = { type: 'recenter'; position: LngLat } | { type: 'overlay'; overlay: Overlay } | { type: 'theme'; theme: MapTheme } | { type: 'camera'; camera: Camera };
 export const readyMessages = (theme: MapTheme, overlay: Overlay): ToWeb[] => [
   { type: 'theme', theme }, { type: 'overlay', overlay },
 ];

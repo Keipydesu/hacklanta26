@@ -5,6 +5,10 @@ Campus scooter safety map, built manual-first. Riders report hazards like Waze. 
 The rider UI leads with scooter/bike trip planning, with hazard mapping enriching route choices.
 Lime and Waze are the primary design references; see [decision 014](docs/decisions/014-scooter-bike-first-ui.md).
 The map fills the screen with compact supporting controls; see [decision 015](docs/decisions/015-map-first-mobile-controls.md).
+Editing a trip endpoint expands search over the map above the keyboard; see
+[decision 027](docs/decisions/027-expanded-trip-search.md).
+Home exposes a destination input and floating recenter/report controls, without task tabs
+([decision 029](docs/decisions/029-minimal-map-home.md)).
 This changes presentation priority, not the delivery sequence or supported routing modes.
 
 This is the target product design. Stage 0 now implements its contracts and nonpersistent skeletons, not production persistence, sensing or routing; see [the handoff](docs/STAGE-0-HANDOFF.md). It supersedes the original sensor-first mobile design. The monitoring web app remains out of scope.

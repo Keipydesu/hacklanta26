@@ -13,6 +13,7 @@ export type MapLibreViewProps = {
   overlay: Overlay;
   camera?: Camera;
   onGesture?(): void;
+  recenter?: { position: LngLat; request: number };
   onPress?(position: LngLat): void;
   onDragEnd?(id: string, position: LngLat): void;
   onSelect?(id: string): void;
@@ -45,6 +46,9 @@ export function MapLibreView(props: MapLibreViewProps) {
   useEffect(() => {
     if (ready.current && props.camera) ref.current?.injectJavaScript(injection({ type: 'camera', camera: props.camera }));
   }, [cameraText]);
+  useEffect(() => {
+    if (ready.current && props.recenter) ref.current?.injectJavaScript(injection({ type: 'recenter', position: props.recenter.position }));
+  }, [props.recenter]);
 
   function onMessage(event: WebViewMessageEvent) {
     const message = parseFromWeb(event.nativeEvent.data);
@@ -55,6 +59,7 @@ export function MapLibreView(props: MapLibreViewProps) {
         ready.current = true;
         readyMessages(current.theme, current.overlay).forEach(message => ref.current?.injectJavaScript(injection(message)));
         if (current.camera) ref.current?.injectJavaScript(injection({ type: 'camera', camera: current.camera }));
+        if (current.recenter) ref.current?.injectJavaScript(injection({ type: 'recenter', position: current.recenter.position }));
         break;
       case 'gesture': current.onGesture?.(); break;
       case 'press': current.onPress?.(message.position); break;

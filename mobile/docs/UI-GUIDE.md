@@ -11,11 +11,16 @@ use the safe area, keeping them below the camera cutout and above the home indic
 The measured bottom inset keeps map attribution above the task panel. A floating appearance icon and bottom task panel support it. The top icon has no card or
 wordmark behind it; fixture mode stays explicitly labeled in the bottom panel.
 The default panel occupies at most 36% of available height; details may expand to 65%
-only by user action. Keep the map touchable around overlays. Provider attribution must
+only by user action. While editing a trip endpoint, search fills the available safe-area height
+above the keyboard (decision 027). The search input stays pinned; results scroll independently.
+Done, choosing a result, Current location and Choose on map exit search and restore the trip panel.
+The task tabs and appearance switch are hidden during search. Keep the map touchable around other overlays. Provider attribution must
 remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Fiord together without resetting the camera.
 
-The resting home has one primary action: Where to? No marketing headline or explanatory
-paragraph. Trip opens with From (Current location by default) and To fields that search
+The resting home has one destination input: Where to? Map is the default, with no task tabs.
+Floating recenter and report-hazard icons open the relevant actions; Done returns to the map.
+Recenter requests one device fix and moves the camera without changing trip endpoints. No marketing headline or explanatory
+paragraph. Destination focus opens the full-height search sheet. Trip details show From (Current location by default) and To fields that search
 addresses and places; results show a name and address. There are no pin-mode buttons or
 routine helper lines. Choose on map is a secondary option inside an open field (decision 020). Report opens by
 requesting the device location, shows unselected categories, and reveals a single Submit after
@@ -32,6 +37,8 @@ in expanded details; fixture warnings, failures and delivery states remain expli
   crosshair means foreground location. Hazard categories have their own labeled pictograms.
 - `ActionButton` owns touch sizing, selected, pressed and unavailable treatments. Containers
   own placement. Normally one action in a local group is primary.
+- Busy actions retain their label and footprint, show a spinner, and expose native busy/disabled
+  states. Route comparison keeps its primary action visible while the request is in progress.
 - Icons supplement short labels. Icon-only disclosure has an action-specific accessible name
   and expanded state. Decorative geometry is hidden from accessibility.
 - Ordinary controls have at least 48-point height. The disclosure target is 48 by 44 points.
@@ -100,3 +107,44 @@ Use Satoshi Italic for headings, controls, route metrics, inputs and errors. Use
 Italic for supporting captions and metadata. Select the actual font face through the shared
 theme; do not synthesize bold/italic variants. Fonts are bundled after the official download
 step; system text remains usable if font loading fails. Map-provider labels stay unchanged.
+
+Route cards lead with duration, followed by distance and an explicit reported-hazard count.
+Cards wrap when two 140-point columns cannot fit; text remains free to wrap at larger sizes.
+Risk stays in expanded details. Notices use the same Satoshi body face as other controls.
+
+UI polish verification (2026-10-10): TypeScript, all 17 existing route behavior tests and
+`git diff --check` passed. Start the fixture preview with `npm start --prefix mobile`;
+open Trip and choose fixture endpoints to inspect the comparison. The offline routes remain
+illustrative and reporting is disabled. This pass has not been visually verified on a device;
+small-screen, larger-text, light/dark and screen-reader checks remain outstanding.
+
+
+## Map marker symbols
+
+Device-derived report locations and Current location trip endpoints use a blue circle with a
+white rim and translucent halo. The halo is decorative, not an accuracy radius. These markers
+are read-only; manually chosen trip endpoints retain draggable pins. Location freshness and
+permission rules are unchanged; this does not introduce tracking.
+
+Hazards use circular badges with bundled pictograms: a depression for potholes, a cone for
+obstructions, a barricade for closures, an exclamation for other hazards, a stop symbol for
+braking, a zigzag surface for rough surfaces and a crossed road for abandoned paths. Source,
+evidence and pending labels remain available in accessible names and details. Pending reports
+keep their blue treatment; selected hazards keep their existing highlight.
+
+Verified for this slice: TypeScript, 34 map tests (including marker replacement, hazard taps,
+all seven categories and location-versus-custom endpoints). Native visual review remains pending.
+
+
+Latest verification: the rebased UI passes TypeScript and 69 map/trip/search/route tests.
+The iPhone 17 Pro / iOS 26.1 simulator shows the compact home and expanded search with a
+software keyboard; see [screenshots and limits](screenshots/ui-polish/README.md).
+
+
+## Magnetic task sheet
+
+Decision 030 replaces the chevron with a grabber/header drag surface and spring snapping between
+compact and expanded. Release velocity influences the destination; lists scroll independently.
+Screen readers have Expand panel / Collapse panel actions. Tapping exposed map collapses the
+panel, except while choosing a route point. Closing an empty search returns straight to the home
+input. A compact trip hides From; drag open to edit it. Search remains full height above the keyboard.

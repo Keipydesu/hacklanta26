@@ -147,7 +147,11 @@ successful submissions or fixture data that appears live.
 
 ## Routing flow and methods
 
+Home shows a destination input and floating recenter/report controls, with no Map/Trip/Report tabs
+(decision 029). Recenter obtains one foreground fix without changing trip endpoints.
 The origin defaults to Current location (one foreground fix when a trip is opened), and either endpoint can be set by address/place search through `GET /v1/places`; map points remain a secondary choice (decision 020). `src/trip/` holds the endpoint model, the debounced search and the From/To fields.
+While either endpoint is being edited, use a full-height search sheet above the keyboard with a
+pinned input and scrolling results (decision 027). Restore the trip panel when search closes.
 `requestRoutes(origin, destination)` posts both selected points and keys request state by that pair.
 When endpoints change, invalidate the displayed comparison and suppress stale responses just as for
 viewport reads. Disable the route action until two valid points exist, independently of reporting.
@@ -220,3 +224,8 @@ Handoff records what works, exact app/API revisions and launch URL, commands and
 checked, retry IDs/receipts, outage behavior, and remaining stubs. Do not remove fixture warnings
 until the corresponding live capability exists. Defer accounts, cross-source merging,
 background tracking/recording, motion detection, dashboard and cosmetic polish beyond the manual release.
+
+
+UI sheet refinement (decision 030): two magnetic drag positions replace disclosure chevrons.
+Map taps collapse except during endpoint picking. No destination means closing search returns
+home; a compact selected trip hides From. Preserve draft/queue and endpoint state across collapse.

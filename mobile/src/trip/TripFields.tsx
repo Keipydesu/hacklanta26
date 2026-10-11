@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionButton as Button } from '../ui/ActionButton';
 import { Icon } from '../ui/Icon';
 import { useTheme, type Theme } from '../ui/theme';
@@ -16,6 +16,7 @@ function shown(endpoint: Endpoint, which: Which): string {
 
 export function TripFields(props: {
   trip: TripState;
+  hideOrigin?: boolean;
   editing: Which | null;
   picking: Which | null;
   search: SearchState;
@@ -35,11 +36,12 @@ export function TripFields(props: {
   const locationProblem = origin.kind === 'current' && (origin.status === 'denied' || origin.status === 'unavailable') ? origin.status : null;
 
   const field = (which: Which) => editing === which
-    ? <View key={which}>
+    ? <View key={which} style={styles.search}>
       <Text style={styles.fieldName}>{FIELD[which]}</Text>
       <TextInput autoFocus accessibilityLabel={`${FIELD[which]}: search for a place or address`} style={styles.input}
         value={search.query} onChangeText={props.onType} placeholder="Search for a place or address" placeholderTextColor={theme.muted}
-        returnKeyType="search" onSubmitEditing={props.onRetrySearch} autoCorrect={false} />
+        returnKeyType="search" submitBehavior="submit" onSubmitEditing={props.onRetrySearch} autoCorrect={false} />
+      <ScrollView style={styles.results} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.resultsInner}>
       {search.status === 'loading' && <Text style={styles.status}>Searching…</Text>}
       {search.status === 'empty' && <Text style={styles.status}>No matches</Text>}
       {search.status === 'failed' && <View style={styles.row}>
@@ -57,6 +59,7 @@ export function TripFields(props: {
         <Button icon="pin" title="Choose on map" onPress={() => props.onPickOnMap(which)} />
         <Button title="Cancel" onPress={props.onCancel} />
       </View>
+      </ScrollView>
     </View>
     : <Pressable key={which} accessibilityRole="button" accessibilityLabel={`${FIELD[which]}: ${shown(trip[which], which)}. Edit`}
       onPress={() => props.onEdit(which)} style={({ pressed }) => [styles.field, props.picking === which && styles.picking, pressed && styles.pressed]}>
@@ -69,9 +72,11 @@ export function TripFields(props: {
       </View>
     </Pressable>;
 
+  if (editing) return field(editing);
+
   return <View>
-    {field('origin')}
-    {locationProblem && editing !== 'origin' && <View style={styles.row}>
+    {!props.hideOrigin && field('origin')}
+    {!props.hideOrigin && locationProblem && editing !== 'origin' && <View style={styles.row}>
       <Text accessibilityRole="alert" style={styles.error}>
         {locationProblem === 'denied' ? 'Location permission is off.' : 'Could not get your location.'}
       </Text>
@@ -83,6 +88,9 @@ export function TripFields(props: {
 }
 
 const createStyles = (theme: Theme) => StyleSheet.create({
+  search: { flex: 1, minHeight: 0 },
+  results: { flex: 1 },
+  resultsInner: { paddingBottom: 16 },
   field: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: theme.touch, paddingHorizontal: 12, paddingVertical: 6,
     marginVertical: 4, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, backgroundColor: theme.surface },
   picking: { borderColor: theme.selectedEdge, borderWidth: 2 },
@@ -95,7 +103,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.radius, padding: 12, marginVertical: 6, minHeight: theme.touch },
   status: { fontFamily: theme.fontLight, fontSize: 13, color: theme.muted, marginVertical: 4 },
   error: { fontFamily: theme.fontBody, color: theme.danger, flexShrink: 1 },
-  result: { paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: theme.quiet },
+  result: { minHeight: theme.touch, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: theme.quiet },
   resultName: { fontFamily: theme.fontBody, fontSize: 15, color: theme.ink },
   resultAddress: { fontFamily: theme.fontLight, fontSize: 13, color: theme.muted },
   credit: { fontFamily: theme.fontLight, fontSize: 11, color: theme.muted, marginTop: 4 },
