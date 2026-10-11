@@ -99,22 +99,52 @@ function startCampusMap(ml, env) {
     return root;
   }
 
+  // Trusted, bundled pictograms only. Report labels never become markup.
+  var iconPaths = {
+    pothole: 'M3 12C3 5 21 5 21 12S3 19 3 12ZM8 12h8',
+    obstruction: 'M8 17l4-13 4 13M6 20h12M9 13h6M10 9h4',
+    closure: 'M4 6h16v10H4ZM7 16v5M17 16v5M5 14l7-7M12 15l7-7',
+    other: 'M12 4v10M12 19v1',
+    braking: 'M7 3h10l4 5v8l-4 5H7l-4-5V8ZM12 7v7M12 17v1',
+    surface: 'M3 8l4-3 5 6 5-6 4 3M3 17l4-3 5 6 5-6 4 3',
+    abandoned: 'M6 3v18M18 3v18M12 3v4M12 11v3M12 18v3M3 21L21 3'
+  };
+  function markerElement(m) {
+    var el = env.document.createElement('div');
+    var location = m.icon === 'location' || m.dot;
+    el.style.cssText = 'width:48px;height:48px;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+    var badge = env.document.createElement('div');
+    badge.style.cssText = 'box-sizing:border-box;display:flex;align-items:center;justify-content:center;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px #0005;';
+    badge.style.width = badge.style.height = location ? '22px' : '36px';
+    badge.style.backgroundColor = m.color;
+    if (location) badge.style.boxShadow = '0 0 0 7px #2b6cd433,0 1px 4px #0005';
+    else {
+      var svg = env.document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('width', '23'); svg.setAttribute('height', '23');
+      svg.setAttribute('aria-hidden', 'true');
+      var path = env.document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', iconPaths[m.icon] || iconPaths.other);
+      path.setAttribute('fill', 'none'); path.setAttribute('stroke', '#fff');
+      path.setAttribute('stroke-width', '2'); path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(path); badge.appendChild(svg);
+    }
+    el.appendChild(badge);
+    return el;
+  }
+
   function renderMarkers() {
     var seen = {};
     overlay.markers.forEach(function (m) {
       seen[m.id] = true;
       var marker = markers[m.id];
-      if (marker && marker.campusColor !== m.color) { marker.remove(); marker = null; }
+      if (marker && (marker.campusColor !== m.color || marker.campusIcon !== m.icon || marker.campusDot !== m.dot)) { marker.remove(); marker = null; }
       if (!marker) {
-        var options = { color: m.color, draggable: !!m.draggable };
-        if (m.dot) {
-          var dot = env.document.createElement('div');
-          dot.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#1877f2;border:3px solid white;box-shadow:0 0 0 5px rgba(24,119,242,.22);';
-          dot.setAttribute('aria-label', 'Your location');
-          options.element = dot;
-          options.anchor = 'center';
-        }
-        marker = new ml.Marker(options);
+        marker = new ml.Marker(m.icon || m.dot
+          ? { element: markerElement(m), anchor: 'center', draggable: !!m.draggable }
+          : { color: m.color, draggable: !!m.draggable });
+        marker.campusIcon = m.icon; marker.campusDot = m.dot;
         marker.campusColor = m.color;
         marker.on('dragstart', function () { marker.campusDragging = true; cameraPaused = true; post({ type: 'gesture' }); });
         marker.on('dragend', function () {
@@ -127,12 +157,21 @@ function startCampusMap(ml, env) {
             event.stopPropagation();
             post({ type: 'select', id: m.select });
           });
+          marker.getElement().addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault(); event.stopPropagation();
+              post({ type: 'select', id: m.select });
+            }
+          });
         }
         marker.setLngLat(m.position).addTo(map);
         markers[m.id] = marker;
       } else if (!marker.campusDragging) {
         marker.setLngLat(m.position);
       }
+      var element = marker.getElement();
+      element.setAttribute('aria-label', m.title + (m.description ? ': ' + m.description : ''));
+      element.setAttribute('role', 'button'); element.tabIndex = 0;
       marker.setDraggable(!!m.draggable);
       if (m.select) return;
       var popup = marker.getPopup();

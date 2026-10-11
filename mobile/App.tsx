@@ -222,6 +222,7 @@ function CampusApp() {
     screen, hazards: visible, submissions, pin: reportLocation.status === 'ready' && reportLocator.ready() ? reportLocation : null,
     livePosition: currentPosition, routes: presented?.illustrative ? null : presented, origin: routeState.origin, destination: routeState.destination, routeColors: ROUTE_COLORS,
     selectedHazardId: selected?.id,
+    originIsCurrent: tripState.origin.kind === 'current', destinationIsCurrent: tripState.destination.kind === 'current',
   });
   if (mapTheme === 'dark' && overlay.routes.some(line => line.id === 'lower-risk')) {
     const line = overlay.routes.find(line => line.id === 'lower-risk')!;

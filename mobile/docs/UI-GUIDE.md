@@ -115,3 +115,20 @@ UI polish verification (2026-10-10): TypeScript, all 17 existing route behavior 
 open Trip and choose fixture endpoints to inspect the comparison. The offline routes remain
 illustrative and reporting is disabled. This pass has not been visually verified on a device;
 small-screen, larger-text, light/dark and screen-reader checks remain outstanding.
+
+
+## Map marker symbols
+
+Device-derived report locations and Current location trip endpoints use a blue circle with a
+white rim and translucent halo. The halo is decorative, not an accuracy radius. These markers
+are read-only; manually chosen trip endpoints retain draggable pins. Location freshness and
+permission rules are unchanged; this does not introduce tracking.
+
+Hazards use circular badges with bundled pictograms: a depression for potholes, a cone for
+obstructions, a barricade for closures, an exclamation for other hazards, a stop symbol for
+braking, a zigzag surface for rough surfaces and a crossed road for abandoned paths. Source,
+evidence and pending labels remain available in accessible names and details. Pending reports
+keep their blue treatment; selected hazards keep their existing highlight.
+
+Verified for this slice: TypeScript, 34 map tests (including marker replacement, hazard taps,
+all seven categories and location-versus-custom endpoints). Native visual review remains pending.

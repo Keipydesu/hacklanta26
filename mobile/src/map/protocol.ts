@@ -12,6 +12,7 @@ export type MapMarker = {
   color: string;
   title: string;
   description?: string;
+  icon?: 'location' | 'pothole' | 'obstruction' | 'closure' | 'other' | 'braking' | 'surface' | 'abandoned';
   draggable?: boolean;
   select?: string;
   dot?: boolean;

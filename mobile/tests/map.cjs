@@ -151,6 +151,11 @@ test('embedded library text and labels cannot close the page script elements', (
 
 // ---- page script against a fake MapLibre -------------------------------------------------------
 
+function fakeElement() {
+  return { children: [], style: {}, attributes: {}, listeners: {}, textContent: '',
+    appendChild(c) { this.children.push(c); }, setAttribute(k, v) { this.attributes[k] = v; },
+    addEventListener(type, fn) { this.listeners[type] = fn; } };
+}
 function fakeMapLibre() {
   const made = { maps: [], markers: [] };
   class Emitter {
@@ -177,7 +182,7 @@ function fakeMapLibre() {
   }
   class Marker extends Emitter {
     constructor(options) { super(); this.options = options; this.removed = false; made.markers.push(this);
-      this.element = { listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; } }; }
+      this.element = options.element || fakeElement(); }
     getElement() { return this.element; }
     setLngLat(p) { this.position = Array.isArray(p) ? p : [p.lng, p.lat]; return this; }
     getLngLat() { return { lng: this.position[0], lat: this.position[1] }; }
@@ -194,7 +199,7 @@ function fakeMapLibre() {
 function startPage() {
   const { ml, made } = fakeMapLibre();
   const posted = [], notices = [], timers = [];
-  const document = { createElement: () => ({ children: [], textContent: '', style: {}, setAttribute() {}, appendChild(c) { this.children.push(c); } }) };
+  const document = { createElement: fakeElement, createElementNS: fakeElement };
   const api = startCampusMap(ml, { container: 'map', document, post: t => posted.push(JSON.parse(t)), notice: t => notices.push(t),
     setTimeout: fn => timers.push(fn), styleUrl: 'https://tiles.example/positron', darkStyleUrl: 'https://tiles.example/dark',
     center: [-84.38, 33.75], zoom: 14, styleTimeoutMs: 12000, bikeLanes: BIKE_LANES, bikeLaneColors });
@@ -493,4 +498,44 @@ test('camera follows fresh positions; manual pan stops it immediately until expl
   page.api.receive({ type: 'camera', camera: { ...camera, follow: false, revision: 2 } });
   page.api.receive({ type: 'camera', camera: { ...camera, position: null, revision: 2 } });
   assert.equal(page.map.cameraMoves.length, 2, 'background/stale/disabled updates do not move the camera');
+});
+
+test('device fixes are circles and custom trip endpoints stay draggable pins', () => {
+  const point = { lat: 33.75, lon: -84.38 };
+  const report = buildOverlay({ ...base, screen: 'report', hazards: [] });
+  assert.equal(report.markers[0].icon, 'location');
+  assert.equal(report.markers[0].draggable, false);
+  const trip = buildOverlay({ ...base, screen: 'route', hazards: [], origin: point, destination: point, originIsCurrent: true });
+  assert.equal(trip.markers[0].icon, 'location');
+  assert.equal(trip.markers[0].draggable, false);
+  assert.equal(trip.markers[1].icon, undefined);
+  assert.equal(trip.markers[1].draggable, true);
+  const swapped = buildOverlay({ ...base, screen: 'route', hazards: [], destination: point, destinationIsCurrent: true });
+  assert.equal(swapped.markers[0].icon, 'location');
+});
+
+test('all hazard kinds get pictograms and retain source labels and selection', () => {
+  const kinds = ['pothole', 'obstruction', 'closure', 'other', 'braking', 'surface', 'abandoned'];
+  const result = buildOverlay({ ...base, hazards: kinds.map(kind => hazard(kind, 'automatic', { kind })) });
+  assert.deepEqual(result.markers.map(m => m.icon), kinds);
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay: result });
+  page.made.markers.forEach((m, i) => {
+    assert.equal(m.options.anchor, 'center');
+    assert.match(m.element.attributes['aria-label'], /Automatically detected · simulated/);
+    assert.ok(m.element.children[0].children[0].children[0].attributes.d);
+    m.element.listeners.click({ stopPropagation() {} });
+    assert.deepEqual(page.posted.at(-1), { type: 'select', id: kinds[i] });
+  });
+});
+
+test('changing an endpoint from location circle to pin rebuilds the marker', () => {
+  const page = startPage();
+  const marker = { ...overlay.markers[0], icon: 'location', draggable: false };
+  page.api.receive({ type: 'overlay', overlay: { ...overlay, markers: [marker] } });
+  const first = page.made.markers[0];
+  assert.equal(first.element.children[0].style.width, '22px');
+  page.api.receive({ type: 'overlay', overlay: { ...overlay, markers: [{ ...marker, icon: undefined, draggable: true }] } });
+  assert.equal(first.removed, true);
+  assert.equal(page.made.markers[1].draggable, true);
 });
