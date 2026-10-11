@@ -94,7 +94,7 @@ test('a ready or reloaded page receives the current theme before its overlay', (
 // ---- overlay parity --------------------------------------------------------------------------
 
 const square = [[-84.39, 33.75], [-84.38, 33.75], [-84.38, 33.76], [-84.39, 33.75]];
-const hazard = (id, source, extra = {}) => ({ geometry: { coordinates: [square] }, properties: { id, source, label: `Label ${id}`, evidence_source: 'simulated', ...extra } });
+const hazard = (id, source, extra = {}) => ({ geometry: { coordinates: [square] }, properties: { id, source, kind: 'pothole', label: `Label ${id}`, evidence_source: 'simulated', ...extra } });
 const base = {
   screen: 'map', hazards: [hazard('m1', 'manual'), hazard('a1', 'automatic')], submissions: [], pin: { lat: 33.75, lon: -84.38 },
   routes: null, origin: null, destination: null, routeColors: { shortest: '#5f5f5f', safest: '#005f73' },
@@ -106,7 +106,7 @@ test('hazards become polygons plus labelled markers at the first ring vertex, as
   assert.deepEqual(overlay.hazards[0].rings, [square]);
   assert.deepEqual(overlay.markers.map(m => [m.id, m.title, m.description, m.position]), [
     ['hazard-m1', 'Community report', 'Label m1', [-84.39, 33.75]],
-    ['hazard-a1', 'Automatically detected · simulated', 'Label a1', [-84.39, 33.75]],
+    ['hazard-a1', 'Automatically detected · simulated data', 'Label a1', [-84.39, 33.75]],
   ]);
   assert.equal(overlay.routes.length, 0);
 });
@@ -117,7 +117,9 @@ test('pending reports show until submitted; the read-only device pin only on the
     { id: 's', state: 'submitted', body: { lat: 33.7, lon: -84.3, kind: 'closure' } },
   ];
   const map = buildOverlay({ ...base, hazards: [], submissions });
-  assert.deepEqual(map.markers.map(m => [m.id, m.title, m.description, m.color]), [['pending-q', 'Pending report (not yet accepted)', 'pothole', MARKER_COLORS.pending]]);
+  assert.deepEqual(map.markers.map(m => [m.id, m.title, m.description, m.color]), [['pending-q', 'Pending report (not yet accepted)', 'Pothole or rough surface', MARKER_COLORS.pending]]);
+  const manual = buildOverlay({ ...base, hazards: [hazard('raw', 'manual', { label: 'pothole' })], submissions: [] });
+  assert.equal(manual.markers[0].description, 'Pothole or rough surface');
   const report = buildOverlay({ ...base, hazards: [], screen: 'report' });
   assert.deepEqual(report.markers.map(m => [m.id, m.position, m.draggable]), [['pin', [-84.38, 33.75], false]]);
 });

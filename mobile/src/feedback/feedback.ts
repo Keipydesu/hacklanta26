@@ -3,6 +3,8 @@
  * app session, sent immediately, shown as accepted only after the server's receipt. A failed send
  * can be retried with the identical body (same UUID), which the server treats as a duplicate.
  */
+import { hazardKindLabel } from '../reports/categories';
+
 export type FeedbackResponse = 'still_there' | 'gone';
 export type FeedbackBody = { id: string; response: FeedbackResponse };
 export type FeedbackStatus = 'sending' | 'accepted' | 'failed';
@@ -15,8 +17,10 @@ export type FeedbackDeps = {
   onAccepted?(hazardId: string): void;
 };
 
-const KIND_NAMES: Record<string, string> = { braking: 'hard-braking spot', surface: 'rough surface', abandoned: 'abandoned path' };
-export const feedbackQuestion = (kind: string) => `Is this ${KIND_NAMES[kind] ?? kind} still there?`;
+const QUESTION_NAMES: Record<string, string> = {
+  braking: 'hard-braking spot', surface: 'rough surface', abandoned: 'abandoned path', other: 'hazard',
+};
+export const feedbackQuestion = (kind: string) => `Is this ${QUESTION_NAMES[kind] ?? hazardKindLabel(kind).toLowerCase()} still there?`;
 
 const isPermanent = (error: unknown) => (error as { permanent?: boolean } | null)?.permanent === true;
 export const confirms = (receipt: unknown, hazardId: string, body: FeedbackBody) => {
