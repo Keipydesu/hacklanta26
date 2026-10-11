@@ -1,5 +1,7 @@
 import React from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { ActionButton as Button } from '../ui/ActionButton';
+import { useTheme, type Theme } from '../ui/theme';
 import { feedbackQuestion, type FeedbackResponse, type FeedbackState } from './feedback';
 
 const STATUS: Record<FeedbackState['status'], (s: FeedbackState) => string> = {
@@ -16,20 +18,23 @@ export function FeedbackRow(props: {
   onRetry(): void;
 }) {
   const { state } = props;
+  const styles = createStyles(useTheme());
   const canAnswer = !props.disabled && (!state || (state.status === 'failed' && !state.retryable));
   return <View style={styles.row}>
-    <Text>{feedbackQuestion(props.kind)}</Text>
+    <Text style={styles.question}>{feedbackQuestion(props.kind)}</Text>
     {canAnswer && <View style={styles.buttons}>
       <Button title="Still there" onPress={() => props.onRespond('still_there')} />
       <Button title="No longer there" onPress={() => props.onRespond('gone')} />
     </View>}
-    {state && <Text accessibilityLiveRegion="polite" style={state.status === 'failed' ? styles.error : undefined}>{STATUS[state.status](state)}</Text>}
+    {state && <Text accessibilityLiveRegion="polite" style={state.status === 'failed' ? styles.error : styles.status}>{STATUS[state.status](state)}</Text>}
     {state?.status === 'failed' && state.retryable && <Button title="Retry answer" onPress={props.onRetry} />}
   </View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   row: { marginTop: 6, gap: 4 },
-  buttons: { flexDirection: 'row', gap: 8 },
-  error: { color: '#a00020' },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  question: { fontFamily: theme.fontBody, color: theme.ink, fontSize: 14 },
+  status: { fontFamily: theme.fontLight, color: theme.muted, fontSize: 13 },
+  error: { fontFamily: theme.fontBody, color: theme.danger, fontSize: 13 },
 });

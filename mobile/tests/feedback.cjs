@@ -78,9 +78,13 @@ test('a permanent rejection (e.g. hazard already resolved) cannot be retried but
 });
 
 test('the question names the hazard category, including automatic kinds', () => {
-  assert.equal(feedbackQuestion('pothole'), 'Is this pothole still there?');
+  assert.equal(feedbackQuestion('pothole'), 'Is this pothole or rough surface still there?');
+  assert.equal(feedbackQuestion('obstruction'), 'Is this obstruction still there?');
+  assert.equal(feedbackQuestion('closure'), 'Is this closed path or road still there?');
+  assert.equal(feedbackQuestion('other'), 'Is this hazard still there?');
   assert.equal(feedbackQuestion('braking'), 'Is this hard-braking spot still there?');
   assert.equal(feedbackQuestion('surface'), 'Is this rough surface still there?');
+  assert.equal(feedbackQuestion('abandoned'), 'Is this abandoned path still there?');
 });
 
 test('a missing, malformed or mismatched receipt is not acceptance; the answer stays retryable', async () => {

@@ -15,7 +15,7 @@ import { locateOnce, locatePosition, requestForegroundPermission } from './src/l
 import { createForegroundWatch, WatchStatus } from './src/location/foregroundWatch';
 import { freshPosition, livePosition, LivePosition } from './src/location/livePosition';
 import { createReportLocation, ReportLocationState } from './src/reports/location';
-import { CATEGORIES, categoryLabel, hazardTitle } from './src/reports/categories';
+import { CATEGORIES, categoryLabel, hazardSourceLabel, hazardTitle } from './src/reports/categories';
 import { canSubmit, locationAction, shouldLocateOnEnter, showSubmit } from './src/reports/reportFlow';
 import { createSubmitGuard } from './src/reports/submit';
 import { createReportQueue, Submission } from './src/reports/queue';
@@ -296,7 +296,7 @@ function CampusApp() {
         {expanded && <>
           {visible.length === 0 && <Text style={styles.caption}>No reports here. Unreported hazards may still exist.</Text>}
           {visible.map(h => <View key={h.properties.id} style={styles.card}>
-            <Text style={styles.source}>{h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`}</Text>
+            <Text style={styles.source}>{hazardSourceLabel(h.properties)}</Text>
             <Text style={styles.heading}>{hazardTitle(h.properties)}</Text>
             <Text style={styles.caption}>Expires {new Date(h.properties.expires_at).toLocaleString()}</Text>
           </View>)}
@@ -383,7 +383,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   categoryLabelSelected: { color: theme.inverse },
   content: { flexShrink: 1 }, contentInner: { paddingBottom: 8 },
   caption: { fontFamily: theme.fontLight, fontSize: 12, lineHeight: 18, color: theme.muted },
-  source: { fontFamily: theme.fontBody, color: theme.ink, fontSize: 12, fontWeight: '600' },
+  source: { fontFamily: theme.fontBody, color: theme.ink, fontSize: 12 },
   card: { paddingVertical: 10, borderBottomWidth: 1, borderColor: theme.line },
   heading: { fontFamily: theme.fontBody, fontSize: 16, color: theme.ink, marginVertical: 4 },
   input: { fontFamily: theme.fontBody, color: theme.ink, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius,

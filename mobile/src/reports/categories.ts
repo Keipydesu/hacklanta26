@@ -19,7 +19,26 @@ export function categoryLabel(kind: string): string {
   return CATEGORIES.find(category => category.kind === kind)?.label ?? 'Hazard';
 }
 
+const AUTOMATIC_CATEGORIES: Record<string, string> = {
+  braking: 'Hard braking', surface: 'Rough surface', abandoned: 'Abandoned path',
+};
+
+export function hazardKindLabel(kind: string): string {
+  return AUTOMATIC_CATEGORIES[kind] ?? categoryLabel(kind);
+}
+
 /** Manual hazards without a description carry the raw kind as their label; show the category name instead. */
 export function hazardTitle(properties: { kind: string; label: string; source: string }): string {
   return properties.source === 'manual' && properties.label === properties.kind ? categoryLabel(properties.kind) : properties.label;
+}
+
+const EVIDENCE_LABELS: Record<string, string> = {
+  device: 'device data', simulated: 'simulated data', replay: 'replayed data',
+  mixed: 'mixed device, simulated or replayed data',
+};
+
+export function hazardSourceLabel(properties: { source: string; evidence_source?: string | null }): string {
+  if (properties.source === 'manual') return 'Community report';
+  const evidence = properties.evidence_source && EVIDENCE_LABELS[properties.evidence_source];
+  return evidence ? `Automatically detected · ${evidence}` : 'Automatically detected';
 }

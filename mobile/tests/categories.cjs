@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { CATEGORIES, categoryLabel, hazardTitle } = require('../.test-dist/reports/categories.js');
+const { CATEGORIES, categoryLabel, hazardKindLabel, hazardSourceLabel, hazardTitle } = require('../.test-dist/reports/categories.js');
 const { freezeReport } = require('../.test-dist/reports/queue.js');
 
 const API_KINDS = ['pothole', 'obstruction', 'closure', 'other'];
@@ -27,4 +27,17 @@ test('manual hazards with no description show the category name, not the raw kin
   assert.equal(hazardTitle({ kind: 'closure', label: 'Fence across path', source: 'manual' }), 'Fence across path');
   assert.equal(hazardTitle({ kind: 'braking', label: 'Hard braking, 5 events', source: 'automatic' }), 'Hard braking, 5 events');
   assert.equal(categoryLabel('unknown-kind'), 'Hazard');
+  assert.equal(hazardKindLabel('braking'), 'Hard braking');
+  assert.equal(hazardKindLabel('surface'), 'Rough surface');
+  assert.equal(hazardKindLabel('abandoned'), 'Abandoned path');
+  assert.equal(hazardKindLabel('other'), 'Other hazard');
+});
+
+test('source labels explain evidence without showing an absent value', () => {
+  assert.equal(hazardSourceLabel({ source: 'manual', evidence_source: null }), 'Community report');
+  assert.equal(hazardSourceLabel({ source: 'automatic', evidence_source: 'device' }), 'Automatically detected · device data');
+  assert.equal(hazardSourceLabel({ source: 'automatic', evidence_source: 'simulated' }), 'Automatically detected · simulated data');
+  assert.equal(hazardSourceLabel({ source: 'automatic', evidence_source: 'replay' }), 'Automatically detected · replayed data');
+  assert.equal(hazardSourceLabel({ source: 'automatic', evidence_source: 'mixed' }), 'Automatically detected · mixed device, simulated or replayed data');
+  assert.equal(hazardSourceLabel({ source: 'automatic' }), 'Automatically detected');
 });

@@ -1,9 +1,10 @@
 /** Builds the map overlay from app state; pure so parity with the old react-native-maps view is testable. */
 import type { LngLat, MapMarker, Overlay, RouteLine } from './protocol';
+import { categoryLabel, hazardSourceLabel, hazardTitle } from '../reports/categories';
 
 type HazardFeature = {
   geometry: { coordinates: number[][][] };
-  properties: { id: string; source: 'manual' | 'automatic'; evidence_source?: string | null; label: string };
+  properties: { id: string; source: 'manual' | 'automatic'; evidence_source?: string | null; kind: string; label: string };
 };
 type PendingReport = { id: string; state: string; body: { lat: number; lon: number; kind: string } };
 type Point = { lat: number; lon: number };
@@ -27,20 +28,17 @@ export type OverlayInput = {
 const at = (p: Point): LngLat => [p.lon, p.lat];
 const ring = (r: number[][]) => r.map(([lon, lat]) => [lon, lat] as LngLat);
 
-export const hazardTitle = (h: HazardFeature) =>
-  h.properties.source === 'manual' ? 'Community report' : `Automatically detected · ${h.properties.evidence_source}`;
-
 export function buildOverlay(input: OverlayInput): Overlay {
   const markers: MapMarker[] = [];
   for (const h of input.hazards) {
     markers.push({ id: `hazard-${h.properties.id}`, position: ring([h.geometry.coordinates[0][0]])[0],
       color: h.properties.id === input.selectedHazardId ? MARKER_COLORS.selected : MARKER_COLORS.hazard,
-      title: hazardTitle(h), description: h.properties.label, select: h.properties.id });
+      title: hazardSourceLabel(h.properties), description: hazardTitle(h.properties), select: h.properties.id });
   }
   for (const sub of input.submissions) {
     if (sub.state === 'submitted') continue;
     markers.push({ id: `pending-${sub.id}`, position: at(sub.body), color: MARKER_COLORS.pending,
-      title: 'Pending report (not yet accepted)', description: sub.body.kind });
+      title: 'Pending report (not yet accepted)', description: categoryLabel(sub.body.kind) });
   }
   if (input.screen === 'report' && input.pin) markers.push({ id: 'pin', position: at(input.pin), color: MARKER_COLORS.pin, title: 'Current report location', draggable: false });
 
