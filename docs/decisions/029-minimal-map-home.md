@@ -9,6 +9,8 @@ recenter and hazard-report icons, and no Map selection. The map is the default v
 focus opens decision 027's expanded search; report opens the existing hazard form. Done returns
 to the map. Preserve fixture, pending, failure and source/evidence labels when relevant.
 
-Recenter obtains a single foreground fix after the explicit tap, displays a circular marker and
+On the map home, Recenter obtains a single foreground fix after the explicit tap, displays a circular marker and
 moves the map camera. It does not change trip endpoints or grant a new report location. Denied or
-unavailable location displays retry guidance. No new location watcher or dependency is introduced.
+unavailable location displays retry guidance. In Trip, the floating recenter control resumes the
+existing live following from decision 024. Routine live-location details are expanded-only; denial
+and watch errors remain visible. No new location watcher or dependency is introduced.

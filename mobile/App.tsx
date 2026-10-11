@@ -125,7 +125,6 @@ function CampusApp() {
     if (which === null) Keyboard.dismiss();
   }
   const searching = screen === 'route' && editing !== null;
-  function planTrip() { openScreen('route'); editEndpoint(trip.state().destination.kind === 'none' ? 'destination' : null); void trip.start(); }
   const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind'] | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -221,6 +220,7 @@ function CampusApp() {
   }
   const currentPosition = freshPosition(position, now);
   async function recenter() {
+    if (screen === 'route') { void followLocation(); return; }
     if (recentering) return;
     setRecentering(true); setLocationError('');
     try {
@@ -236,7 +236,7 @@ function CampusApp() {
     selectedHazardId: selected?.id,
     originIsCurrent: tripState.origin.kind === 'current', destinationIsCurrent: tripState.destination.kind === 'current',
   });
-  if (screen === 'map' && recenterTarget) overlay.markers.push({ id: 'you', position: recenterTarget.position, color: '#2b6cd4', icon: 'location', title: 'Your location · last recenter fix' });
+  if (screen === 'map' && recenterTarget && now - recenterTarget.request < 20_000) overlay.markers.push({ id: 'you', position: recenterTarget.position, color: '#2b6cd4', icon: 'location', title: 'Your location · last recenter fix' });
   if (mapTheme === 'dark' && overlay.routes.some(line => line.id === 'lower-risk')) {
     const line = overlay.routes.find(line => line.id === 'lower-risk')!;
     overlay.routes.unshift({ ...line, id: 'lower-risk-casing', color: palette.silver, width: 10 });
@@ -372,7 +372,7 @@ function CampusApp() {
           {(sub.state === 'submitted' || (sub.state === 'failed' && !sub.retryable)) && <Button title="Dismiss" onPress={() => void queue.dismiss(sub.id)} />}
         </View>)}
       </>}
-      {screen === 'route' && <View>
+      {screen === 'route' && (expanded || watchStatus === 'denied' || watchStatus === 'unavailable') && <View>
         <Text accessibilityLiveRegion="polite" style={styles.caption}>{watchStatus === 'denied' ? 'Location permission is off' :
           watchStatus === 'unavailable' ? 'Live location unavailable' : watchStatus === 'paused' ? 'Live location paused' :
           currentPosition ? (following ? 'Following your location' : 'Live location · map free to explore') : position ? 'GPS signal lost · waiting for a fresh location…' : 'Waiting for an accurate GPS location…'}</Text>
@@ -415,7 +415,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
   sheetLabel: { fontFamily: theme.fontBody, fontSize: 13, color: theme.muted },
   iconButton: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: 6 },
   categories: { flexDirection: 'row', gap: 6, marginVertical: 6 },
   category: { overflow: 'hidden', backgroundColor: theme.quiet, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64, paddingVertical: 8, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius },
   categorySelected: { backgroundColor: theme.selected, borderColor: theme.selectedEdge },

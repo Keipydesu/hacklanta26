@@ -134,3 +134,8 @@ keep their blue treatment; selected hazards keep their existing highlight.
 
 Verified for this slice: TypeScript, 34 map tests (including marker replacement, hazard taps,
 all seven categories and location-versus-custom endpoints). Native visual review remains pending.
+
+
+Latest verification: the rebased UI passes TypeScript and 69 map/trip/search/route tests.
+The iPhone 17 Pro / iOS 26.1 simulator shows the compact home and expanded search with a
+software keyboard; see [screenshots and limits](screenshots/ui-polish/README.md).
