@@ -52,7 +52,7 @@ function CampusApp() {
   function openScreen(next: 'map' | 'report' | 'route') {
     if (next === 'route' && screenRef.current !== 'route') { setFollowing(true); setCameraRevision(value => value + 1); }
     screenRef.current = next;
-    setScreen(next); setExpanded(false);
+    setScreen(next);
     if (next !== 'route') { setPicking(null); setEditing(null); }
     if (next === 'report' && shouldLocateOnEnter(reportLocationRef.current.status)) void reportLocator.request();
   }
