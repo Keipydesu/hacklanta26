@@ -237,10 +237,9 @@ curl http://localhost:8000/healthz
 docker compose --env-file infra/.env -f infra/docker-compose.yml down
 ```
 
-These currently demonstrate a memory API plus DB container, not persistent/hosted operation. New
-migration, tile, deploy, backup and reset commands are not runnable yet; implement and verify each
-before placing it in the quick start or CI. Docs-only plan review checks links, ownership, consistency
-and whitespace; no cloud provisioning or runtime change is part of this PR.
+These commands now use the persistent product API when the database is configured.
+Migration, tile, deployment, backup and reset scripts exist; see the infra README and
+[deployment handoff](../../infra/VULTR-DEMO.md) for their actual verification status.
 
 Every handoff includes tested commit/image versions, enabled profiles, public URLs when real,
 migration and launch commands, probe results, backup/restore/rollback evidence, missing operator

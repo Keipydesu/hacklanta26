@@ -37,8 +37,8 @@ introduces them. Keep records short and update affected plans to match.
 Stage 0 contracts, fixtures and independently runnable skeletons now exist. The product API persists to PostGIS when `DATABASE_URL` is set (memory otherwise); the
 observation API persists to its private PostGIS database and runs a hazard worker/outbox when
 `AUTOMATION_DATABASE_URL` is set (memory stub otherwise); mobile/collector export native bundles. The collector implements foreground sensing, privacy trimming
-and durable uploads; the detector implements hard-brake and bump detection. Physical-device validation,
-real-recording tuning and hosted deployment remain outstanding. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
+and durable uploads; the detector implements hard-brake and bump detection. The manual backend is deployed over HTTPS (see [deployment handoff](infra/VULTR-DEMO.md)).
+Physical-device validation and real-recording tuning remain outstanding. See component READMEs and [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
 
 ## Stack
 

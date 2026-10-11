@@ -2,7 +2,7 @@
 
 A manual-first mobile app: riders report hazards, see nearby reports, and compare routes. An independently developed automatic system can later publish detected hazards through the same backend.
 
-**Status:** the manual app supports persistent reporting, route comparison through Valhalla, and foreground live trip position. The API uses PostGIS when configured (memory otherwise); directions require a real routing engine. Physical-device validation and hosted deployment remain outstanding. See component READMEs and the historical [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
+**Status:** the manual backend is deployed over HTTPS with PostGIS persistence and real GSU campus routing. Reporting/retry, live updates, backup restoration and API-restart persistence passed hosted checks. Physical phone acceptance remains pending. See the [deployment handoff](infra/VULTR-DEMO.md); the [stage 0 handoff](docs/STAGE-0-HANDOFF.md) records the original skeleton baseline.
 
 ## Start here
 
