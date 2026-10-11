@@ -372,3 +372,16 @@ def test_recorded_alternates_are_scored_and_kept():
     for option in result['alternatives']:
         assert option['kind'] == 'alternative' and option['geometry']['coordinates'] not in shown
         assert option['risk_score'] <= result['routes'][0]['risk_score'] or option['duration_s'] < result['routes'][0]['duration_s']
+
+def test_a_dominated_candidate_is_dropped_regardless_of_arrival_order():
+    """A candidate that is both riskier and no faster than another candidate must never survive,
+    even when Valhalla lists the dominated one before the one that dominates it."""
+    blocker = hazard('b', 0.9, square(*(lambda c: (c[0] + 0.0003, c[1]))(((ORIGIN.lon + DEST.lon) / 2, (ORIGIN.lat + DEST.lat) / 2))))
+    shown = [planner.route_json(kind, via(0, 0, 500, 150), [blocker]) for kind in ('shortest', 'safest')]
+    covered = planner.trip_bounds([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    dominated = via(0.0003, 0, 600, 120)   # through the hazard and no faster
+    dominant = via(-0.0003, 0, 500, 100)   # clear and faster: dominates `dominated`
+    forward = planner.pick_alternatives([dominated, dominant], shown, [blocker], covered)
+    reverse = planner.pick_alternatives([dominant, dominated], shown, [blocker], covered)
+    for result in (forward, reverse):
+        assert [r['duration_s'] for r in result] == [100]

@@ -63,19 +63,25 @@ def route_json(kind, candidate, hazards):
 
 def pick_alternatives(candidates, shown, hazards, covered):
     """Other roads worth showing: inside the scored area, not a repeat of a shown route, and not
-    riskier while no faster than one. Equal risk and slower stays: it is a different road."""
-    picked = []
+    riskier while no faster than one. Equal risk and slower stays: it is a different road.
+
+    Candidates are scored and sorted by (risk, duration) before filtering, so a later-dominated
+    check only ever compares against already-at-least-as-good options; otherwise a dominated route
+    seen before its dominator would survive, making the result depend on Valhalla's response order."""
+    options = []
     for candidate in candidates:
         if not covers(covered, trip_bounds(candidate.coordinates, margin=0)):
             continue  # never score unseen area as zero risk
-        option = route_json('alternative', candidate, hazards)
-        line = LineString(candidate.coordinates)
+        options.append(route_json('alternative', candidate, hazards))
+    options.sort(key=lambda r: (r['risk_score'], r['duration_s']))
+    picked = []
+    for option in options:
+        line = LineString(option['geometry']['coordinates'])
         if any(line.hausdorff_distance(LineString(r['geometry']['coordinates'])) < SAME_ROUTE_DEG
                or (option['risk_score'] > r['risk_score'] and option['duration_s'] >= r['duration_s'])
                for r in shown + picked):
             continue
         picked.append(option)
-    picked.sort(key=lambda r: (r['risk_score'], r['duration_s']))
     return picked[:MAX_ALTERNATIVES]
 
 def union(a, b):
