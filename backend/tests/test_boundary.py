@@ -100,7 +100,7 @@ def test_live_change(client):
         assert message['data']['hazard_id'] == response.json()['hazard_id']
 
 def test_model_contract_fields_and_fixtures():
-    for name in ['Coordinate','ManualReport','Polygon','AutomaticPublication','ReportReceipt','PublicationReceipt','HazardProperties','HazardFeature','HazardCollection','LineString','RouteRequest','Route','RouteResponse']:
+    for name in ['Coordinate','ManualReport','Polygon','AutomaticPublication','ReportReceipt','PublicationReceipt','HazardProperties','HazardFeature','HazardCollection','LineString','RouteRequest','Route','AlternativeRoute','RouteResponse']:
         model = getattr(schemas,name)
         assert set(model.model_fields) == set(SPEC['components']['schemas'][name]['properties']), name
         assert {n for n,f in model.model_fields.items() if f.is_required()} == set(SPEC['components']['schemas'][name]['required']), name

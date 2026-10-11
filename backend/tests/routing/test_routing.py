@@ -129,7 +129,12 @@ def test_outage_and_misconfiguration_are_unavailable_not_no_path():
     with pytest.raises(Unavailable):
         asyncio.run(failing(lambda r: httpx.Response(200, json={'trip': {}})).route(ORIGIN, DEST))
 
-class Scripted:
+class OneRoute:
+    """Fake engines implement route(); routes() returns it without alternates."""
+    async def routes(self, origin, destination, exclusions=(), alternates=0):
+        return [await self.route(origin, destination, exclusions)]
+
+class Scripted(OneRoute):
     """Fake engine returning fixed candidates, to exercise detours outside the initial search area."""
     def __init__(self, *candidates):
         self.candidates = list(candidates)
@@ -280,7 +285,7 @@ def test_full_area_reload_removes_hazards_missing_from_latest_snapshot(widen_bas
         # The second query covers the whole enlarged envelope. The old hazard has
         # resolved/expired/moved out, while a newly published low-score hazard exists.
         return [blocker] if len(loads) == 1 else [hazard('new', 0.2, RING)]
-    class Engine:
+    class Engine(OneRoute):
         async def route(self, origin, destination, exclusions=()):
             requests.append(exclusions)
             return detour if widen_baseline or exclusions else straight
@@ -291,3 +296,92 @@ def test_full_area_reload_removes_hazards_missing_from_latest_snapshot(widen_bas
     for route in result['routes']:
         assert 'removed' not in route['hazard_ids']
         assert route['risk_score'] <= 0.2
+
+def via(dlon, dlat, distance=500, duration=120):
+    """A two-segment route through the trip midpoint shifted by (dlon, dlat)."""
+    from app.routing.valhalla import Candidate
+    mid = ((ORIGIN.lon + DEST.lon) / 2 + dlon, (ORIGIN.lat + DEST.lat) / 2 + dlat)
+    return Candidate([[ORIGIN.lon, ORIGIN.lat], list(mid), [DEST.lon, DEST.lat]], distance, duration)
+
+def test_client_requests_and_parses_alternates():
+    a, b = [-84.3853, 33.7531], [-84.3880, 33.7560]
+    trip = lambda bend, km: {'trip': {'summary': {'length': km, 'time': km * 225}, 'legs': [{'shape': encode6([a, bend, b])}]}}
+    sent = []
+    def handle(request):
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json={**trip([-84.386, 33.754], 0.5), 'alternates': [trip([-84.387, 33.753], 0.6)]})
+    client = ValhallaClient('http://valhalla.test', httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    best, other = asyncio.run(client.routes(ORIGIN, DEST, alternates=2))
+    assert sent[0]['alternates'] == 2
+    assert best.distance_m == pytest.approx(500) and other.distance_m == pytest.approx(600)
+    assert other.coordinates[1] == [-84.387, 33.753]
+
+def test_malformed_alternates_are_unavailable():
+    def handle(request):
+        return httpx.Response(200, json={**load('baseline-a.json'), 'alternates': {'trip': 'oops'}})
+    client = ValhallaClient('http://valhalla.test', httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    with pytest.raises(Unavailable):
+        asyncio.run(client.routes(ORIGIN, DEST, alternates=2))
+
+def test_alternatives_drop_repeats_dominated_and_unscored_routes():
+    blocker = hazard('b', 0.5, square(*(lambda c: (c[0] + 0.0003, c[1]))(((ORIGIN.lon + DEST.lon) / 2, (ORIGIN.lat + DEST.lat) / 2))))
+    shown_route = via(0, 0, 500, 120)
+    shown = [planner.route_json(kind, shown_route, [blocker]) for kind in ('shortest', 'safest')]
+    covered = planner.trip_bounds([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    candidates = [
+        via(0.00001, 0, 510, 121),          # same road as shown: dropped
+        via(0.0003, 0, 600, 130),           # through the hazard and slower: dropped
+        via(-0.0003, 0, 700, 150),          # different road, no riskier: kept even though slower
+        via(0.01, 0, 900, 200),             # leaves the loaded area: never scored as zero risk
+    ]
+    picked = planner.pick_alternatives(candidates, shown, [blocker], covered)
+    assert [r['distance_m'] for r in picked] == [700] and picked[0]['kind'] == 'alternative'
+
+def test_alternatives_capped_and_ordered_by_risk_then_time():
+    covered = planner.trip_bounds([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    shown = [planner.route_json(kind, via(0, 0), []) for kind in ('shortest', 'safest')]
+    candidates = [via(d, 0, 500, t) for d, t in ((-0.0006, 160), (0.0006, 140), (-0.0012, 150))]
+    picked = planner.pick_alternatives(candidates, shown, [], covered)
+    assert [r['duration_s'] for r in picked] == [140, 150]
+
+def test_plan_returns_contract_valid_alternatives():
+    class Alternates(OneRoute):
+        async def route(self, origin, destination, exclusions=()):
+            return via(0, 0)
+        async def routes(self, origin, destination, exclusions=(), alternates=0):
+            return [via(0, 0), via(-0.0006, 0, 700, 160)][:1 + alternates]
+    async def loader(bounds):
+        return []
+    result = asyncio.run(planner.plan(Alternates(), ORIGIN, DEST, loader))
+    validate('RouteResponse', json.loads(json.dumps(result)))
+    assert [r['kind'] for r in result['routes']] == ['shortest', 'safest']
+    assert [r['kind'] for r in result['alternatives']] == ['alternative']
+
+def test_recorded_alternates_are_scored_and_kept():
+    """alternates-a.json: real Valhalla 3.9.1 pedestrian response with alternates=2 (see backend/README.md)."""
+    def handle(request):
+        body = json.loads(request.content)
+        return httpx.Response(200, json=load('alternative-a.json' if 'exclude_polygons' in body else 'alternates-a.json'))
+    client = ValhallaClient('http://valhalla.test', httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    async def loader(bounds):
+        return [h for h in [hazard('5b0e2b4c-0d3a-4b8e-9a51-3f0e6c1d2a77', 0.9)] if h.polygon.intersects(box(*bounds))]
+    result = asyncio.run(planner.plan(client, ORIGIN, DEST, loader))
+    validate('RouteResponse', json.loads(json.dumps(result)))
+    shown = [r['geometry']['coordinates'] for r in result['routes']]
+    assert 1 <= len(result['alternatives']) <= 2
+    for option in result['alternatives']:
+        assert option['kind'] == 'alternative' and option['geometry']['coordinates'] not in shown
+        assert option['risk_score'] <= result['routes'][0]['risk_score'] or option['duration_s'] < result['routes'][0]['duration_s']
+
+def test_a_dominated_candidate_is_dropped_regardless_of_arrival_order():
+    """A candidate that is both riskier and no faster than another candidate must never survive,
+    even when Valhalla lists the dominated one before the one that dominates it."""
+    blocker = hazard('b', 0.9, square(*(lambda c: (c[0] + 0.0003, c[1]))(((ORIGIN.lon + DEST.lon) / 2, (ORIGIN.lat + DEST.lat) / 2))))
+    shown = [planner.route_json(kind, via(0, 0, 500, 150), [blocker]) for kind in ('shortest', 'safest')]
+    covered = planner.trip_bounds([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)])
+    dominated = via(0.0003, 0, 600, 120)   # through the hazard and no faster
+    dominant = via(-0.0003, 0, 500, 100)   # clear and faster: dominates `dominated`
+    forward = planner.pick_alternatives([dominated, dominant], shown, [blocker], covered)
+    reverse = planner.pick_alternatives([dominant, dominated], shown, [blocker], covered)
+    for result in (forward, reverse):
+        assert [r['duration_s'] for r in result] == [100]

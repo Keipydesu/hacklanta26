@@ -1,4 +1,5 @@
-"""Route comparison: baseline vs. a route that avoids eligible hazards, scored against all hazards.
+"""Route comparison: baseline vs. a route that avoids eligible hazards, scored against all hazards,
+plus up to two other roads Valhalla found for the baseline request.
 
 Receives product hazards only; never touches the automatic service.
 """
@@ -13,6 +14,8 @@ from .valhalla import NoPath, Unavailable
 EXCLUDE_SCORE = 0.4
 MAX_EXCLUSIONS = 20
 SEARCH_MARGIN_DEG = 0.004  # ~450 m around the trip; widened once if a candidate leaves it
+MAX_ALTERNATIVES = 2
+SAME_ROUTE_DEG = 1e-4  # ~10 m: a Hausdorff distance below this is the same route
 
 @dataclass
 class Hazard:
@@ -58,6 +61,29 @@ def route_json(kind, candidate, hazards):
             'distance_m': candidate.distance_m, 'duration_s': candidate.duration_s,
             'risk_score': round(max(0.0, min(1.0, risk)), 6), 'hazard_ids': ids}
 
+def pick_alternatives(candidates, shown, hazards, covered):
+    """Other roads worth showing: inside the scored area, not a repeat of a shown route, and not
+    riskier while no faster than one. Equal risk and slower stays: it is a different road.
+
+    Candidates are scored and sorted by (risk, duration) before filtering, so a later-dominated
+    check only ever compares against already-at-least-as-good options; otherwise a dominated route
+    seen before its dominator would survive, making the result depend on Valhalla's response order."""
+    options = []
+    for candidate in candidates:
+        if not covers(covered, trip_bounds(candidate.coordinates, margin=0)):
+            continue  # never score unseen area as zero risk
+        options.append(route_json('alternative', candidate, hazards))
+    options.sort(key=lambda r: (r['risk_score'], r['duration_s']))
+    picked = []
+    for option in options:
+        line = LineString(option['geometry']['coordinates'])
+        if any(line.hausdorff_distance(LineString(r['geometry']['coordinates'])) < SAME_ROUTE_DEG
+               or (option['risk_score'] > r['risk_score'] and option['duration_s'] >= r['duration_s'])
+               for r in shown + picked):
+            continue
+        picked.append(option)
+    return picked[:MAX_ALTERNATIVES]
+
 def union(a, b):
     return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
 
@@ -74,7 +100,7 @@ async def plan(client, origin, destination, load_hazards):
     """
     covered = trip_bounds([(origin.lon, origin.lat), (destination.lon, destination.lat)])
     hazards = {h.id: h for h in await load_hazards(covered)}
-    baseline = await client.route(origin, destination)
+    baseline, *others = await client.routes(origin, destination, alternates=MAX_ALTERNATIVES)
     safest, safest_available = baseline, True
     for attempt in range(2):
         covered, hazards = await widen(covered, baseline.coordinates, hazards, load_hazards)
@@ -98,7 +124,9 @@ async def plan(client, origin, destination, load_hazards):
     # An identical path or equal-risk detour is not a distinct lower-risk alternative.
     if safest_json['geometry'] == shortest_json['geometry'] or safest_json['risk_score'] >= shortest_json['risk_score']:
         safest_json, safest_available = dict(shortest_json, kind='safest'), False
-    return {'routes': [shortest_json, safest_json], 'safest_available': safest_available}
+    shown = [shortest_json, safest_json]
+    return {'routes': shown, 'safest_available': safest_available,
+            'alternatives': pick_alternatives(others, shown, everything, covered)}
 
 async def widen(covered, coordinates, hazards, load_hazards):
     """Make sure the baseline route itself is inside the loaded area before choosing exclusions."""
