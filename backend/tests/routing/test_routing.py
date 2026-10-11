@@ -107,6 +107,17 @@ def test_exclusions_capped_at_twenty_nearest():
     rings = planner.select_exclusions(hazards, ORIGIN, DEST)
     assert len(rings) == 20
 
+def test_exclusions_capped_by_vertex_budget_not_just_count():
+    """High-vertex rings (e.g. real hazard-report circles) must never push the combined
+    exclude_polygons payload past the routing engine's limit, even well under 20 hazards."""
+    from shapely.geometry import Point as ShapelyPoint
+    circle = lambda i: list(ShapelyPoint(-84.3853, 33.7531 + 0.0001 * i).buffer(0.00005).exterior.coords)
+    hazards = [hazard(f'c{i:02d}', 0.8, circle(i)) for i in range(5)]
+    assert len(hazards[0].polygon.exterior.coords) > 20  # each ring alone would have blown the old 20-hazard budget
+    rings = planner.select_exclusions(hazards, ORIGIN, DEST)
+    assert sum(len(r) for r in rings) <= planner.MAX_EXCLUSION_VERTICES
+    assert len(rings) < len(hazards)  # the budget, not the count cap, is what stopped it here
+
 def test_no_path_returns_baseline_for_both_kinds():
     result = run_plan(Recorded(missing_path=True), [hazard('x', 0.9)])
     shortest, safest = result['routes']
