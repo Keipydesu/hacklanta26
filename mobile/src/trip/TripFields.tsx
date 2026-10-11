@@ -16,6 +16,7 @@ function shown(endpoint: Endpoint, which: Which): string {
 
 export function TripFields(props: {
   trip: TripState;
+  hideOrigin?: boolean;
   editing: Which | null;
   picking: Which | null;
   search: SearchState;
@@ -74,8 +75,8 @@ export function TripFields(props: {
   if (editing) return field(editing);
 
   return <View>
-    {field('origin')}
-    {locationProblem && editing !== 'origin' && <View style={styles.row}>
+    {!props.hideOrigin && field('origin')}
+    {!props.hideOrigin && locationProblem && editing !== 'origin' && <View style={styles.row}>
       <Text accessibilityRole="alert" style={styles.error}>
         {locationProblem === 'denied' ? 'Location permission is off.' : 'Could not get your location.'}
       </Text>

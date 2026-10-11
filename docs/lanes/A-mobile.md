@@ -224,3 +224,8 @@ Handoff records what works, exact app/API revisions and launch URL, commands and
 checked, retry IDs/receipts, outage behavior, and remaining stubs. Do not remove fixture warnings
 until the corresponding live capability exists. Defer accounts, cross-source merging,
 background tracking/recording, motion detection, dashboard and cosmetic polish beyond the manual release.
+
+
+UI sheet refinement (decision 030): two magnetic drag positions replace disclosure chevrons.
+Map taps collapse except during endpoint picking. No destination means closing search returns
+home; a compact selected trip hides From. Preserve draft/queue and endpoint state across collapse.

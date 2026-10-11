@@ -139,3 +139,12 @@ all seven categories and location-versus-custom endpoints). Native visual review
 Latest verification: the rebased UI passes TypeScript and 69 map/trip/search/route tests.
 The iPhone 17 Pro / iOS 26.1 simulator shows the compact home and expanded search with a
 software keyboard; see [screenshots and limits](screenshots/ui-polish/README.md).
+
+
+## Magnetic task sheet
+
+Decision 030 replaces the chevron with a grabber/header drag surface and spring snapping between
+compact and expanded. Release velocity influences the destination; lists scroll independently.
+Screen readers have Expand panel / Collapse panel actions. Tapping exposed map collapses the
+panel, except while choosing a route point. Closing an empty search returns straight to the home
+input. A compact trip hides From; drag open to edit it. Search remains full height above the keyboard.
