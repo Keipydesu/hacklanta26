@@ -8,8 +8,10 @@ Follow [the architecture](../../ARCHITECTURE.md), [roadmap](../ROADMAP.md) and
 [decision 001](../decisions/001-mvp-delivery-workflow.md).
 
 [PR #1](https://github.com/Keipydesu/hacklanta26/pull/1) is merged and provides product API/PostGIS Compose, a backend image, environment examples, scoped CI,
-contract/type drift checks and component startup docs. The API still uses memory; healthy PostGIS
-is not evidence of persistence. There is no Valhalla, TLS or Vultr deployment yet. Extend those files. Everything below beyond that baseline is proposed, not a verified deploy command.
+contract/type drift checks and component startup docs. The manual stack now runs on Vultr with
+PostGIS, real campus Valhalla routes and public HTTPS. The [deployment handoff](../../infra/VULTR-DEMO.md)
+records the 2026-10-11 checks and remaining phone/previous-release rollback work. Treat the
+procedures below as the lane plan; the handoff and infra README identify verified commands.
 
 **Owns:** `infra/`, `backend/Dockerfile`, `automatic/Dockerfile`, `README.md`, `.github/`.
 C owns product database migrations/routing code; D owns private observation migrations/worker;

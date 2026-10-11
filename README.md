@@ -97,5 +97,6 @@ runbook see [infra](infra/README.md). Start optional automation separately:
 [fixture publisher](contracts/README.md); no automatic worker is required.
 
 Setup, start, export and verification commands live in [backend](backend/README.md),
-[mobile](mobile/README.md), and [contracts](contracts/README.md). No hosted deployment exists yet:
-the deployment scripts are written but have not been run against a host.
+[mobile](mobile/README.md), and [contracts](contracts/README.md). The manual backend is deployed over HTTPS at `https://144-202-21-20.sslip.io`.
+See the [deployment handoff](infra/VULTR-DEMO.md) for verified checks, Expo launch steps,
+and remaining phone validation.

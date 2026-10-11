@@ -51,7 +51,7 @@ real-recording tuning and hosted deployment remain outstanding. See component RE
 | Automatic collector | Separate Expo app: device motion/GPS sensing (foreground only), privacy trimming, durable upload queue, indoor demo |
 | Automatic detector | Pure TypeScript hard-brake and bump detector in `automatic/detector/` |
 | Automatic service | Independent FastAPI; durable PostGIS ingestion, serialized hazard worker and publication outbox when `AUTOMATION_DATABASE_URL` is set (memory stub otherwise) |
-| Hosting | One-command local app via `infra/dev.sh` (Expo + API + PostGIS + Valhalla); Compose manual stack with opt-in `routing` / `https` / `automation` profiles and Vultr deploy/rollback scripts (`infra/`); Vultr path not yet run on a real host |
+| Hosting | One-command local app via `infra/dev.sh` (Expo + API + PostGIS + Valhalla); Compose manual stack with opt-in `routing` / `https` / `automation` profiles and Vultr deploy/rollback scripts (`infra/`); manual HTTPS deployment and current-release recovery verified; see infra/VULTR-DEMO.md |
 
 ## Commands
 
@@ -80,7 +80,7 @@ From the repository root (Python 3.11+, uv, Node 22 LTS recommended):
 - Full local manual app (Docker + Python 3): `./infra/dev.sh`; logs `./infra/dev.sh logs`; stop with data preserved `./infra/dev.sh down`. Includes Expo, API, PostGIS and real GSU routing; automation stays optional.
 - Compose setup/start/stop: [infra README](infra/README.md). Stack probes `infra/check_stack.sh URL`;
   backup/restore proof `infra/backup.sh` then `infra/restore_check.sh FILE`; routing tiles
-  `infra/valhalla/build_tiles.sh EXTRACT`; Vultr `infra/vultr/deploy.sh` / `rollback.sh` (not yet run on a host).
+  `infra/valhalla/build_tiles.sh EXTRACT`; Vultr `infra/vultr/deploy.sh` / `rollback.sh` (manual host verified; see [deployment handoff](infra/VULTR-DEMO.md)).
 
 Verified commands and remaining device checks are recorded in the handoff. Native exports produce
 JavaScript/Hermes bundles, not signed binaries. Keep local checks scoped; CI is the routine gate.
