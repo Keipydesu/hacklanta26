@@ -30,14 +30,13 @@ From a configured checkout with mobile dependencies installed:
 EXPO_UNSTABLE_TUNNEL_V2=1 EXPO_PUBLIC_API_URL=https://144-202-21-20.sslip.io npm start --prefix mobile -- --tunnel
 ```
 
-Share the resulting Expo link/QR with a compatible Expo Go user. Use the installed Node 22 runtime
+Open the resulting Expo link/QR in a compatible Expo Go installation. Use the installed Node 22 runtime
 (on this Mac, prepend `PATH=/opt/homebrew/opt/node@22/bin:$PATH`). Default ngrok tunneling timed out
 under Node 25 and Node 22. The existing SDK57 alternative transport above connected with the
 operator's existing Expo session; no helper dependency was added. Public curl checks verified
 Metro status, the SDK57 iOS manifest and a 5.36 MB iOS bundle containing the hosted API URL.
 An initial Python HTTP probe returned 403; subsequent curl status/manifest/bundle checks succeeded.
-Physical Expo Go access, including a friend's account, remains unverified; sign-in/access errors
-need device follow-up. The tunnel URL is temporary and appears in the launch output.
+On physical iPhones, [Expo Go requires the same Expo account as Expo CLI](https://docs.expo.dev/get-started/start-developing/). A friend signing in with their own account cannot use this development link. Independently installable iOS preview builds require a separate signing/distribution setup; the tunnel alone does not provide public iOS app distribution. Physical two-phone acceptance remains pending. The tunnel URL is temporary and appears in the launch output.
 The API runs independently of the laptop, but Metro/tunnel must stay running until a native build
 is distributed. See [mobile setup](../mobile/README.md).
 
