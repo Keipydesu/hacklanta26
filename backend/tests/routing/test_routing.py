@@ -11,7 +11,7 @@ from shapely.geometry import Polygon, box
 from app.main import create_app
 from app.routing import planner
 from app.routing.planner import Hazard
-from app.routing.valhalla import NoPath, Unavailable, ValhallaClient, decode_polyline6, parse_trip
+from app.routing.valhalla import Candidate, NoPath, Unavailable, ValhallaClient, decode_polyline6, parse_trip
 from app.schemas import Coordinate
 from test_boundary import fresh, validate
 
@@ -135,8 +135,19 @@ def test_budget_skipped_hazard_is_still_scored_on_both_routes():
     assert all(h.polygon.intersects(line) for h in hazards)
     rings = planner.select_exclusions(hazards, ORIGIN, DEST)
     assert 0 < len(rings) < len(hazards)  # budget let one through and dropped the other
-    risk, ids = planner.score_route([(ORIGIN.lon, ORIGIN.lat), (DEST.lon, DEST.lat)], hazards)
-    assert set(ids) == {'on-line-1', 'on-line-2'}  # both score, even though only one was excludable
+    class StraightRoute:
+        async def routes(self, origin, destination, alternates=0):
+            return [Candidate(list(line.coords), 400, 100)]
+        async def route(self, origin, destination, exclusions):
+            assert exclusions and sum(map(len, exclusions)) <= 100
+            return Candidate(list(line.coords), 400, 100)
+    async def loader(bounds):
+        return hazards
+    result = asyncio.run(planner.plan(StraightRoute(), ORIGIN, DEST, loader))
+    for route in result['routes']:
+        assert set(route['hazard_ids']) == {'on-line-1', 'on-line-2'}
+        assert route['risk_score'] == pytest.approx(0.96)
+    assert not result['safest_available']
 
 def test_no_path_returns_baseline_for_both_kinds():
     result = run_plan(Recorded(missing_path=True), [hazard('x', 0.9)])
