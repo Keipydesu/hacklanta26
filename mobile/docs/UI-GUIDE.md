@@ -32,6 +32,8 @@ in expanded details; fixture warnings, failures and delivery states remain expli
   crosshair means foreground location. Hazard categories have their own labeled pictograms.
 - `ActionButton` owns touch sizing, selected, pressed and unavailable treatments. Containers
   own placement. Normally one action in a local group is primary.
+- Busy actions retain their label and footprint, show a spinner, and expose native busy/disabled
+  states. Route comparison keeps its primary action visible while the request is in progress.
 - Icons supplement short labels. Icon-only disclosure has an action-specific accessible name
   and expanded state. Decorative geometry is hidden from accessibility.
 - Ordinary controls have at least 48-point height. The disclosure target is 48 by 44 points.
@@ -100,3 +102,13 @@ Use Satoshi Italic for headings, controls, route metrics, inputs and errors. Use
 Italic for supporting captions and metadata. Select the actual font face through the shared
 theme; do not synthesize bold/italic variants. Fonts are bundled after the official download
 step; system text remains usable if font loading fails. Map-provider labels stay unchanged.
+
+Route cards lead with duration, followed by distance and an explicit reported-hazard count.
+Cards wrap when two 140-point columns cannot fit; text remains free to wrap at larger sizes.
+Risk stays in expanded details. Notices use the same Satoshi body face as other controls.
+
+UI polish verification (2026-10-10): TypeScript, all 17 existing route behavior tests and
+`git diff --check` passed. Start the fixture preview with `npm start --prefix mobile`;
+open Trip and choose fixture endpoints to inspect the comparison. The offline routes remain
+illustrative and reporting is disabled. This pass has not been visually verified on a device;
+small-screen, larger-text, light/dark and screen-reader checks remain outstanding.

@@ -9,10 +9,15 @@ export const routeColors = (theme: Theme) => ({ shortest: theme.routeShortest, s
 function RouteCard({ line, expanded, colors }: { line: RouteLine; expanded: boolean; colors: { shortest: string; safest: string } }) {
   const theme = useTheme();
   const styles = createStyles(theme);
-  return <View style={styles.card} accessible accessibilityLabel={`${line.label}: ${line.duration}, ${line.distance}, ${line.hazardCount} reported hazards, ${line.risk}`}>
-    <View style={styles.legend}><View style={[styles.swatch, { backgroundColor: colors[line.kind] }]} /><Text style={styles.label}>{line.label}</Text></View>
+  const hazards = `${line.hazardCount} reported hazard${line.hazardCount === 1 ? '' : 's'}`;
+  return <View style={styles.card} accessible accessibilityLabel={`${line.label}: ${line.duration}, ${line.distance}, ${hazards}${expanded ? `, ${line.risk}` : ''}`}>
+    <View style={styles.legend}>
+      <View style={[styles.swatch, { backgroundColor: colors[line.kind] }]} />
+      <Text style={styles.label}>{line.label}</Text>
+    </View>
     <Text style={styles.metrics}>{line.duration}</Text>
-    <Text style={styles.fine}>{line.distance} · {line.hazardCount} reports</Text>
+    <Text style={styles.distance}>{line.distance}</Text>
+    <Text style={styles.hazards}>{hazards}</Text>
     {expanded && <Text style={styles.fine}>{line.risk}</Text>}
   </View>;
 }
@@ -58,12 +63,14 @@ export function RouteScreen(props: {
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
-  card: { flex: 1, minWidth: 120, padding: 10, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, marginVertical: 4 },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  swatch: { width: 15, height: 3, borderRadius: 1 },
-  label: { fontFamily: theme.fontBody, fontSize: 13, color: theme.ink, flexShrink: 1 },
-  metrics: { fontFamily: theme.fontBody, fontSize: 24, color: theme.ink, marginVertical: 4 },
+  card: { flexGrow: 1, flexBasis: 140, minWidth: 140, padding: 12, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, marginVertical: 4 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  swatch: { width: 18, height: 4, borderRadius: 2 },
+  label: { fontFamily: theme.fontBody, fontSize: 14, color: theme.ink, flexShrink: 1 },
+  metrics: { fontFamily: theme.fontBody, fontSize: 28, color: theme.ink, marginTop: 8, marginBottom: 2, fontVariant: ['tabular-nums'] },
+  distance: { fontFamily: theme.fontBody, color: theme.ink, fontSize: 14 },
+  hazards: { fontFamily: theme.fontLight, color: theme.muted, fontSize: 12, lineHeight: 18, marginTop: 6 },
   fine: { fontFamily: theme.fontLight, color: theme.muted, fontSize: 12, lineHeight: 18, marginVertical: 2 },
-  notice: { color: theme.warning, fontSize: 12, marginVertical: 4 },
+  notice: { fontFamily: theme.fontBody, color: theme.warning, fontSize: 12, lineHeight: 18, marginVertical: 4 },
   error: { fontFamily: theme.fontBody, color: theme.danger, marginVertical: 6 },
 });
