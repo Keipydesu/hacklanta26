@@ -229,3 +229,7 @@ background tracking/recording, motion detection, dashboard and cosmetic polish b
 UI sheet refinement (decision 030): two magnetic drag positions replace disclosure chevrons.
 Map taps collapse except during endpoint picking. No destination means closing search returns
 home; a compact selected trip hides From. Preserve draft/queue and endpoint state across collapse.
+
+Decision 031 refines the sheet with native slide motion and content-sized reporting (up to the
+expanded cap). Remove heading Done buttons; search retains Cancel and reporting closes via
+map tap, drag or the accessible collapse action. Keep map relayout out of animation frames.

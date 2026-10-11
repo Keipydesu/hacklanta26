@@ -51,7 +51,8 @@ function CampusApp() {
   const [locationError, setLocationError] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [overlayHeight, setOverlayHeight] = useState(600);
-  const [dockHeight, setDockHeight] = useState(220);
+  const [dockHeight, setDockHeight] = useState(132);
+  const [reportContentHeight, setReportContentHeight] = useState(160);
   const [pageHeight, setPageHeight] = useState(0);
   const [safeFrame, setSafeFrame] = useState({ y: 0, height: 0 });
   const bottomInset = Math.max(0, pageHeight - safeFrame.y - safeFrame.height);
@@ -331,18 +332,19 @@ function CampusApp() {
       {server?.storage === 'memory' && <Text style={styles.notice}>Test server · reports reset on restart</Text>}
       {!searching && <View style={styles.space} pointerEvents="none" />}
       <BottomSheet style={styles.dock} open={expanded || searching}
-        closedHeight={screen === 'route' ? 176 : 132} openHeight={searching ? Math.max(132, overlayHeight - 8) : Math.max(176, overlayHeight * 0.65)}
+        frameHeight={overlayHeight}
+        closedHeight={screen === 'route' ? 176 : 132}
+        openHeight={searching ? Math.max(132, overlayHeight - 8) : screen === 'report' && !selected
+          ? Math.min(Math.max(176, reportContentHeight + 70), Math.max(176, overlayHeight * 0.65))
+          : Math.max(176, overlayHeight * 0.65)}
         onSnap={snapPanel} onHeight={height => { if (!searching) setDockHeight(height); }}
         header={
         (screen !== 'map' || selected) ? <View style={styles.sheetHeader}>
           <Text style={styles.sheetLabel}>{fixtureMode ? 'DEMO · ' : ''}{screen === 'map' ? `${visible.length} nearby reports` : screen === 'route' ? (searching ? 'Search places' : 'Your trip') : pendingCount ? `Report hazard · ${pendingCount} pending` : 'Report hazard'}</Text>
-          {!searching && screen !== 'map' && <Pressable accessibilityRole="button" accessibilityLabel="Back to map" onPress={() => { editEndpoint(null); selection.clear(); openScreen('map'); }} style={styles.closeSearch}><Text style={styles.closeLabel}>Done</Text></Pressable>}
-          {searching && <Pressable accessibilityRole="button" accessibilityLabel="Close place search" onPress={finishSearch} style={styles.closeSearch}>
-            <Text style={styles.closeLabel}>Done</Text>
-          </Pressable>}
         </View> : null}>
         {searching && tripFields}
-        {!searching && <ScrollView key={screen} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
+        {!searching && <ScrollView key={screen} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled"
+          onContentSizeChange={(_, height) => { if (screen === 'report') setReportContentHeight(height); }}>
       {selected && <HazardPanel hazard={selected} available={selectionAvailable(selectionState, now)} state={feedbackStates[selected.id]} disabled={fixtureMode}
         availabilityError={selectionState?.error}
         onRespond={response => void feedback.respond(selected.id, response)} onRetry={() => void feedback.retry(selected.id)}
@@ -420,7 +422,7 @@ function CampusApp() {
 const createStyles = (theme: Theme) => StyleSheet.create({
   page: { flex: 1, backgroundColor: theme.canvas }, canvas: { flex: 1 }, safeControls: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  overlay: { flex: 1, paddingTop: 8 },
+  overlay: { flex: 1, paddingTop: 8, overflow: 'hidden' },
   header: { alignSelf: 'flex-end', marginRight: 12, gap: 8 },
   mapControl: { width: 48, height: 48, borderRadius: 16, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.line },
   destinationField: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 },
@@ -429,9 +431,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   space: { flex: 1 },
   dock: { backgroundColor: theme.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
     borderWidth: 1, borderColor: theme.line, paddingHorizontal: 14, paddingBottom: 4 },
-  closeSearch: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  closeLabel: { fontFamily: theme.fontBody, fontSize: 15, color: theme.ink },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36 },
   sheetLabel: { fontFamily: theme.fontBody, fontSize: 13, color: theme.muted },
   categories: { flexDirection: 'row', gap: 6, marginVertical: 6 },
   category: { overflow: 'hidden', backgroundColor: theme.quiet, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64, paddingVertical: 8, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius },

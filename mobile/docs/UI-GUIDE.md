@@ -13,12 +13,12 @@ wordmark behind it; fixture mode stays explicitly labeled in the bottom panel.
 The default panel occupies at most 36% of available height; details may expand to 65%
 only by user action. While editing a trip endpoint, search fills the available safe-area height
 above the keyboard (decision 027). The search input stays pinned; results scroll independently.
-Done, choosing a result, Current location and Choose on map exit search and restore the trip panel.
+Cancel, choosing a result, Current location and Choose on map exit search and restore the trip panel.
 The task tabs and appearance switch are hidden during search. Keep the map touchable around other overlays. Provider attribution must
 remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Fiord together without resetting the camera.
 
 The resting home has one destination input: Where to? Map is the default, with no task tabs.
-Floating recenter and report-hazard icons open the relevant actions; Done returns to the map.
+Floating recenter and report-hazard icons open the relevant actions; dragging down or tapping the map closes reporting.
 Recenter requests one device fix and moves the camera without changing trip endpoints. No marketing headline or explanatory
 paragraph. Destination focus opens the full-height search sheet. Trip details show From (Current location by default) and To fields that search
 addresses and places; results show a name and address. There are no pin-mode buttons or
@@ -148,3 +148,8 @@ compact and expanded. Release velocity influences the destination; lists scroll 
 Screen readers have Expand panel / Collapse panel actions. Tapping exposed map collapses the
 panel, except while choosing a route point. Closing an empty search returns straight to the home
 input. A compact trip hides From; drag open to edit it. Search remains full height above the keyboard.
+
+
+Decision 031: animate the sheet with a native translation, keeping map layout changes out of
+individual animation frames. Report height fits measured content up to the expanded cap, with
+scrolling for longer errors/history. Sheet headings have no Done button; search retains Cancel.

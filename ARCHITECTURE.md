@@ -9,6 +9,8 @@ Editing a trip endpoint expands search over the map above the keyboard; see
 [decision 027](docs/decisions/027-expanded-trip-search.md).
 Home exposes a destination input and floating recenter/report controls, without task tabs
 ([decision 029](docs/decisions/029-minimal-map-home.md)).
+Task sheets use native slide motion; reporting fits its content and headings have no Done button
+([decision 031](docs/decisions/031-smooth-compact-task-sheet.md)).
 This changes presentation priority, not the delivery sequence or supported routing modes.
 
 This is the target product design. Stage 0 now implements its contracts and nonpersistent skeletons, not production persistence, sensing or routing; see [the handoff](docs/STAGE-0-HANDOFF.md). It supersedes the original sensor-first mobile design. The monitoring web app remains out of scope.
