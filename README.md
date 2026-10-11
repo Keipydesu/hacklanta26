@@ -2,7 +2,7 @@
 
 A manual-first mobile app: riders report hazards, see nearby reports, and compare routes. An independently developed automatic system can later publish detected hazards through the same backend.
 
-**Status:** the manual app supports persistent reporting, route comparison through Valhalla, and foreground live trip position. The API uses PostGIS when configured (memory otherwise); directions require a real routing engine. Physical-device validation and hosted deployment remain outstanding. See component READMEs and the historical [stage 0 handoff](docs/STAGE-0-HANDOFF.md).
+**Status:** the manual backend is deployed over HTTPS with PostGIS persistence and real GSU campus routing. Reporting/retry, live updates, backup restoration and API-restart persistence passed hosted checks. Physical phone acceptance remains pending. See the [deployment handoff](infra/VULTR-DEMO.md); the [stage 0 handoff](docs/STAGE-0-HANDOFF.md) records the original skeleton baseline.
 
 ## Start here
 
@@ -97,5 +97,6 @@ runbook see [infra](infra/README.md). Start optional automation separately:
 [fixture publisher](contracts/README.md); no automatic worker is required.
 
 Setup, start, export and verification commands live in [backend](backend/README.md),
-[mobile](mobile/README.md), and [contracts](contracts/README.md). No hosted deployment exists yet:
-the deployment scripts are written but have not been run against a host.
+[mobile](mobile/README.md), and [contracts](contracts/README.md). The manual backend is deployed over HTTPS at `https://144-202-21-20.sslip.io`.
+See the [deployment handoff](infra/VULTR-DEMO.md) for verified checks, Expo launch steps,
+and remaining phone validation.

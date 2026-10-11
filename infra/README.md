@@ -29,10 +29,10 @@ collector → Caddy, own hostname → automatic [automation] → db (observation
 | `dev.sh` + dev overlay + Expo Docker image | On 2026-10-10: isolated first database startup, repeat launch and immediate stop/restart with a report preserved; persistent API/real LAN route probes; Metro/iOS manifest and native bundle with correct LAN API URL; automatic LAN detection, unchanged credentials, 16 infrastructure tests and docs checks passed. Physical Expo Go interaction with this container remains to be checked. |
 | Images build from locked manifests; manual stack starts healthy; `check_stack.sh`; `backup.sh` → `restore_check.sh`; observation role isolation; automation start/stop independence; `reset_db.sh`; Caddyfile validation | exercised by the CI `stack` job on every change under `infra/` — see that job's result on the PR, not this table, for the current state |
 | `valhalla/build_tiles.sh`, the `routing` profile serving real tiles | Campus extract built and validated locally on 2026-10-10; real route probe passed over LAN. Full metro extract remains unmeasured. |
-| `vultr/cloud-init.yaml`, `vultr/deploy.sh`, `vultr/rollback.sh`, real TLS issuance | **not run** against a real host — no host, hostname or credentials existed. The remote deploy/rollback logic was exercised locally with mocked `docker`/`flock` for: A/B/C failed rollout restarts B; first-upgrade failure restarts the only release; successful-then-bad release rolls back to `previous`; failed route or write probes leave `current` untouched. `--probe-route` and `--probe-report` were run against the stage 0 backend (fixture rejected, report probe passed). |
+| Vultr deployment, HTTPS and recovery | On 2026-10-11 UTC, deployed passing main `63d5528` to the real host. HTTPS/report/retry/route/WSS, API-restart persistence, backup restoration and `rollback.sh --current` passed. Initial cloud-init and rollback to a different previous release remain untested. See [deployment handoff](VULTR-DEMO.md). |
 | `seed_demo.sh`, `check_stack.sh --write-demo` | **not run** against a real stack (they call Lane F's simulator) |
 
-Nothing is deployed. There is no public URL yet.
+The manual demo API is live at `https://144-202-21-20.sslip.io`; use [/healthz](https://144-202-21-20.sslip.io/healthz) to check it. The root URL intentionally returns 404. See [deployment handoff](VULTR-DEMO.md) for phone setup and limits.
 
 ## One-command phone development
 
