@@ -27,13 +27,19 @@ the root path deliberately returns 404. This is the native app's backend, not a 
 From a configured checkout with mobile dependencies installed:
 
 ```sh
-EXPO_PUBLIC_API_URL=https://144-202-21-20.sslip.io npm start --prefix mobile -- --tunnel
+EXPO_UNSTABLE_TUNNEL_V2=1 EXPO_PUBLIC_API_URL=https://144-202-21-20.sslip.io npm start --prefix mobile -- --tunnel
 ```
 
-Share the resulting Expo link/QR with a compatible Expo Go user. Expo tunnel delivery is a separate
-step and was not started or verified in this deployment. It may require the Expo ngrok helper;
-review any dependency before installation. The API runs independently of the laptop, but Metro/tunnel
-must stay running until a native build is distributed. See [mobile setup](../mobile/README.md).
+Share the resulting Expo link/QR with a compatible Expo Go user. Use the installed Node 22 runtime
+(on this Mac, prepend `PATH=/opt/homebrew/opt/node@22/bin:$PATH`). Default ngrok tunneling timed out
+under Node 25 and Node 22. The existing SDK57 alternative transport above connected with the
+operator's existing Expo session; no helper dependency was added. Public curl checks verified
+Metro status, the SDK57 iOS manifest and a 5.36 MB iOS bundle containing the hosted API URL.
+An initial Python HTTP probe returned 403; subsequent curl status/manifest/bundle checks succeeded.
+Physical Expo Go access, including a friend's account, remains unverified; sign-in/access errors
+need device follow-up. The tunnel URL is temporary and appears in the launch output.
+The API runs independently of the laptop, but Metro/tunnel must stay running until a native build
+is distributed. See [mobile setup](../mobile/README.md).
 
 Routing covers the GSU campus extract, bbox `-84.40,33.74,-84.37,33.77`, not arbitrary cities.
 Tiles built at `2026-10-11T01:03:49Z`; source Overpass OSM, SHA-256
@@ -111,7 +117,7 @@ Runtime image digests recorded on the host:
 
 ## Remaining
 
-Physical two-phone rehearsal (including location denial/offline retry), Expo tunnel delivery,
+Physical two-phone rehearsal (including location denial/offline retry and Expo Go tunnel access),
 previous-release rollback, automatic certificate renewal, off-host/scheduled backups and automated
 hosting deployment remain unverified. The initial cloud-init template still targets Ubuntu 24.04;
 this already-provisioned 26.04 host used Docker's supported 26.04 repository instead. Full metro
