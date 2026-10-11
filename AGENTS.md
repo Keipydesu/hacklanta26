@@ -171,6 +171,11 @@ lane plans together.
 
 ## Git & CI workflow
 
+Passing pushes to `main` automatically deploy the manual Vultr stack via `.github/workflows/deploy.yml`
+after `Lane checks` and release contract validation. Deployment uses an exact SHA, dedicated Actions
+SSH secret, pinned host key and non-cancelling serialization; see [decision 028](docs/decisions/028-automatic-vultr-deployment.md).
+Expo distribution remains separate.
+
 This is a hackathon: prioritize a functioning app over exhaustive coverage. See
 [decision 001](docs/decisions/001-mvp-delivery-workflow.md).
 

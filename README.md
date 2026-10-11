@@ -100,3 +100,5 @@ Setup, start, export and verification commands live in [backend](backend/README.
 [mobile](mobile/README.md), and [contracts](contracts/README.md). The manual backend is deployed over HTTPS at `https://144-202-21-20.sslip.io`.
 See the [deployment handoff](infra/VULTR-DEMO.md) for verified checks, Expo launch steps,
 and remaining phone validation.
+
+Passing `main` pushes automatically deploy the Vultr API stack; see the [deployment runbook](infra/VULTR-DEMO.md#automatic-deployment-from-main).

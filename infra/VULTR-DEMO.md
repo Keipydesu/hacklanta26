@@ -122,3 +122,24 @@ hosting deployment remain unverified. The initial cloud-init template still targ
 this already-provisioned 26.04 host used Docker's supported 26.04 repository instead. Full metro
 routing and automatic services were not deployed. A working HTTPS backend alone does not complete
 the mobile acceptance gate.
+
+## Automatic deployment from main
+
+Every push to `main` runs `Lane checks`. On success, `Deploy Vultr` checks out that exact commit,
+validates contracts, and deploys it with the routing and HTTPS profiles. Superseded queued commits
+are skipped; running deployments finish rather than being cancelled. A failed rollout attempts to
+restart the last working application release and leaves the workflow failed. Database migrations
+are never reversed automatically. No demo reports or resets are performed by automatic deployment.
+
+GitHub Actions configuration:
+
+- Secret `VULTR_DEPLOY_SSH_KEY`: a dedicated private deployment key, never the operator's personal key.
+- Variable `VULTR_HOST`: `144.202.21.20`.
+- Variable `VULTR_KNOWN_HOSTS`: the verified OpenSSH known_hosts entry for this server.
+
+The matching public key is appended to `/home/deploy/.ssh/authorized_keys` with forwarding/PTY
+restrictions. To rotate it, append the replacement public key, update the GitHub secret, verify a
+deployment, then remove the old public key. To disable automatic rollouts, disable `Deploy Vultr`
+in GitHub Actions. After a failed run is repaired, rerun `Lane checks` for the current main commit.
+Check the deployment job and `/opt/campus/deployments.log` for the exact deployed SHA.
+This updates the hosted stack; it does not publish or restart Expo Metro.

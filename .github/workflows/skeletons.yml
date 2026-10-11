@@ -1,7 +1,6 @@
 name: Lane checks
 on:
-  push:
-    paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '.dockerignore', '**/*.md', '.github/workflows/**']
+  push:  # Every push produces validation; component jobs remain path-filtered.
   pull_request:
     paths: ['backend/**', 'automatic/**', 'mobile/**', 'simulator/**', 'contracts/**', 'infra/**', 'scripts/**', '.dockerignore', '**/*.md', '.github/workflows/**']
 concurrency:
@@ -36,7 +35,7 @@ jobs:
             detector: ['automatic/detector/**', '.github/workflows/skeletons.yml']
             simulator: ['simulator/**', 'automatic/detector/**', '.github/workflows/skeletons.yml']
             dev_mobile: ['infra/mobile.Dockerfile', 'infra/docker-compose.dev.yml', 'infra/dev.py', 'mobile/**', '.dockerignore', '.github/workflows/skeletons.yml']
-            stack: ['infra/**', 'backend/**', 'automatic/service/**', 'automatic/Dockerfile', 'contracts/**', '.dockerignore', '.github/workflows/skeletons.yml']
+            stack: ['.github/workflows/deploy.yml', 'infra/**', 'backend/**', 'automatic/service/**', 'automatic/Dockerfile', 'contracts/**', '.dockerignore', '.github/workflows/skeletons.yml']
             contracts: ['contracts/**', 'mobile/src/api/schema.d.ts', 'automatic/collector/src/api/schema.d.ts', 'automatic/service/product-api.d.ts', 'mobile/src/fixtures/**', 'automatic/collector/src/*.json', '.github/workflows/skeletons.yml']
   backend:
     needs: changes

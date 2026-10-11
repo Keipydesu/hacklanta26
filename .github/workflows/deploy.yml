@@ -1,0 +1,85 @@
+name: Deploy Vultr
+on:
+  workflow_run:
+    workflows: ['Lane checks']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+# Validation may cancel superseded runs; a started deployment must finish or recover.
+concurrency:
+  group: vultr-demo
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: Skip superseded commits
+        id: current
+        run: |
+          git fetch --quiet origin main
+          if [ "$DEPLOY_SHA" = "$(git rev-parse origin/main)" ]; then
+            echo 'yes=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Skipped: a newer main commit will deploy after its checks pass.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      # The separate Contracts workflow can still be running: validate this exact SHA here too.
+      - uses: astral-sh/setup-uv@v6
+        if: steps.current.outputs.yes == 'true'
+        with: {python-version: '3.13'}
+      - name: Validate release contracts
+        if: steps.current.outputs.yes == 'true'
+        run: |
+          uv sync --project contracts --frozen
+          uv run --project contracts python contracts/scripts/validate.py
+      - name: Prepare dedicated deployment SSH credential
+        if: steps.current.outputs.yes == 'true'
+        env:
+          DEPLOY_KEY: ${{ secrets.VULTR_DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.VULTR_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ vars.VULTR_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          export CAMPUS_SSH_CONFIG="$RUNNER_TEMP/campus-ssh/config"
+          echo "CAMPUS_SSH_CONFIG=$CAMPUS_SSH_CONFIG" >> "$GITHUB_ENV"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/campus-ssh/bin"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/campus-ssh/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/campus-ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/campus-ssh/key" >/dev/null
+          cat > "$CAMPUS_SSH_CONFIG" <<CONFIG
+          Host campus-vultr
+            HostName $DEPLOY_HOST
+            User deploy
+            IdentityFile $RUNNER_TEMP/campus-ssh/key
+            UserKnownHostsFile $RUNNER_TEMP/campus-ssh/known_hosts
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+            ConnectTimeout 10
+          CONFIG
+          cat > "$RUNNER_TEMP/campus-ssh/bin/ssh" <<'SSH'
+          #!/bin/sh
+          exec /usr/bin/ssh -F "$CAMPUS_SSH_CONFIG" "$@"
+          SSH
+          chmod 700 "$RUNNER_TEMP/campus-ssh/bin/ssh"
+          echo "$RUNNER_TEMP/campus-ssh/bin" >> "$GITHUB_PATH"
+      - name: Deploy tested commit and recover on failure
+        if: steps.current.outputs.yes == 'true'
+        run: infra/vultr/ci_deploy.sh campus-vultr "$DEPLOY_SHA"
+      - name: Remove runner credential
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/campus-ssh"
