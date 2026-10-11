@@ -1,4 +1,4 @@
-# 024. Expanded trip search above the keyboard
+# 027. Expanded trip search above the keyboard
 
 - Status: Accepted
 - Date: 2026-10-10

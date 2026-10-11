@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, Keyboard, Linking, SafeAreaView, ScrollView, View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
+import { ActivityIndicator, AppState, Keyboard, Linking, SafeAreaView, ScrollView, View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
 import { SilverTexture } from './src/ui/SilverTexture';
 import { Icon } from './src/ui/Icon';
@@ -44,6 +44,9 @@ function CampusApp() {
   const styles = createStyles(theme);
 
   const [screen, setScreen] = useState<'map'|'report'|'route'>('map');
+  const [recenterTarget, setRecenterTarget] = useState<{ position: LngLat; request: number }>();
+  const [recentering, setRecentering] = useState(false);
+  const [locationError, setLocationError] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [dockHeight, setDockHeight] = useState(220);
   const [pageHeight, setPageHeight] = useState(0);
@@ -52,7 +55,7 @@ function CampusApp() {
   function openScreen(next: 'map' | 'report' | 'route') {
     if (next === 'route' && screenRef.current !== 'route') { setFollowing(true); setCameraRevision(value => value + 1); }
     screenRef.current = next;
-    setScreen(next); setExpanded(false);
+    setScreen(next); setExpanded(false); Keyboard.dismiss();
     if (next !== 'route') { setPicking(null); setEditing(null); }
     if (next === 'report' && shouldLocateOnEnter(reportLocationRef.current.status)) void reportLocator.request();
   }
@@ -217,6 +220,15 @@ function CampusApp() {
     });
   }
   const currentPosition = freshPosition(position, now);
+  async function recenter() {
+    if (recentering) return;
+    setRecentering(true); setLocationError('');
+    try {
+      const fix = await locateForAction();
+      if (fix.ok) setRecenterTarget({ position: [fix.lon, fix.lat], request: Date.now() });
+      else setLocationError(fix.reason === 'denied' ? 'Location permission is off. Enable it in Settings, then retry recenter.' : 'Could not find your location. Tap recenter to try again.');
+    } finally { setRecentering(false); }
+  }
   const visible = hazards.filter(h => h.properties.status === 'active' && Date.parse(h.properties.expires_at) > now);
   const overlay = buildOverlay({
     screen, hazards: visible, submissions, pin: reportLocation.status === 'ready' && reportLocator.ready() ? reportLocation : null,
@@ -224,6 +236,7 @@ function CampusApp() {
     selectedHazardId: selected?.id,
     originIsCurrent: tripState.origin.kind === 'current', destinationIsCurrent: tripState.destination.kind === 'current',
   });
+  if (screen === 'map' && recenterTarget) overlay.markers.push({ id: 'you', position: recenterTarget.position, color: '#2b6cd4', icon: 'location', title: 'Your location · last recenter fix' });
   if (mapTheme === 'dark' && overlay.routes.some(line => line.id === 'lower-risk')) {
     const line = overlay.routes.find(line => line.id === 'lower-risk')!;
     overlay.routes.unshift({ ...line, id: 'lower-risk-casing', color: palette.silver, width: 10 });
@@ -276,7 +289,7 @@ function CampusApp() {
           onPickOnMap={which => { editEndpoint(null); setFollowing(false); setPicking(which); }} />;
   return <View style={styles.page} onLayout={e => setPageHeight(e.nativeEvent.layout.height)}>
     <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
-    <View style={[styles.map, { bottom: dockHeight + bottomInset }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
+    <View style={[styles.map, { bottom: dockHeight + bottomInset }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay} recenter={recenterTarget}
       camera={{ position: currentPosition ? [currentPosition.lon, currentPosition.lat] : null, follow: screen === 'route' && following, revision: cameraRevision }}
       onGesture={() => setFollowing(false)} onPress={onMapPress} onDragEnd={onMarkerDrag} onBounds={changeRegion} onSelect={onSelectHazard} /></View>
     <SafeAreaView pointerEvents="box-none" style={styles.safeControls}>
@@ -284,22 +297,29 @@ function CampusApp() {
       onLayout={e => { const { y, height } = e.nativeEvent.layout; setSafeFrame({ y, height }); }}>
     <View pointerEvents="box-none" style={styles.overlay}>
       {!searching && <View style={styles.header}>
-        <Pressable accessibilityRole="switch" accessibilityLabel="Dark mode" accessibilityState={{ checked: colorScheme === 'dark' }} onPress={toggleAppearance} style={styles.iconButton}>
+        <Pressable accessibilityRole="switch" accessibilityLabel="Dark mode" accessibilityState={{ checked: colorScheme === 'dark' }} onPress={toggleAppearance} style={styles.mapControl}>
           <Icon name={colorScheme === 'dark' ? 'moon' : 'sun'} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Recenter on your location" accessibilityState={{ busy: recentering, disabled: recentering }} disabled={recentering} onPress={() => void recenter()} style={styles.mapControl}>
+          {recentering ? <ActivityIndicator color={theme.ink} /> : <Icon name="locate" />}
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Report a map hazard" accessibilityState={{ selected: screen === 'report' }} onPress={() => { selection.clear(); openScreen('report'); }} style={styles.mapControl}>
+          <Icon name="report" />
         </Pressable>
       </View>}
       {server?.storage === 'memory' && <Text style={styles.notice}>Test server · reports reset on restart</Text>}
       {!searching && <View style={styles.space} pointerEvents="none" />}
       <View style={[styles.dock, expanded && styles.dockExpanded, searching && styles.dockSearch]} onLayout={e => { if (!searching) setDockHeight(e.nativeEvent.layout.height); }}>
-        <View style={styles.sheetHeader}>
+        {(screen !== 'map' || selected) && <View style={styles.sheetHeader}>
           <Text style={styles.sheetLabel}>{fixtureMode ? 'DEMO · ' : ''}{screen === 'map' ? `${visible.length} nearby reports` : screen === 'route' ? (searching ? 'Search places' : 'Your trip') : pendingCount ? `Report hazard · ${pendingCount} pending` : 'Report hazard'}</Text>
+          {!searching && screen !== 'map' && <Pressable accessibilityRole="button" accessibilityLabel="Back to map" onPress={() => { editEndpoint(null); selection.clear(); openScreen('map'); }} style={styles.closeSearch}><Text style={styles.closeLabel}>Done</Text></Pressable>}
           {searching ? <Pressable accessibilityRole="button" accessibilityLabel="Close place search" onPress={() => editEndpoint(null)} style={styles.closeSearch}>
             <Text style={styles.closeLabel}>Done</Text>
           </Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Collapse details' : 'Expand details'}
             accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={styles.iconButton}>
             <Icon name={expanded ? 'collapse' : 'expand'} />
           </Pressable>}
-        </View>
+        </View>}
         {searching && tripFields}
         {!searching && <ScrollView key={screen} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
       {selected && <HazardPanel hazard={selected} available={selectionAvailable(selectionState, now)} state={feedbackStates[selected.id]} disabled={fixtureMode}
@@ -307,8 +327,12 @@ function CampusApp() {
         onRespond={response => void feedback.respond(selected.id, response)} onRetry={() => void feedback.retry(selected.id)}
         onClose={() => selection.clear()} />}
       {screen === 'map' && <>
-        <Button primary icon="route" title={routeState.origin || routeState.destination ? 'Continue trip' : 'Where to?'}
-          onPress={planTrip} />
+        <View style={styles.destinationField}>
+          <Icon name="pin" />
+          <TextInput accessibilityLabel="Search destination" placeholder="Where to?" placeholderTextColor={theme.muted} style={styles.destinationInput}
+            onFocus={() => { selection.clear(); openScreen('route'); editEndpoint('destination'); void trip.start(); }} />
+        </View>
+        {fixtureMode && <Text style={styles.caption}>Demo · example map data</Text>}
         {pendingCount > 0 && <Text style={styles.caption}>{pendingCount} pending · not yet accepted</Text>}
         {expanded && <>
           {visible.length === 0 && <Text style={styles.caption}>No reports here. Unreported hazards may still exist.</Text>}
@@ -361,11 +385,11 @@ function CampusApp() {
         fields={tripFields}
         canSwap={trip.canSwap()} onCompare={() => void comparison.request()}
         onSwap={() => trip.swap()} onClear={() => { void trip.clear(); editEndpoint('destination'); }} />}
+      {!!locationError && <Text accessibilityRole="alert" style={styles.error}>{locationError}</Text>}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazards.length ? 'Offline or stale: showing the last successful results. ' : ''}{hazardError}</Text>}
         </ScrollView>}
-        {!searching && <View style={styles.tabs}>{(['map','route','report'] as const).map(tab => <Button key={tab}
-          icon={tab} selected={screen === tab} title={tab === 'map' ? 'Map' : tab === 'route' ? 'Trip' : 'Report'} onPress={() => tab === 'route' ? planTrip() : openScreen(tab)} />)}</View>}
+
       </View>
     </View>
     </KeyboardAvoidingView>
@@ -376,7 +400,10 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   page: { flex: 1, backgroundColor: theme.canvas }, canvas: { flex: 1 }, safeControls: { flex: 1 },
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   overlay: { flex: 1, paddingTop: 8 },
-  header: { alignSelf: 'flex-end', marginRight: 12 },
+  header: { alignSelf: 'flex-end', marginRight: 12, gap: 8 },
+  mapControl: { width: 48, height: 48, borderRadius: 16, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.line },
+  destinationField: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, marginTop: 10 },
+  destinationInput: { flex: 1, minHeight: 48, fontFamily: theme.fontBody, fontSize: 18, color: theme.ink },
   notice: { fontFamily: theme.fontBody, padding: 8, marginHorizontal: 12, backgroundColor: theme.surface, color: theme.warning },
   space: { flex: 1 },
   dock: { maxHeight: '36%', backgroundColor: theme.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,

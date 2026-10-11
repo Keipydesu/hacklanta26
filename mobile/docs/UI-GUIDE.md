@@ -12,13 +12,15 @@ The measured bottom inset keeps map attribution above the task panel. A floating
 wordmark behind it; fixture mode stays explicitly labeled in the bottom panel.
 The default panel occupies at most 36% of available height; details may expand to 65%
 only by user action. While editing a trip endpoint, search fills the available safe-area height
-above the keyboard (decision 024). The search input stays pinned; results scroll independently.
+above the keyboard (decision 027). The search input stays pinned; results scroll independently.
 Done, choosing a result, Current location and Choose on map exit search and restore the trip panel.
 The task tabs and appearance switch are hidden during search. Keep the map touchable around other overlays. Provider attribution must
 remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Fiord together without resetting the camera.
 
-The resting home has one primary action: Where to? No marketing headline or explanatory
-paragraph. Trip opens with From (Current location by default) and To fields that search
+The resting home has one destination input: Where to? Map is the default, with no task tabs.
+Floating recenter and report-hazard icons open the relevant actions; Done returns to the map.
+Recenter requests one device fix and moves the camera without changing trip endpoints. No marketing headline or explanatory
+paragraph. Destination focus opens the full-height search sheet. Trip details show From (Current location by default) and To fields that search
 addresses and places; results show a name and address. There are no pin-mode buttons or
 routine helper lines. Choose on map is a secondary option inside an open field (decision 020). Report opens by
 requesting the device location, shows unselected categories, and reveals a single Submit after

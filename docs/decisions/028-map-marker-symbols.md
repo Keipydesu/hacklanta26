@@ -1,4 +1,4 @@
-# 025. Circular rider locations and hazard pictograms
+# 028. Circular rider locations and hazard pictograms
 
 - Status: Accepted
 - Date: 2026-10-10

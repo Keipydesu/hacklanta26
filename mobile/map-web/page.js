@@ -225,6 +225,9 @@ function startCampusMap(ml, env) {
           map.easeTo(target);
         }
       }
+      if (message && message.type === 'recenter' && Array.isArray(message.position) && message.position.length === 2
+        && message.position.every(function (n) { return typeof n === 'number' && isFinite(n); })
+        && Math.abs(message.position[0]) <= 180 && Math.abs(message.position[1]) <= 90) map.setCenter(message.position);
       if (message && message.type === 'overlay' && message.overlay) { overlay = message.overlay; render(); }
       if (message && message.type === 'theme' && (message.theme === 'light' || message.theme === 'dark') && message.theme !== currentTheme) {
         currentTheme = message.theme;

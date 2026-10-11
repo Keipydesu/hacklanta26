@@ -177,6 +177,7 @@ function fakeMapLibre() {
     getSource(id) { return this.sources[id]; }
     addSource(id, options) { const source = { data: options.data, attribution: options.attribution, setData(d) { this.data = d; } }; this.sources[id] = source; }
     addLayer(layer, beforeId) { this.layers.push(layer.id); this.layerDefs[layer.id] = layer; this.layerBefore[layer.id] = beforeId; const index = this.styleLayers.findIndex(item => item.id === beforeId); this.styleLayers.splice(index < 0 ? this.styleLayers.length : index, 0, layer); }
+    setCenter(position) { this.center = position; }
     getCanvas() { return this.canvas; }
     getBounds() { return { getWest: () => -84.4, getSouth: () => 33.7, getEast: () => -84.3, getNorth: () => 33.8 }; }
   }
@@ -538,4 +539,15 @@ test('changing an endpoint from location circle to pin rebuilds the marker', () 
   page.api.receive({ type: 'overlay', overlay: { ...overlay, markers: [{ ...marker, icon: undefined, draggable: true }] } });
   assert.equal(first.removed, true);
   assert.equal(page.made.markers[1].draggable, true);
+});
+
+
+test('recenter moves the camera without changing overlays and rejects invalid coordinates', () => {
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay });
+  page.api.receive({ type: 'recenter', position: [-84.38, 33.75] });
+  assert.deepEqual(page.map.center, [-84.38, 33.75]);
+  assert.equal(page.made.markers.length, 1);
+  page.api.receive({ type: 'recenter', position: [181, 95] });
+  assert.deepEqual(page.map.center, [-84.38, 33.75]);
 });
