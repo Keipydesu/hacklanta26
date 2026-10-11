@@ -75,7 +75,8 @@ and a silver casing behind cyan to preserve visibility; OSM styling remains sepa
 | Stale | Explicit freshness warning; retained results must not look freshly loaded |
 | Fixture | Persistent demo label; illustrative routes explicitly do not follow pins |
 
-Changing tasks collapses the panel and resets its scroll position, while endpoint choices,
+Changing tasks keeps the panel expanded or collapsed as the rider left it and resets its scroll
+position, while endpoint choices,
 comparison and report draft remain in their owning state. Expanding is presentation only.
 No timed submission, hidden tracking or fake search field is introduced.
 
