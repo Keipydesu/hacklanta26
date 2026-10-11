@@ -11,7 +11,10 @@ use the safe area, keeping them below the camera cutout and above the home indic
 The measured bottom inset keeps map attribution above the task panel. A floating appearance icon and bottom task panel support it. The top icon has no card or
 wordmark behind it; fixture mode stays explicitly labeled in the bottom panel.
 The default panel occupies at most 36% of available height; details may expand to 65%
-only by user action. Keep the map touchable around overlays. Provider attribution must
+only by user action. While editing a trip endpoint, search fills the available safe-area height
+above the keyboard (decision 024). The search input stays pinned; results scroll independently.
+Done, choosing a result, Current location and Choose on map exit search and restore the trip panel.
+The task tabs and appearance switch are hidden during search. Keep the map touchable around other overlays. Provider attribution must
 remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Fiord together without resetting the camera.
 
 The resting home has one primary action: Where to? No marketing headline or explanatory

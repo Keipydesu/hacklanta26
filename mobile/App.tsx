@@ -116,7 +116,12 @@ function CampusApp() {
       lat: (currentRegion.current.south + currentRegion.current.north) / 2, lon: (currentRegion.current.west + currentRegion.current.east) / 2 }),
     onChange: setSearchState, schedule: (run, ms) => setTimeout(run, ms), cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>),
   }));
-  function editEndpoint(which: Which | null) { if (which) setFollowing(false); setEditing(which); setPicking(null); placeSearch.reset(); }
+  function editEndpoint(which: Which | null) {
+    if (which) setFollowing(false);
+    setEditing(which); setPicking(null); placeSearch.reset();
+    if (which === null) Keyboard.dismiss();
+  }
+  const searching = screen === 'route' && editing !== null;
   function planTrip() { openScreen('route'); editEndpoint(trip.state().destination.kind === 'none' ? 'destination' : null); void trip.start(); }
   const [server, setServer] = useState<Health>();
   const [kind, setKind] = useState<Report['kind'] | null>(null);
@@ -260,6 +265,14 @@ function CampusApp() {
   }
   const latestSubmission = submissions[submissions.length - 1];
   const pendingCount = submissions.filter(sub => sub.state !== 'submitted').length;
+  const tripFields = <TripFields trip={tripState} editing={editing} picking={picking} search={searchState}
+          onEdit={editEndpoint} onCancel={() => editEndpoint(null)}
+          onType={text => { if (editing) trip.edit(editing); placeSearch.type(text); }}
+          onChoose={place => { if (editing) trip.choose(editing, place); editEndpoint(null); }}
+          onRetrySearch={() => void placeSearch.retry()}
+          onUseCurrent={() => { editEndpoint(null); void trip.useCurrentLocation(); }}
+          onRetryLocation={() => void trip.retryLocation()}
+          onPickOnMap={which => { editEndpoint(null); setFollowing(false); setPicking(which); }} />;
   return <View style={styles.page} onLayout={e => setPageHeight(e.nativeEvent.layout.height)}>
     <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
     <View style={[styles.map, { bottom: dockHeight + bottomInset }]}><MapLibreView style={{ flex: 1 }} center={CENTER} zoom={INITIAL_ZOOM} theme={mapTheme} overlay={overlay}
@@ -269,22 +282,25 @@ function CampusApp() {
     <KeyboardAvoidingView pointerEvents="box-none" style={styles.canvas} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       onLayout={e => { const { y, height } = e.nativeEvent.layout; setSafeFrame({ y, height }); }}>
     <View pointerEvents="box-none" style={styles.overlay}>
-      <View style={styles.header}>
+      {!searching && <View style={styles.header}>
         <Pressable accessibilityRole="switch" accessibilityLabel="Dark mode" accessibilityState={{ checked: colorScheme === 'dark' }} onPress={toggleAppearance} style={styles.iconButton}>
           <Icon name={colorScheme === 'dark' ? 'moon' : 'sun'} />
         </Pressable>
-      </View>
+      </View>}
       {server?.storage === 'memory' && <Text style={styles.notice}>Test server · reports reset on restart</Text>}
-      <View style={styles.space} pointerEvents="none" />
-      <View style={[styles.dock, expanded && styles.dockExpanded]} onLayout={e => setDockHeight(e.nativeEvent.layout.height)}>
+      {!searching && <View style={styles.space} pointerEvents="none" />}
+      <View style={[styles.dock, expanded && styles.dockExpanded, searching && styles.dockSearch]} onLayout={e => { if (!searching) setDockHeight(e.nativeEvent.layout.height); }}>
         <View style={styles.sheetHeader}>
-          <Text style={styles.sheetLabel}>{fixtureMode ? 'DEMO · ' : ''}{screen === 'map' ? `${visible.length} nearby reports` : screen === 'route' ? 'Your trip' : pendingCount ? `Report hazard · ${pendingCount} pending` : 'Report hazard'}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Collapse details' : 'Expand details'}
+          <Text style={styles.sheetLabel}>{fixtureMode ? 'DEMO · ' : ''}{screen === 'map' ? `${visible.length} nearby reports` : screen === 'route' ? (searching ? 'Search places' : 'Your trip') : pendingCount ? `Report hazard · ${pendingCount} pending` : 'Report hazard'}</Text>
+          {searching ? <Pressable accessibilityRole="button" accessibilityLabel="Close place search" onPress={() => editEndpoint(null)} style={styles.closeSearch}>
+            <Text style={styles.closeLabel}>Done</Text>
+          </Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Collapse details' : 'Expand details'}
             accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={styles.iconButton}>
             <Icon name={expanded ? 'collapse' : 'expand'} />
-          </Pressable>
+          </Pressable>}
         </View>
-        <ScrollView key={screen} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
+        {searching && tripFields}
+        {!searching && <ScrollView key={screen} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
       {selected && <HazardPanel hazard={selected} available={selectionAvailable(selectionState, now)} state={feedbackStates[selected.id]} disabled={fixtureMode}
         availabilityError={selectionState?.error}
         onRespond={response => void feedback.respond(selected.id, response)} onRetry={() => void feedback.retry(selected.id)}
@@ -341,21 +357,14 @@ function CampusApp() {
         <Text style={styles.caption}>Live while the app is open · route does not reroute automatically</Text>
       </View>}
       {screen === 'route' && <RouteScreen colors={ROUTE_COLORS} expanded={expanded} state={routeState} offlinePreview={fixtureMode}
-        fields={<TripFields trip={tripState} editing={editing} picking={picking} search={searchState}
-          onEdit={editEndpoint} onCancel={() => editEndpoint(null)}
-          onType={text => { if (editing) trip.edit(editing); placeSearch.type(text); }}
-          onChoose={place => { if (editing) trip.choose(editing, place); editEndpoint(null); Keyboard.dismiss(); }}
-          onRetrySearch={() => void placeSearch.retry()}
-          onUseCurrent={() => { editEndpoint(null); void trip.useCurrentLocation(); }}
-          onRetryLocation={() => void trip.retryLocation()}
-          onPickOnMap={which => { editEndpoint(null); setFollowing(false); setPicking(which); Keyboard.dismiss(); }} />}
+        fields={tripFields}
         canSwap={trip.canSwap()} onCompare={() => void comparison.request()}
         onSwap={() => trip.swap()} onClear={() => { void trip.clear(); editEndpoint('destination'); }} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {!!hazardError && <Text accessibilityRole="alert" style={styles.error}>{hazards.length ? 'Offline or stale: showing the last successful results. ' : ''}{hazardError}</Text>}
-        </ScrollView>
-        <View style={styles.tabs}>{(['map','route','report'] as const).map(tab => <Button key={tab}
-          icon={tab} selected={screen === tab} title={tab === 'map' ? 'Map' : tab === 'route' ? 'Trip' : 'Report'} onPress={() => tab === 'route' ? planTrip() : openScreen(tab)} />)}</View>
+        </ScrollView>}
+        {!searching && <View style={styles.tabs}>{(['map','route','report'] as const).map(tab => <Button key={tab}
+          icon={tab} selected={screen === tab} title={tab === 'map' ? 'Map' : tab === 'route' ? 'Trip' : 'Report'} onPress={() => tab === 'route' ? planTrip() : openScreen(tab)} />)}</View>}
       </View>
     </View>
     </KeyboardAvoidingView>
@@ -372,6 +381,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   dock: { maxHeight: '36%', backgroundColor: theme.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
     borderWidth: 1, borderColor: theme.line, paddingHorizontal: 14, paddingBottom: 4 },
   dockExpanded: { maxHeight: '65%' },
+  dockSearch: { flex: 1, maxHeight: '100%' },
+  closeSearch: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  closeLabel: { fontFamily: theme.fontBody, fontSize: 15, color: theme.ink },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
   sheetLabel: { fontFamily: theme.fontBody, fontSize: 13, color: theme.muted },
   iconButton: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },

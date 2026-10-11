@@ -148,6 +148,8 @@ successful submissions or fixture data that appears live.
 ## Routing flow and methods
 
 The origin defaults to Current location (one foreground fix when a trip is opened), and either endpoint can be set by address/place search through `GET /v1/places`; map points remain a secondary choice (decision 020). `src/trip/` holds the endpoint model, the debounced search and the From/To fields.
+While either endpoint is being edited, use a full-height search sheet above the keyboard with a
+pinned input and scrolling results (decision 024). Restore the trip panel when search closes.
 `requestRoutes(origin, destination)` posts both selected points and keys request state by that pair.
 When endpoints change, invalidate the displayed comparison and suppress stale responses just as for
 viewport reads. Disable the route action until two valid points exist, independently of reporting.
