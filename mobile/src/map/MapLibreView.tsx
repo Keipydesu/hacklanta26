@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Linking, type StyleProp, type ViewStyle } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { MAP_PAGE_ORIGIN, mapDarkStyleUrl, mapStyleUrl } from './config';
+import { mapGroundColors } from '../ui/mapColors';
 import { buildMapHtml } from './page';
 import { injection, navigationDecision, parseFromWeb, readyMessages, type Camera, type Bounds, type LngLat, type MapTheme, type Overlay } from './protocol';
 
@@ -30,7 +31,8 @@ export function MapLibreView(props: MapLibreViewProps) {
   const latest = useRef(props);
   latest.current = props;
   // Center/zoom are initial values only, like react-native-maps' initialRegion.
-  const html = useMemo(() => buildMapHtml({ styleUrl: mapStyleUrl, darkStyleUrl: mapDarkStyleUrl, center: props.center, zoom: props.zoom }), []);
+  const html = useMemo(() => buildMapHtml({ styleUrl: mapStyleUrl, darkStyleUrl: mapDarkStyleUrl, center: props.center, zoom: props.zoom,
+    background: mapGroundColors[props.theme] }), []);
 
   // The app rebuilds the overlay every render; only changed content crosses the bridge.
   const overlayText = JSON.stringify(props.overlay);

@@ -1,4 +1,9 @@
-# Fiord dark map
+# Dark map: Bypass Night, generated from Fiord
+
+`bypass-night.json` is the dark basemap ([decision 026](../../../docs/decisions/026-bypass-film-theme.md)).
+`npm run map:night` generates it from `fiord.json` by replacing colours, opacities and street-label
+spacing; sources, layer order, filters and credits are Fiord's. Edit the script, not the output.
+The notes below describe the bundled Fiord source file.
 
 Adapted from [openmaptiles/fiord-color-gl-style](https://github.com/openmaptiles/fiord-color-gl-style)
 commit `a7faefb06d6bed62c1fa05b45ac20d90051067ed`, retrieved 2026-10-10.

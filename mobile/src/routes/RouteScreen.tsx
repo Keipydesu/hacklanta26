@@ -58,12 +58,13 @@ export function RouteScreen(props: {
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
-  card: { flex: 1, minWidth: 120, padding: 10, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, marginVertical: 4 },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  swatch: { width: 15, height: 3, borderRadius: 1 },
-  label: { fontFamily: theme.fontBody, fontSize: 13, color: theme.ink, flexShrink: 1 },
-  metrics: { fontFamily: theme.fontBody, fontSize: 24, color: theme.ink, marginVertical: 4 },
-  fine: { fontFamily: theme.fontLight, color: theme.muted, fontSize: 12, lineHeight: 18, marginVertical: 2 },
-  notice: { color: theme.warning, fontSize: 12, marginVertical: 4 },
+  card: { flex: 1, minWidth: 120, padding: 12, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, backgroundColor: theme.quiet, marginVertical: 4 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  swatch: { width: 22, height: 4, borderRadius: 2 },
+  label: { fontFamily: theme.fontBody, fontSize: 14, color: theme.ink, flexShrink: 1 },
+  // Route metric, as on the film's route card: large condensed capitals.
+  metrics: { fontFamily: theme.fontDisplay, fontSize: 34, letterSpacing: 0.4, textTransform: 'uppercase', color: theme.ink, marginVertical: 2 },
+  fine: { fontFamily: theme.fontMono, color: theme.muted, fontSize: 11.5, lineHeight: 17, marginVertical: 2 },
+  notice: { fontFamily: theme.fontMono, color: theme.warning, fontSize: 12, marginVertical: 4 },
   error: { fontFamily: theme.fontBody, color: theme.danger, marginVertical: 6 },
 });

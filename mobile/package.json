@@ -7,15 +7,16 @@
     "bike-lanes:generate": "node scripts/generate-bike-lanes.mjs",
     "bike-lanes:check": "node scripts/generate-bike-lanes.mjs --check",
     "map:bundle": "node scripts/build-map-bundle.mjs",
-    "prestart": "npm run fonts:fetch && npm run map:bundle",
+    "map:night": "node scripts/build-night-style.mjs",
+    "map:night:check": "node scripts/build-night-style.mjs --check",
+    "prestart": "npm run map:bundle",
     "start": "expo start",
     "pretypecheck": "npm run map:bundle",
     "typecheck": "tsc --noEmit",
-    "prebuild": "npm run fonts:fetch && npm run map:bundle",
+    "prebuild": "npm run map:bundle",
     "build": "expo export --platform ios --platform android",
-    "pretest": "npm run bike-lanes:check && npm run map:bundle",
-    "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs",
-    "fonts:fetch": "python3 scripts/fetch-fonts.py"
+    "pretest": "npm run bike-lanes:check && npm run map:night:check && npm run map:bundle",
+    "test": "tsc -p tsconfig.tests.json && node --test tests/*.cjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

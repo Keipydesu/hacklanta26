@@ -17,8 +17,8 @@ bramstein/fontfaceobserver and has no install lifecycle scripts.
 is pinned in package-lock.json. No compromise indicators were observed in this scoped review;
 this is not a guarantee of supply-chain safety.
 
-Satoshi font files come directly from api.fontshare.com, remain unmodified and are checked
-against the SHA-256 values in scripts/fetch-fonts.py. They are excluded from Git. Native font
-loading uses bundled assets and falls back to system text if loading fails, without blocking
-map/report access. Fontshare's license was reviewed for application embedding and loose-file
-redistribution restrictions; see the fonts README.
+Update for decision 026 (2026-10-10): the Satoshi faces and the Fontshare fetch script are removed.
+The app now bundles Barlow Condensed, Overpass and Overpass Mono, committed with their SIL OFL 1.1
+licences; sources, the pinned google/fonts commit and SHA-256 values are in the fonts README.
+No package was added or upgraded: `expo-font` stays at 57.0.1. Native font loading still uses
+bundled assets and falls back to system text if loading fails, without blocking map/report access.

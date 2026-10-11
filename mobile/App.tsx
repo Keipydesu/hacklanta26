@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, Linking, SafeAreaView, ScrollView, View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { ActionButton as Button } from './src/ui/ActionButton';
-import { SilverTexture } from './src/ui/SilverTexture';
 import { Icon } from './src/ui/Icon';
-import { palette, useTheme, useAppearance, ThemeProvider, type Theme } from './src/ui/theme';
+import { useTheme, useAppearance, ThemeProvider, type Theme } from './src/ui/theme';
 import { MapLibreView } from './src/map/MapLibreView';
 import { buildOverlay } from './src/map/overlay';
 import { bboxParam, boundsAround, Bounds, LngLat } from './src/map/protocol';
@@ -57,7 +56,7 @@ function CampusApp() {
     if (next === 'report' && shouldLocateOnEnter(reportLocationRef.current.status)) void reportLocator.request();
   }
   const mapTheme = colorScheme;
-  const ROUTE_COLORS = { ...routeColors(theme), shortest: mapTheme === 'dark' ? palette.silver : palette.charcoal };
+  const ROUTE_COLORS = routeColors(theme);
   // One object per settled viewport (moveend): the hazard refresh compares it by identity.
   const [region, setRegion] = useState<Bounds>(INITIAL_BOUNDS);
   const currentRegion = useRef<Bounds>(INITIAL_BOUNDS);
@@ -218,10 +217,9 @@ function CampusApp() {
     livePosition: currentPosition, routes: presented?.illustrative ? null : presented, origin: routeState.origin, destination: routeState.destination, routeColors: ROUTE_COLORS,
     selectedHazardId: selected?.id,
   });
-  if (mapTheme === 'dark' && overlay.routes.some(line => line.id === 'lower-risk')) {
-    const line = overlay.routes.find(line => line.id === 'lower-risk')!;
-    overlay.routes.unshift({ ...line, id: 'lower-risk-casing', color: palette.silver, width: 10 });
-  }
+  // The lower-risk line sits on a casing in the map's ground colour so it reads over streets and hazards.
+  const lowerRisk = overlay.routes.find(line => line.id === 'lower-risk');
+  if (lowerRisk) overlay.routes.unshift({ ...lowerRisk, id: 'lower-risk-casing', color: theme.routeCasing, width: 10 });
   const [nearby] = useState(() => createNearbyWatcher({
     load: getHazards, now: Date.now, busy: () => !!selection.state(),
     onPrompt: hazard => { void selection.select(hazard); },
@@ -314,8 +312,7 @@ function CampusApp() {
         <View style={styles.categories} accessibilityRole="radiogroup" accessibilityLabel="Hazard category">{CATEGORIES.map(({ kind: k, label, hint }) => <Pressable key={k}
           accessibilityRole="radio" accessibilityLabel={`${label}. ${hint}`} accessibilityState={{ selected: k === kind }} onPress={() => setKind(k)}
           style={[styles.category, k === kind && styles.categorySelected]}>
-          {k !== kind && <SilverTexture />}
-          <Icon name={k} color={k === kind ? theme.inverse : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{label}</Text>
+          <Icon name={k} color={k === kind ? theme.onSelected : theme.controlInk} /><Text style={[styles.categoryLabel, k === kind && styles.categoryLabelSelected]}>{label}</Text>
         </Pressable>)}</View>
 
         {showSubmit(kind) && <Button primary title={submitting ? 'Saving…' : 'Submit'}
@@ -367,26 +364,28 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   overlay: { flex: 1, paddingTop: 8 },
   header: { alignSelf: 'flex-end', marginRight: 12 },
-  notice: { fontFamily: theme.fontBody, padding: 8, marginHorizontal: 12, backgroundColor: theme.surface, color: theme.warning },
+  notice: { fontFamily: theme.fontMono, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', padding: 10, marginHorizontal: 12,
+    borderRadius: 8, borderWidth: 1, borderColor: theme.line, backgroundColor: theme.surface, color: theme.warning },
   space: { flex: 1 },
   dock: { maxHeight: '36%', backgroundColor: theme.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
     borderWidth: 1, borderColor: theme.line, paddingHorizontal: 14, paddingBottom: 4 },
   dockExpanded: { maxHeight: '65%' },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
-  sheetLabel: { fontFamily: theme.fontBody, fontSize: 13, color: theme.muted },
+  // Kicker line, as in the film's lower thirds: small mono capitals in the accent colour.
+  sheetLabel: { fontFamily: theme.fontMono, fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.accent, flexShrink: 1 },
   iconButton: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
   tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: 6 },
   categories: { flexDirection: 'row', gap: 6, marginVertical: 6 },
   category: { overflow: 'hidden', backgroundColor: theme.quiet, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64, paddingVertical: 8, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius },
   categorySelected: { backgroundColor: theme.selected, borderColor: theme.selectedEdge },
   categoryLabel: { fontFamily: theme.fontBody, fontSize: 11, color: theme.controlInk, textAlign: 'center' },
-  categoryLabelSelected: { color: theme.inverse },
+  categoryLabelSelected: { color: theme.onSelected },
   content: { flexShrink: 1 }, contentInner: { paddingBottom: 8 },
-  caption: { fontFamily: theme.fontLight, fontSize: 12, lineHeight: 18, color: theme.muted },
-  source: { fontFamily: theme.fontBody, color: theme.ink, fontSize: 12, fontWeight: '600' },
+  caption: { fontFamily: theme.fontLight, fontSize: 13, lineHeight: 19, color: theme.muted },
+  source: { fontFamily: theme.fontMono, color: theme.hazard, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' },
   card: { paddingVertical: 10, borderBottomWidth: 1, borderColor: theme.line },
-  heading: { fontFamily: theme.fontBody, fontSize: 16, color: theme.ink, marginVertical: 4 },
-  input: { fontFamily: theme.fontBody, color: theme.ink, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius,
+  heading: { fontFamily: theme.fontDisplay, fontSize: 22, letterSpacing: 0.4, textTransform: 'uppercase', color: theme.ink, marginVertical: 4 },
+  input: { fontFamily: theme.fontBody, color: theme.ink, backgroundColor: theme.quiet, borderWidth: 1, borderColor: theme.line, borderRadius: theme.radius,
     padding: 12, marginVertical: 8, minHeight: theme.touch },
   error: { fontFamily: theme.fontBody, color: theme.danger, marginVertical: 8 },
 });

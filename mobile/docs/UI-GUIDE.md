@@ -12,7 +12,7 @@ The measured bottom inset keeps map attribution above the task panel. A floating
 wordmark behind it; fixture mode stays explicitly labeled in the bottom panel.
 The default panel occupies at most 36% of available height; details may expand to 65%
 only by user action. Keep the map touchable around overlays. Provider attribution must
-remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Fiord together without resetting the camera.
+remain above the panel. The rebased UI uses MapLibre/OpenFreeMap. Its canvas ends above the measured task panel so attribution stays visible. Use the header sun/moon switch to change the UI and Positron/Bypass Night together without resetting the camera.
 
 The resting home has one primary action: Where to? No marketing headline or explanatory
 paragraph. Trip opens with From (Current location by default) and To fields that search
@@ -25,8 +25,9 @@ in expanded details; fixture warnings, failures and delivery states remain expli
 
 ## Shared primitives
 
-- `src/ui/theme.ts` owns the operator's silver/cyan-blue palette, light/dark roles and shared
-  geometry. Do not import the web reference's colors or theme.
+- `src/ui/theme.ts` owns the Bypass film palette roles, light/dark values, font faces and shared
+  geometry; `src/ui/mapColors.ts` holds the raw values shared with the map page. Do not import
+  the web reference's colors or theme.
 - `src/ui/Icon.tsx` owns the dependency-free native pictograms. Map means explore, pin means
   endpoint/trip, circled exclamation means report, chevrons mean expand/collapse, and a
   crosshair means foreground location. Hazard categories have their own labeled pictograms.
@@ -39,28 +40,36 @@ in expanded details; fixture warnings, failures and delivery states remain expli
 
 ## Light and dark color roles
 
-Source: [selected Coolors palette](https://coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63).
-See [decision 016](../../docs/decisions/016-silver-cyan-mobile-palette.md).
+Source: the Bypass demo film. See [decision 026](../../docs/decisions/026-bypass-film-theme.md),
+which supersedes the silver/cyan palette (016), the metallic texture (017) and Fiord (019).
 
-| Color | Role |
-| --- | --- |
-| `#353535` charcoal | Light-mode text and text on metallic controls |
-| `#101114` near-black | Dark-mode panels and background, per operator refinement |
-| `#3c6e71` teal/cyan | Selected controls and lower-risk route accent |
-| `#ffffff` white | Light surfaces; selected/primary and dark-mode foreground |
-| `#d9d9d9` metallic silver | Light-mode dividers, metallic controls and dark-mode secondary foreground |
-| `#284b63` deep blue | Primary action and light-mode notices |
+| Role | Dark (film) | Light (day) |
+| --- | --- | --- |
+| Map ground / page | `#0B0D14` night | `#ECEEF2` paper |
+| Panels | `#171A26` | `#F8F9FB` |
+| Secondary controls, cards, fields | `#1E2231` with `#2C3146` edge | `#FFFFFF` with `#CDD2DE` edge |
+| Text / supporting text | `#EDEFF7` / `#9AA1BB` | `#151829` / `#555C75` |
+| Primary action | `#FFC533` amber, `#151829` label | `#F2A900` amber, `#151829` label |
+| Selected control | `#EDEFF7` pill, `#151829` label | `#151829` pill, `#F8F9FB` label |
+| Kicker and notices | `#FFC533` | `#7D5200` |
+| Hazard zone on the map | `#FF6A55` | `#D64532` |
+| Hazard source label and sheet edge | `#FF6A55` | `#C23A28` |
+| Lower-risk route / shortest route | `#69F0D1` mint / `#FFE083` straw, dashed | `#005F73` teal / `#3A4160` steel, dashed |
 
-Dark-mode panels and controls have no silver outlines; colored control edges match their fill.
+Device appearance supplies the initial mode; the header switch overrides UI and map together for this session (decision 018).
+There is no texture layer. One primary action per local group is amber; selection is the light pill, never amber.
+Amber and red keep their meanings: amber is "act" or "selected hazard", red is "hazard". Do not use
+either as decoration. Error foregrounds remain red exceptions (`#a00020` light / `#ffb4ab` dark).
 
-Device appearance supplies the initial mode; the header switch overrides UI and map together for this session (decision 018). Silver secondary buttons and unselected hazard categories use the operator-supplied metal
-grain as a 32% tonal sweep plus a 22% grain layer at the reference’s native dimensions over white, with charcoal labels in both appearances. Keep the map,
-text, cyan selections and blue primary actions untextured. See [decision 017](../../docs/decisions/017-metallic-silver-texture.md). Selected controls retain accessible selected state and short labels.
-White on cyan is 5.74:1; white on blue 9.22:1; charcoal on white 12.27:1; silver on charcoal
-8.69:1. These are computed solid-color text pairs, not a full accessibility certification.
-Error foregrounds remain red exceptions (`#a00020` light / `#ffb4ab` dark). Existing hazard
-source colors stay separate from brand accents. Dark route lines use silver for the baseline
-and a silver casing behind cyan to preserve visibility; OSM styling remains separate work.
+On the map both hazard sources share the hazard red. The marker glyph and the text label carry the
+source: a diamond with an exclamation mark for a community report, a pulsing ring for an automatic
+hazard, and "Community report" or "Automatically detected · <evidence>" in the sheet. The lower-risk
+line sits on a casing in the map's ground colour and glows; the shortest line is dashed.
+
+Computed solid-colour pairs: dark ink on amber `#FFC533` 11.1:1 (8.8:1 on day amber `#F2A900`);
+mist on panel `#171A26` 15.1:1; slate `#9AA1BB` on panel 6.8:1; dark ink on the light pill 15.3:1;
+hazard label `#FF6A55` on `#1E2231` 5.6:1 and `#C23A28` on white 5.3:1; light-appearance kicker
+`#7D5200` on `#F8F9FB` 6.5:1. These are calculations, not a full accessibility certification.
 
 ## State vocabulary
 
@@ -96,7 +105,9 @@ Do not hide those errors just to make the panel quieter.
 
 ## Typography
 
-Use Satoshi Italic for headings, controls, route metrics, inputs and errors. Use Satoshi Light
-Italic for supporting captions and metadata. Select the actual font face through the shared
-theme; do not synthesize bold/italic variants. Fonts are bundled after the official download
-step; system text remains usable if font loading fails. Map-provider labels stay unchanged.
+Barlow Condensed ExtraBold, in capitals, for headings and route metrics; Barlow Condensed Bold, in
+capitals, for button labels. Overpass SemiBold for values, inputs and errors; Overpass Regular for
+captions. Overpass Mono SemiBold, in small letter-spaced capitals, for kickers, source labels and
+facts. Select the actual font face through the shared theme; do not synthesize bold/italic
+variants. Fonts are committed under `assets/fonts/` (SIL OFL 1.1); system text remains usable if
+font loading fails. Map-provider labels stay in the tile provider's fonts.

@@ -213,7 +213,7 @@ test('overlay sent before the basemap loads shows markers at once and layers on 
   assert.equal(page.map.getSource('hazards'), undefined);
   page.map.loadStyle();
   assert.deepEqual(page.posted.at(-1), { type: 'basemap', status: 'loaded' });
-  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
+  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-glow', 'hazard-fill', 'hazard-line', 'route-glow', 'route-solid', 'route-dashed']);
   assert.equal(page.map.getSource('hazards').data.features[0].geometry.type, 'Polygon');
   assert.equal(page.map.getSource('routes').data.features[0].properties.width, 4);
 });
@@ -323,7 +323,7 @@ test('overlay layers are added when a remote style loads even before its tile so
   page.api.receive({ type: 'overlay', overlay });
   page.map.loadStyle({ sourcesPending: true });
   assert.equal(page.map.isStyleLoaded(), false);
-  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
+  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-glow', 'hazard-fill', 'hazard-line', 'route-glow', 'route-solid', 'route-dashed']);
   assert.equal(page.map.getSource('hazards').data.features.length, 1);
   page.map.fire('error', { error: { message: 'one tile failed' } });
   assert.equal(page.map.styles.length, 1, 'a tile error after the style loaded is not a basemap failure');
@@ -331,7 +331,7 @@ test('overlay layers are added when a remote style loads even before its tile so
   assert.equal(page.map.getSource('hazards').data.features.length, 0, 'later overlays update while tiles still load');
 });
 
-test('switching to Dark Matter keeps viewport and markers and re-adds overlays with dark contrast', () => {
+test('switching to the dark map keeps viewport and markers and re-adds overlays in the night palette', () => {
   const page = startPage();
   page.api.receive({ type: 'overlay', overlay });
   page.map.loadStyle();
@@ -342,10 +342,12 @@ test('switching to Dark Matter keeps viewport and markers and re-adds overlays w
   assert.equal(marker.removed, false);
   assert.equal(page.made.maps.length, 1, 'the viewport stays on the same map instance');
   page.map.loadStyle();
-  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-fill', 'hazard-line', 'route-solid', 'route-dashed']);
+  assert.deepEqual(page.map.layers, ['bike-lanes', 'hazard-glow', 'hazard-fill', 'hazard-line', 'route-glow', 'route-solid', 'route-dashed']);
   assert.equal(page.map.getSource('hazards').data.features.length, 1);
   assert.equal(page.map.getSource('routes').data.features.length, 1);
-  assert.equal(page.map.layerDefs['hazard-line'].paint['line-color'].at(-1), '#b7a7ff');
+  assert.equal(page.map.layerDefs['hazard-line'].paint['line-color'], '#FF6A55', 'night hazard hue');
+  assert.equal(page.map.layerDefs['hazard-fill'].paint['fill-color'], '#FF6A55', 'one hue for both sources; the marker glyph carries the source');
+  assert.deepEqual(page.map.layerDefs['route-glow'].filter, ['==', ['get', 'id'], 'lower-risk'], 'only the lower-risk line glows');
   page.api.receive({ type: 'theme', theme: 'invalid' });
   page.api.receive({ type: 'theme', theme: 'dark' });
   assert.equal(page.map.styles.length, 2, 'invalid or repeated theme messages do not reload the style');
@@ -357,7 +359,7 @@ test('a failed dark switch uses a dark blank style and a later toggle retries th
   page.map.loadStyle();
   page.api.receive({ type: 'theme', theme: 'dark' });
   page.map.fire('error', { error: { message: 'offline' } });
-  assert.equal(page.map.styles.at(-1).layers[0].paint['background-color'], '#11151b');
+  assert.equal(page.map.styles.at(-1).layers[0].paint['background-color'], '#0B0D14');
   assert.equal(page.posted.at(-1).status, 'unavailable');
   page.map.loadStyle();
   assert.equal(page.map.getSource('hazards').data.features.length, 1);
@@ -374,7 +376,7 @@ test('a timed-out dark switch keeps overlays on a dark blank style', () => {
   page.map.loadStyle();
   page.api.receive({ type: 'theme', theme: 'dark' });
   page.timers.at(-1)();
-  assert.equal(page.map.styles.at(-1).layers[0].paint['background-color'], '#11151b');
+  assert.equal(page.map.styles.at(-1).layers[0].paint['background-color'], '#0B0D14');
   page.map.loadStyle();
   assert.equal(page.map.getSource('hazards').data.features.length, 1);
   assert.equal(page.posted.at(-1).status, 'unavailable');
@@ -452,6 +454,35 @@ test('hazard pins carry their hazard id and the selected one is highlighted', ()
     ['hazard-m1', 'm1', MARKER_COLORS.hazard],
     ['hazard-a1', 'a1', MARKER_COLORS.selected],
   ]);
+});
+
+test('markers carry a glyph for their meaning: diamond report, ring detected, lettered endpoints', () => {
+  const hazards = buildOverlay(base);
+  assert.deepEqual(hazards.markers.map(m => [m.id, m.glyph]), [['hazard-m1', 'report'], ['hazard-a1', 'detected']]);
+  const pending = buildOverlay({ ...base, hazards: [], submissions: [{ id: 'q', state: 'queued', body: { lat: 33.7, lon: -84.3, kind: 'pothole' } }] });
+  assert.equal(pending.markers[0].glyph, 'pending');
+  const trip = buildOverlay({ ...base, hazards: [], screen: 'route', origin: { lat: 33.75, lon: -84.39 }, destination: { lat: 33.76, lon: -84.38 } });
+  assert.deepEqual(trip.markers.map(m => [m.id, m.glyph]), [['origin', 'origin'], ['destination', 'destination']]);
+  assert.equal(buildOverlay({ ...base, hazards: [], screen: 'report' }).markers[0].glyph, undefined, 'the device pin keeps the stock marker');
+});
+
+test('glyph markers are drawn by the page, centred, with text set as text and the source kept in the label', () => {
+  const page = startPage();
+  page.api.receive({ type: 'overlay', overlay: { ...overlay, markers: [
+    { id: 'hazard-m', position: [-84.38, 33.75], color: MARKER_COLORS.hazard, title: 'Community report', select: 'm', glyph: 'report' },
+    { id: 'hazard-a', position: [-84.38, 33.75], color: MARKER_COLORS.hazard, title: 'Automatically detected · simulated', select: 'a', glyph: 'detected' },
+    { id: 'origin', position: [-84.39, 33.75], color: MARKER_COLORS.origin, title: 'Start (A)', draggable: true, glyph: 'origin' },
+    overlay.markers[0],
+  ] } });
+  const [report, detected, origin, stock] = page.made.markers;
+  for (const marker of [report, detected, origin]) assert.equal(marker.options.anchor, 'center');
+  const texts = node => [node.textContent, ...node.children.flatMap(texts)].filter(Boolean);
+  assert.deepEqual(texts(report.options.element), ['!']);
+  assert.deepEqual(texts(detected.options.element), [], 'a ring, not a letter');
+  assert.equal(detected.options.element.children[0].className, 'campus-pulse', 'automatic hazards pulse');
+  assert.deepEqual(texts(origin.options.element), ['A']);
+  assert.equal(origin.draggable, true);
+  assert.equal(stock.options.element, undefined);
 });
 
 test('no report marker is shown without a fresh device fix', () => {

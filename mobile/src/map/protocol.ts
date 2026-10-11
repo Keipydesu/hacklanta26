@@ -15,7 +15,11 @@ export type MapMarker = {
   draggable?: boolean;
   select?: string;
   dot?: boolean;
+  /** Film-style marker drawn by the page instead of the stock pin: the shape and letter carry the meaning. */
+  glyph?: MarkerGlyph;
 };
+/** `report` is a community report (diamond), `detected` an automatic hazard (ring), `origin`/`destination` the A and B pins. */
+export type MarkerGlyph = 'report' | 'detected' | 'pending' | 'origin' | 'destination';
 export type RouteLine = { id: string; coordinates: LngLat[]; color: string; width: number; dashed: boolean };
 export type Overlay = { hazards: HazardShape[]; markers: MapMarker[]; routes: RouteLine[] };
 

@@ -1,10 +1,12 @@
 /** Builds the self-contained WebView page: pinned MapLibre, the page script and the basemap style URL. */
 import type { LngLat } from './protocol';
 import { BIKE_LANES } from './bikeLanes.generated';
-import { bikeLaneColors } from '../ui/mapColors';
+import { bikeLaneColors, mapGroundColors } from '../ui/mapColors';
 
 export type PageAssets = { main: string; shared: string; worker: string; css: string; sharedImport: string; pageScript: string };
-export type PageOptions = { styleUrl: string; darkStyleUrl: string | Record<string, unknown>; center: LngLat; zoom: number; styleTimeoutMs?: number };
+export type PageOptions = { styleUrl: string; darkStyleUrl: string | Record<string, unknown>; center: LngLat; zoom: number; styleTimeoutMs?: number;
+  /** Ground colour shown before the first style paints; a fixed hex value, never user text. */
+  background?: string };
 
 const LINE_SEPARATOR = new RegExp(String.fromCharCode(0x2028), 'g');
 const PARAGRAPH_SEPARATOR = new RegExp(String.fromCharCode(0x2029), 'g');
@@ -46,9 +48,12 @@ export function renderMapPage(assets: PageAssets, options: PageOptions): string 
     options: { ...options, styleTimeoutMs: options.styleTimeoutMs ?? 12_000 } };
   return '<!doctype html><html><head><meta charset="utf-8">'
     + '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">'
-    + '<style>html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#e9e7e1}'
+    + `<style>html,body,#map{margin:0;padding:0;width:100%;height:100%;background:${/^#[0-9a-fA-F]{6}$/.test(options.background ?? '') ? options.background : mapGroundColors.light}}`
+    // Automatic hazards pulse like a sensor ping; the ring is decorative and ignores taps.
+    + '@keyframes campus-pulse{0%{transform:scale(1);opacity:.75}100%{transform:scale(2.5);opacity:0}}'
+    + '@media (prefers-reduced-motion: reduce){.campus-pulse{animation:none!important;opacity:0}}'
     + '#notice{display:none;position:absolute;top:8px;left:8px;right:8px;z-index:2;padding:6px 10px;border-radius:6px;'
-    + 'background:rgba(255,255,255,.92);color:#765000;font:13px -apple-system,Roboto,sans-serif}</style></head>'
+    + 'background:rgba(23,26,38,.95);color:#FFC533;border:1px solid #2C3146;font:600 12px ui-monospace,Menlo,monospace;letter-spacing:.04em}</style></head>'
     + '<body><div id="map"></div><div id="notice"></div>'
     + `<script>window.__campusAssets = ${scriptLiteral(data)};</script>`
     + `<script>${assets.pageScript.replace(/<\//g, '<\\/')}</script>`

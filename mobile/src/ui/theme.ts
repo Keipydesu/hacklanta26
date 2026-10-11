@@ -1,37 +1,55 @@
 import { createContext, createElement, useContext, useState, type ReactNode } from 'react';
 import { useFonts } from 'expo-font';
 import { useColorScheme } from 'react-native';
-import { mapRouteColors, palette } from './mapColors';
+import { hazardColors, mapRouteColors, palette } from './mapColors';
 
-/** Operator palette: coolors.co/palette/353535-3c6e71-ffffff-d9d9d9-284b63 */
+/** Bypass film palette and type (decision 026): night surfaces, amber actions, hazard red, mint lower-risk route. */
 export { palette } from './mapColors';
 
-const light = {
-  ink: palette.charcoal as string, muted: palette.charcoal as string,
-  surface: palette.white as string, canvas: palette.white as string,
-  quiet: palette.silver as string, controlInk: palette.charcoal as string, line: palette.silver as string,
-  selected: palette.cyan as string, selectedEdge: palette.cyan as string,
-  primary: palette.blue as string, primaryEdge: palette.blue as string,
-  inverse: palette.white as string, warning: palette.blue as string, danger: '#a00020',
-  routeShortest: mapRouteColors.light.shortest as string, routeLowerRisk: mapRouteColors.light.lowerRisk as string,
-  fontBody: undefined as string | undefined, fontLight: undefined as string | undefined,
+const dark = {
+  ink: palette.mist as string, muted: palette.slate as string,
+  surface: palette.panel as string, canvas: palette.night as string,
+  quiet: palette.raise as string, controlInk: palette.mist as string, line: palette.rule as string,
+  selected: palette.mist as string, selectedEdge: palette.mist as string, onSelected: palette.ink as string,
+  primary: palette.amber as string, primaryEdge: palette.amber as string, onPrimary: palette.ink as string,
+  accent: palette.amber as string, warning: palette.amber as string, danger: '#ffb4ab',
+  hazard: hazardColors.dark as string,
+  routeShortest: mapRouteColors.dark.shortest as string, routeLowerRisk: mapRouteColors.dark.lowerRisk as string,
+  routeCasing: mapRouteColors.dark.casing as string,
+  /** Overpass SemiBold: controls' values, inputs, errors. */
+  fontBody: undefined as string | undefined,
+  /** Overpass Regular: captions and supporting text. */
+  fontLight: undefined as string | undefined,
+  /** Barlow Condensed ExtraBold: headings and route metrics, set in capitals. */
+  fontDisplay: undefined as string | undefined,
+  /** Barlow Condensed Bold: button labels, set in capitals. */
+  fontLabel: undefined as string | undefined,
+  /** Overpass Mono SemiBold: kickers, source labels and facts. */
+  fontMono: undefined as string | undefined,
   radius: 14, touch: 48,
 };
-export type Theme = typeof light;
-const dark: Theme = {
-  ...light, ink: palette.white, muted: palette.silver, surface: palette.nearBlack,
-  canvas: palette.nearBlack, quiet: palette.silver, line: 'transparent',
-  selectedEdge: palette.cyan, primaryEdge: palette.blue,
-  warning: palette.silver, danger: '#ffb4ab', routeShortest: mapRouteColors.dark.shortest,
-  routeLowerRisk: mapRouteColors.dark.lowerRisk,
+export type Theme = typeof dark;
+const light: Theme = {
+  ...dark, ink: palette.ink, muted: palette.graphite, surface: palette.card, canvas: palette.paper,
+  quiet: palette.white, controlInk: palette.ink, line: palette.hairline,
+  selected: palette.ink, selectedEdge: palette.ink, onSelected: palette.card,
+  primary: palette.amberDay, primaryEdge: palette.amberDay, onPrimary: palette.ink,
+  accent: palette.amberInk, warning: palette.amberInk, danger: '#a00020',
+  // Darker than the map's day hazard red so the small source label clears 4.5:1 on white.
+  hazard: '#C23A28',
+  routeShortest: mapRouteColors.light.shortest, routeLowerRisk: mapRouteColors.light.lowerRisk,
+  routeCasing: mapRouteColors.light.casing,
 };
 type Appearance = 'light' | 'dark';
 const AppearanceContext = createContext<{ scheme: Appearance; fontsReady: boolean; toggle(): void } | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [fontsReady] = useFonts({
-    'Satoshi-Italic': require('../../assets/fonts/Satoshi-Italic.otf'),
-    'Satoshi-LightItalic': require('../../assets/fonts/Satoshi-LightItalic.otf'),
+    'BarlowCondensed-ExtraBold': require('../../assets/fonts/BarlowCondensed-ExtraBold.ttf'),
+    'BarlowCondensed-Bold': require('../../assets/fonts/BarlowCondensed-Bold.ttf'),
+    'Overpass-Regular': require('../../assets/fonts/Overpass-Regular.ttf'),
+    'Overpass-SemiBold': require('../../assets/fonts/Overpass-SemiBold.ttf'),
+    'OverpassMono-SemiBold': require('../../assets/fonts/OverpassMono-SemiBold.ttf'),
   });
   const system = useColorScheme();
   const [override, setOverride] = useState<Appearance | null>(null);
@@ -45,10 +63,14 @@ export function useAppearance() {
   if (!appearance) throw new Error('ThemeProvider is required');
   return appearance;
 }
+/** Each face is selected by its own file; never synthesize weight or italics on top of these. */
 export function useTheme(): Theme {
   const { scheme, fontsReady } = useAppearance();
   return { ...(scheme === 'dark' ? dark : light),
-    fontBody: fontsReady ? 'Satoshi-Italic' : undefined,
-    fontLight: fontsReady ? 'Satoshi-LightItalic' : undefined,
+    fontBody: fontsReady ? 'Overpass-SemiBold' : undefined,
+    fontLight: fontsReady ? 'Overpass-Regular' : undefined,
+    fontDisplay: fontsReady ? 'BarlowCondensed-ExtraBold' : undefined,
+    fontLabel: fontsReady ? 'BarlowCondensed-Bold' : undefined,
+    fontMono: fontsReady ? 'OverpassMono-SemiBold' : undefined,
   };
 }

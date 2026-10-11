@@ -6,7 +6,7 @@ The `lane/a-ui` concept uses a full map canvas with a compact header, an expanda
 panel and Map / Trip / Report controls. “Where to?” opens destination-pin placement;
 select Set start or expand details for foreground location. Expanding reveals additional
 controls and evidence; changing tasks collapses the panel while preserving trip/draft state.
-Controls follow system light/dark appearance with silver and cyan-blue accents.
+Controls follow system light/dark appearance in the Bypass film palette: night-blue panels, amber actions and a mint lower-risk route ([decision 026](../docs/decisions/026-bypass-film-theme.md)).
 The shared icon and control system is described in the [mobile UI guide](docs/UI-GUIDE.md).
 
 Run `npm start --prefix mobile` for the labeled fixture preview, or set
@@ -50,7 +50,7 @@ ships in Expo Go. The page runs MapLibre GL JS 6.11.2, inlined from `node_module
 scripts run that step first. Nothing loads from a CDN at runtime.
 
 - **Basemap:** OpenFreeMap's OSM-derived Positron style is the default light map. The map button
-  switches to the bundled Fiord style on OpenFreeMap tiles, without resetting the viewport or overlays.
+  switches to the bundled Bypass Night style (generated from Fiord, `npm run map:night`) on OpenFreeMap tiles, without resetting the viewport or overlays.
   The choice resets to Positron on launch. Override the light and dark styles with
   `EXPO_PUBLIC_MAP_STYLE_URL` and `EXPO_PUBLIC_MAP_DARK_STYLE_URL` (public values, never secrets).
   MapLibre shows the required OpenFreeMap/OpenMapTiles/OpenStreetMap attribution; its links open in
@@ -197,8 +197,8 @@ foreground location: one-shot report/trip-start fixes and live trip position whi
 
 ### UI fonts
 
-Start/build automatically fetch and verify Satoshi Italic and Light Italic from Fontshare.
-A first build needs network access and Python 3; subsequent runs reuse verified local files.
+Barlow Condensed, Overpass and Overpass Mono are committed under `assets/fonts/` (SIL OFL 1.1);
+no download step or network access is needed.
 See [font setup](assets/fonts/README.md) and [dependency review](docs/FONT-DEPENDENCY-REVIEW.md).
 
 ## Required report location (issue #23)

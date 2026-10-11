@@ -1,5 +1,9 @@
 # UI concept screenshots
 
+**These captures predate [decision 026](../../../docs/decisions/026-bypass-film-theme.md).** They show the earlier
+silver/cyan palette, Satoshi type and Fiord map. The layout and controls are the same; colours, type and
+map styling are not. Replace them after the film theme has been reviewed on a simulator or device.
+
 Latest dark basemap: [Fiord with Satoshi UI](ui-fiord-dark.png), captured on iPhone 17.
 Earlier dark-map captures below show the superseded Dark Matter style.
 
