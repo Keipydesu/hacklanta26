@@ -174,6 +174,11 @@ Record missing inputs in the handoff with an owner; never fill them with fictiti
 
 ## CI, backups and optional automation
 
+Automatic main deployment uses `Deploy Vultr` after successful `Lane checks`, with dedicated SSH
+credentials, exact-SHA selection and non-cancelling serialization; see
+[decision 028](../decisions/028-automatic-vultr-deployment.md) and the
+[deployment runbook](../../infra/VULTR-DEMO.md#automatic-deployment-from-main).
+
 Keep stage-0 path-filtered jobs and generated-fixture/type drift checks; extend the existing workflows
 rather than creating a redundant full suite. C's integration job gets disposable PostGIS when its
 migrations land. D gets a separately configured observation DB. F gets a job only when its manifest
